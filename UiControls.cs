@@ -102,15 +102,21 @@ internal sealed class ThemedButton : Button
 
         var textColor = Enabled ? LabelColor : AppTheme.Blend(LabelColor, AppTheme.Canvas, 0.48);
         var flags = TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
-        var bounds = new Rectangle(14, 0, Width - (ShowChevron ? 48 : 28), Height);
+        var hasGlyph = Glyph != ButtonGlyph.None;
+        var bounds = new Rectangle(hasGlyph ? 40 : 14, 0, Width - (ShowChevron ? 54 : hasGlyph ? 48 : 28), Height);
         if (TextAlign == ContentAlignment.MiddleCenter)
         {
             flags |= TextFormatFlags.HorizontalCenter;
-            bounds = new Rectangle(8, 0, Width - 16, Height);
+            bounds = hasGlyph ? CenteredTextBounds(e.Graphics) : new Rectangle(8, 0, Width - 16, Height);
         }
         else
         {
             flags |= TextFormatFlags.Left;
+        }
+
+        if (hasGlyph)
+        {
+            DrawGlyph(e.Graphics, textColor, bounds);
         }
 
         TextRenderer.DrawText(e.Graphics, Text, Font, bounds, textColor, flags);
@@ -122,47 +128,52 @@ internal sealed class ThemedButton : Button
             e.Graphics.DrawLine(pen, centerX - 5, centerY - 2, centerX, centerY + 3);
             e.Graphics.DrawLine(pen, centerX, centerY + 3, centerX + 5, centerY - 2);
         }
-
-
-        if (Glyph != ButtonGlyph.None)
-        {
-            DrawGlyph(e.Graphics, textColor);
-        }
     }
 
-    private void DrawGlyph(Graphics graphics, Color color)
+    private Rectangle CenteredTextBounds(Graphics graphics)
     {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        var centerX = Width / 2F;
-        var centerY = Height / 2F;
-        using var pen = new Pen(color, 1.6F) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-        switch (Glyph)
-        {
-            case ButtonGlyph.Minimize:
-                graphics.DrawLine(pen, centerX - 6, centerY + 3, centerX + 6, centerY + 3);
-                break;
-            case ButtonGlyph.Close:
-                graphics.DrawLine(pen, centerX - 5, centerY - 5, centerX + 5, centerY + 5);
-                graphics.DrawLine(pen, centerX + 5, centerY - 5, centerX - 5, centerY + 5);
-                break;
-            case ButtonGlyph.Refresh:
-                graphics.DrawArc(pen, centerX - 7, centerY - 7, 14, 14, -55, 285);
-                using (var arrow = new SolidBrush(color))
-                {
-                    graphics.FillPolygon(arrow, [new PointF(centerX + 7, centerY - 6), new PointF(centerX + 7, centerY + 1), new PointF(centerX + 2, centerY - 2)]);
-                }
-
-                break;
-            case ButtonGlyph.Folder:
-                graphics.DrawRectangle(pen, centerX - 7, centerY - 3, 12, 9);
-                graphics.DrawLine(pen, centerX - 7, centerY - 3, centerX - 4, centerY - 7);
-                graphics.DrawLine(pen, centerX - 4, centerY - 7, centerX, centerY - 7);
-                graphics.DrawLine(pen, centerX + 1, centerY + 1, centerX + 8, centerY - 6);
-                graphics.DrawLine(pen, centerX + 4, centerY - 6, centerX + 8, centerY - 6);
-                graphics.DrawLine(pen, centerX + 8, centerY - 6, centerX + 8, centerY - 2);
-                break;
-        }
+        var textSize = TextRenderer.MeasureText(graphics, Text, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+        var groupLeft = Math.Max(8, (Width - textSize.Width - 28) / 2);
+        var textLeft = groupLeft + 28;
+        return new Rectangle(textLeft, 0, Math.Min(textSize.Width + 20, Width - textLeft - 8), Height);
     }
+
+    private void DrawGlyph(Graphics graphics, Color color, Rectangle textBounds)
+    {
+        var family = FontFamily.Families.Any(item => item.Name == "Segoe Fluent Icons") ? "Segoe Fluent Icons" : "Segoe MDL2 Assets";
+        using var iconFont = new Font(family, Height >= 52 ? 16F : 12F, FontStyle.Regular, GraphicsUnit.Point);
+        var bounds = string.IsNullOrWhiteSpace(Text)
+            ? ClientRectangle
+            : new Rectangle(Math.Max(8, textBounds.Left - 27), 0, 24, Height);
+        TextRenderer.DrawText(graphics, IconCatalog.Value(Glyph), iconFont, bounds, color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+    }
+}
+
+internal static class IconCatalog
+{
+    internal static string Value(ButtonGlyph glyph) => glyph switch
+    {
+        ButtonGlyph.Minimize => "\uE921",
+        ButtonGlyph.Close => "\uE8BB",
+        ButtonGlyph.Refresh => "\uE72C",
+        ButtonGlyph.Folder => "\uE838",
+        ButtonGlyph.Record => "\uE7C8",
+        ButtonGlyph.Play => "\uE768",
+        ButtonGlyph.Stop => "\uE71A",
+        ButtonGlyph.Edit => "\uE70F",
+        ButtonGlyph.Save => "\uE74E",
+        ButtonGlyph.Delete => "\uE74D",
+        ButtonGlyph.Duplicate => "\uE8C8",
+        ButtonGlyph.Target => "\uF272",
+        ButtonGlyph.Tune => "\uE9E9",
+        ButtonGlyph.Arm => "\uE72E",
+        ButtonGlyph.Finish => "\uE73E",
+        ButtonGlyph.Settings => "\uE713",
+        ButtonGlyph.Guide => "\uE82D",
+        ButtonGlyph.Library => "\uE8F1",
+        ButtonGlyph.Add => "\uE710",
+        _ => string.Empty,
+    };
 }
 
 internal enum ButtonGlyph
@@ -172,6 +183,21 @@ internal enum ButtonGlyph
     Close,
     Refresh,
     Folder,
+    Record,
+    Play,
+    Stop,
+    Edit,
+    Save,
+    Delete,
+    Duplicate,
+    Target,
+    Tune,
+    Arm,
+    Finish,
+    Settings,
+    Guide,
+    Library,
+    Add,
 }
 
 internal sealed class StepperControl : Control
@@ -212,10 +238,12 @@ internal sealed class StepperControl : Control
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
     }
 
+    private int ZoneWidth => Math.Clamp(Width / 4, 24, 34);
+
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.Clear(BackColor);
-        var zoneWidth = 34;
+        var zoneWidth = ZoneWidth;
         DrawZone(e.Graphics, new Rectangle(Width - zoneWidth * 2, 0, zoneWidth, Height), hoverZone == 1, "−");
         DrawZone(e.Graphics, new Rectangle(Width - zoneWidth, 0, zoneWidth, Height), hoverZone == 2, "+");
         using var border = new Pen(Focused ? AppTheme.Accent : AppTheme.Border);
@@ -240,7 +268,8 @@ internal sealed class StepperControl : Control
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        var next = e.X >= Width - 34 ? 2 : e.X >= Width - 68 ? 1 : 0;
+        var zoneWidth = ZoneWidth;
+        var next = e.X >= Width - zoneWidth ? 2 : e.X >= Width - zoneWidth * 2 ? 1 : 0;
         if (next != hoverZone)
         {
             hoverZone = next;
@@ -262,11 +291,12 @@ internal sealed class StepperControl : Control
         Focus();
         if (e.Button == MouseButtons.Left)
         {
-            if (e.X >= Width - 34)
+            var zoneWidth = ZoneWidth;
+            if (e.X >= Width - zoneWidth)
             {
                 Value += Step;
             }
-            else if (e.X >= Width - 68)
+            else if (e.X >= Width - zoneWidth * 2)
             {
                 Value -= Step;
             }
@@ -443,7 +473,7 @@ internal sealed class PatternListControl : Control
         e.Graphics.SetClip(new Rectangle(0, 0, Width - 10, Height));
         if (items.Count == 0)
         {
-            TextRenderer.DrawText(e.Graphics, "NO PATTERNS YET\nRecord a workflow or add a preset.", new Font("Segoe UI", 9F), ClientRectangle, AppTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+            TextRenderer.DrawText(e.Graphics, "NO PATTERNS YET\nRecord a workflow to begin.", new Font("Segoe UI", 9F), ClientRectangle, AppTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
         }
 
         for (var index = 0; index < items.Count; index++)
@@ -576,71 +606,5 @@ internal sealed class PatternListControl : Control
         {
             scrollOffset = top + ItemHeight - Height;
         }
-    }
-}
-
-internal sealed class PresetOptionControl : Control
-{
-    private bool hovered;
-
-    internal WorkflowPreset Preset { get; }
-    internal bool Selected { get; set; }
-    internal event EventHandler? SelectedPreset;
-
-    internal PresetOptionControl(WorkflowPreset preset)
-    {
-        Preset = preset;
-        Cursor = Cursors.Hand;
-        TabStop = true;
-        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        using var fill = new SolidBrush(hovered || Selected ? AppTheme.AccentDark : AppTheme.Raised);
-        e.Graphics.FillRectangle(fill, ClientRectangle);
-        if (Selected)
-        {
-            using var marker = new SolidBrush(AppTheme.Accent);
-            e.Graphics.FillRectangle(marker, 0, 0, 3, Height);
-        }
-
-        TextRenderer.DrawText(e.Graphics, Preset.Name, new Font("Segoe UI Semibold", 9F), new Rectangle(12, 5, Width - 46, 19), Selected ? AppTheme.Accent : AppTheme.Text, TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
-        TextRenderer.DrawText(e.Graphics, Preset.Description, new Font("Segoe UI", 7.8F), new Rectangle(12, 25, Width - 24, 34), AppTheme.Muted, TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
-        if (Selected)
-        {
-            TextRenderer.DrawText(e.Graphics, "✓", new Font("Segoe UI Semibold", 9F), new Rectangle(Width - 32, 7, 20, 20), AppTheme.Accent, TextFormatFlags.HorizontalCenter);
-        }
-    }
-
-    protected override void OnMouseEnter(EventArgs e)
-    {
-        hovered = true;
-        Invalidate();
-        base.OnMouseEnter(e);
-    }
-
-    protected override void OnMouseLeave(EventArgs e)
-    {
-        hovered = false;
-        Invalidate();
-        base.OnMouseLeave(e);
-    }
-
-    protected override void OnClick(EventArgs e)
-    {
-        SelectedPreset?.Invoke(this, EventArgs.Empty);
-        base.OnClick(e);
-    }
-
-    protected override void OnKeyDown(KeyEventArgs e)
-    {
-        if (e.KeyCode is Keys.Enter or Keys.Space)
-        {
-            SelectedPreset?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        }
-
-        base.OnKeyDown(e);
     }
 }

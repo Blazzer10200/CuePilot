@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.0
+
+- Rebuilt the interface around responsive DPI-aware layouts and consistent Fluent-style icons.
+- Removed built-in tap presets and the preset drawer.
+- Added a precision event editor with timing analysis, normalization, undo/redo, duplication, deletion, and enable/disable controls.
+- Added version 2 pattern migration, atomic saving, `.bak` protection, and per-pattern execution settings.
+- Added target-window capture and foreground safety checks.
+- Added a reusable triggered routine with physical left-click handoff, drift-free tapping, `E` collection, cooldown, and re-arming.
+- Added physical rhythm calibration and optional local visual-cue change detection.
+- Added a formal xUnit test project, richer self-test coverage, portable ZIP packaging, and SHA-256 release checksums.
+
 All notable changes are documented here.
 
 ## 2.1.0

@@ -56,10 +56,11 @@ internal sealed class HotkeyBinding
 
 internal sealed class AppSettings
 {
-    public int FormatVersion { get; set; } = 1;
+    public int FormatVersion { get; set; } = 2;
     public HotkeyBinding Record { get; set; } = DefaultRecord();
     public HotkeyBinding Playback { get; set; } = DefaultPlayback();
     public HotkeyBinding EmergencyStop { get; set; } = DefaultEmergencyStop();
+    public TriggeredRoutineSettings Routine { get; set; } = new();
 
     internal static AppSettings Defaults() => new();
 
@@ -69,6 +70,7 @@ internal sealed class AppSettings
         Record = Record.Copy(),
         Playback = Playback.Copy(),
         EmergencyStop = EmergencyStop.Copy(),
+        Routine = Routine.Copy(),
     };
 
     internal bool HasDuplicates() =>
@@ -103,7 +105,17 @@ internal static class SettingsStore
         try
         {
             var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath), Options);
-            return settings is { FormatVersion: 1 } && IsValid(settings) ? settings : AppSettings.Defaults();
+            if (settings is null || settings.FormatVersion is not (1 or 2) || !IsValid(settings))
+            {
+                return AppSettings.Defaults();
+            }
+
+            settings.FormatVersion = 2;
+            settings.Routine ??= new TriggeredRoutineSettings();
+            settings.Routine.TargetWindow ??= new WindowTargetSettings();
+            settings.Routine.VisualCue ??= new VisualCueSettings();
+            settings.Routine.Clamp();
+            return settings;
         }
         catch (JsonException)
         {
@@ -113,6 +125,8 @@ internal static class SettingsStore
 
     internal static void Save(AppSettings settings)
     {
+        settings.FormatVersion = 2;
+        settings.Routine.Clamp();
         var directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         var temporaryPath = SettingsPath + ".tmp";

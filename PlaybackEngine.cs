@@ -29,6 +29,11 @@ internal sealed class PlaybackEngine
             throw new InvalidOperationException("The workflow has no events to play.");
         }
 
+        if (!WindowTargetService.IsForegroundMatch(pattern.TargetWindow, out var targetDetail))
+        {
+            throw new InvalidOperationException($"Playback blocked: {targetDetail}");
+        }
+
         IsPlaying = true;
         return Task.Run(() =>
         {
@@ -98,6 +103,16 @@ internal sealed class PlaybackEngine
         var stopwatch = Stopwatch.StartNew();
         foreach (var item in pattern.Events)
         {
+            if (!item.Enabled)
+            {
+                continue;
+            }
+
+            if (!WindowTargetService.IsForegroundMatch(pattern.TargetWindow, out var targetDetail))
+            {
+                throw new InvalidOperationException($"Playback stopped: {targetDetail}");
+            }
+
             if (!trackCursor && item.Type == MacroEventType.MouseMove)
             {
                 continue;

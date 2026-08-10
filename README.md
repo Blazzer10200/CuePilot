@@ -1,82 +1,88 @@
 # Workflow Looper
 
-[![Build](https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml/badge.svg)](https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml)
-[![Latest release](https://img.shields.io/github/v/release/Blazzer10200/WorkflowLooper)](https://github.com/Blazzer10200/WorkflowLooper/releases/latest)
-
-Workflow Looper is a focused Windows macro recorder for repeatable keyboard and mouse workflows. Record once, save the result as a local pattern, then replay it with adjustable loop count and speed.
+Workflow Looper is a local-first Windows recorder, precision macro editor, and triggered routine runner. It records physical keyboard and mouse input, replays it with high-resolution timing, and keeps every pattern on your PC.
 
 ![Workflow Looper Studio](docs/workflow-looper.png)
 
-## Highlights
+## What changed in 3.0
 
-- Records global keyboard input, mouse buttons, wheel events, and optional cursor movement.
-- Replays the exact recorded timing with a Windows high-resolution waitable timer.
-- Keeps cursor tracking off by default for accurate click/key-only workflows.
-- Stores reusable patterns in a searchable local library.
-- Includes clear-current, confirmed delete, Save As, and four built-in click presets.
-- Provides configurable global record, playback, and emergency-stop hotkeys.
-- Uses a fully themed animated Studio/Guide/Settings interface with reduced-motion support.
-- Replaces native title-bar, spinner, dropdown, toggle, and library scrollbar visuals with consistent custom controls.
-- Runs locally with no account, telemetry, screen capture, or network dependency.
+- Resizable, Per-Monitor-V2 interface with a unified Fluent-style icon system.
+- Built-in presets removed. Recordings and calibrated profiles replace canned rhythms.
+- Precision Editor for event delays, enable/disable, duplication, deletion, undo/redo, and click normalization.
+- Version 2 pattern format with automatic v1 migration, atomic writes, and `.bak` protection.
+- Per-pattern loop count, playback speed, cursor behavior, and target-window lock.
+- Triggered Routine for variable-start minigames and other handoff workflows.
+- Physical-click rhythm calibration.
+- Optional local visual-end detection using a 20×12 grayscale fingerprint—not a screenshot.
+- Formal automated tests plus the executable self-test.
 
-## Quick start
+## Triggered Routine
 
-1. Download `Workflow Looper.exe` from the latest release and open it.
-2. Name the pattern and select **Record**, or press `Ctrl + Shift + F6`.
-3. Perform the workflow once. Press `Ctrl + Shift + F6` again to finish.
-4. Keep **Track cursor position** off unless the workflow needs pointer movement.
-5. Test one loop at 100% speed, then adjust the loop count or playback speed.
+The routine is designed for workflows whose active phase can appear early or late:
 
-Global controls:
+1. Select **Capture Target**. Workflow Looper minimizes and captures the foreground application.
+2. Optionally select **Learn My Rhythm** and click naturally for 12 seconds.
+3. Set tap interval, button hold, maximum duration, collect delay, and cooldown.
+4. Optional: select **Capture Cue**, return to the target, place the cursor over the visible minigame, then press `Ctrl + Shift + F8`.
+5. Select **Arm Routine**.
+6. When the minigame appears, hold and release physical left-click. Precision tapping begins immediately.
+7. Tapping stops when the visual cue changes, you click physically again, or the safety duration expires.
+8. The routine releases the mouse, presses `E`, waits for the cooldown, and re-arms.
 
-- `Ctrl + Shift + F6` — start or stop recording.
-- `Ctrl + Shift + F7` — start or stop playback.
-- `Pause/Break` — emergency stop and release held inputs.
+The supplied fishing recording showed the circular `Increase Tension / LMB` control as the active cue and a green check with `FISHING.CAUGHT` as the completion cue. The default 86% change threshold was selected from those frames, but it remains editable for different displays and minigames.
 
-Open **Settings** to capture different shortcuts. Workflow Looper rejects duplicates, checks Windows registration conflicts before applying changes, and stores the result locally in `%LOCALAPPDATA%\WorkflowLooper\settings.json`.
+![Triggered Routine](docs/routine.png)
 
-Patterns are JSON files stored under `%LOCALAPPDATA%\WorkflowLooper\Patterns`.
+## Precision Editor
 
-## Built-in presets
+The editor keeps raw input transparent while making timing practical:
 
-- Rapid Tap — 25 ms click every 150 ms.
-- Steady Tap — 40 ms click every 500 ms.
-- Balanced Hold — 520 ms hold every 1.3 seconds.
-- Slow Hold — 700 ms hold every 2 seconds.
+- Edit delay before every event.
+- Disable noisy events without deleting them.
+- Duplicate or delete a selected event.
+- Undo and redo up to 50 editing operations.
+- Analyze median interval, hold duration, and timing range.
+- Normalize all complete left-click pairs to an exact interval and hold.
 
-Presets are starting points. Add one to the library, test it safely, and tune playback speed if the target workflow needs a different cadence.
+![Precision Editor](docs/editor.png)
 
-## Interface
+## Safety
 
-### Shortcut settings
+- `Pause / Break` is the default emergency stop.
+- Playback releases held buttons and keys during cancellation or failure.
+- A target lock stops automation when focus leaves the selected process.
+- Simulated input is rejected across some Windows privilege boundaries. Run Workflow Looper and the target at the same integrity level.
+- Some games or protected applications block simulated input. Workflow Looper does not include anti-cheat bypass, stealth, or detection-evasion behavior.
+- Visual cue capture is opt-in and stores only 240 grayscale samples in local settings.
 
-![Workflow Looper shortcut settings](docs/settings.png)
+## Storage
 
-### Preset chooser
-
-![Workflow Looper preset chooser](docs/presets.png)
-
-## Build
-
-Requirements: Windows 10/11 and the .NET 8 SDK.
-
-```powershell
-dotnet restore
-dotnet build -c Release
-dotnet run -c Release -- --self-test
-dotnet publish -c Release -r win-x64 --self-contained true -o release
+```text
+%LOCALAPPDATA%\WorkflowLooper\Patterns\
+%LOCALAPPDATA%\WorkflowLooper\settings.json
 ```
 
-The publish output is a self-contained x64 executable, so end users do not need to install .NET separately.
+Patterns use readable `.workflow.json` files. Saving an existing pattern writes atomically and preserves the prior copy beside it as `.bak`.
 
-## Safety and scope
+## Download
 
-Workflow Looper injects input into the active Windows session. Test new patterns in a safe window first, keep `Pause/Break` available, and do not record passwords or other secrets. Some games and services prohibit automation; users are responsible for following the rules of the software they control.
+Download the portable Windows x64 ZIP or executable from [GitHub Releases](https://github.com/Blazzer10200/WorkflowLooper/releases). Compare the download against the published SHA-256 checksum before running it.
 
-## Contributing
+Requirements:
 
-Bug reports and focused pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+- Windows 10 version 1803 or newer; Windows 11 recommended.
+- x64 processor.
+- No separate .NET installation for the self-contained release.
+
+## Build and verify
+
+```powershell
+dotnet build -c Release
+dotnet test .\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
+& ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test
+dotnet publish -c Release -o publish-v3
+```
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE)

@@ -13,9 +13,9 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         var previewIndex = Array.FindIndex(args, item => item.Equals("--render-preview", StringComparison.OrdinalIgnoreCase));
         var guidePreviewIndex = Array.FindIndex(args, item => item.Equals("--render-guide", StringComparison.OrdinalIgnoreCase));
+        var editorPreviewIndex = Array.FindIndex(args, item => item.Equals("--render-editor", StringComparison.OrdinalIgnoreCase));
         var settingsPreviewIndex = Array.FindIndex(args, item => item.Equals("--render-settings", StringComparison.OrdinalIgnoreCase));
-        var presetPreviewIndex = Array.FindIndex(args, item => item.Equals("--render-preset", StringComparison.OrdinalIgnoreCase));
-        var requestedPreviewIndex = new[] { previewIndex, guidePreviewIndex, settingsPreviewIndex, presetPreviewIndex }.FirstOrDefault(index => index >= 0, -1);
+        var requestedPreviewIndex = new[] { previewIndex, guidePreviewIndex, editorPreviewIndex, settingsPreviewIndex }.FirstOrDefault(index => index >= 0, -1);
         if (requestedPreviewIndex >= 0 && requestedPreviewIndex + 1 < args.Length)
         {
             using var form = new MainForm(false)
@@ -24,6 +24,10 @@ internal static class Program
                 Location = new Point(-10_000, -10_000),
                 ShowInTaskbar = false,
             };
+            if (args.Contains("--compact", StringComparer.OrdinalIgnoreCase))
+            {
+                form.ClientSize = new Size(1060, 720);
+            }
             form.Show();
             Application.DoEvents();
             if (guidePreviewIndex >= 0)
@@ -36,9 +40,9 @@ internal static class Program
                 form.ShowSettingsForPreview();
                 Application.DoEvents();
             }
-            else if (presetPreviewIndex >= 0)
+            else if (editorPreviewIndex >= 0)
             {
-                form.ShowPresetForPreview();
+                form.ShowEditorForPreview();
                 Application.DoEvents();
             }
             using var bitmap = new Bitmap(form.Width, form.Height);

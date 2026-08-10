@@ -43,16 +43,23 @@ internal static class SelfTest
                 throw new InvalidOperationException($"Unexpected x64 INPUT size: {NativeMethods.InputSize}.");
             }
 
-            foreach (var preset in PresetFactory.BuiltIn)
+            var rhythm = new WorkflowPattern
             {
-                var presetPattern = PresetFactory.Create(preset);
-                if (presetPattern.Events.Count != 2
-                    || presetPattern.Events[0].Type != MacroEventType.MouseDown
-                    || presetPattern.Events[1].Type != MacroEventType.MouseUp
-                    || presetPattern.Events[1].OffsetMicroseconds >= presetPattern.DurationMicroseconds)
-                {
-                    throw new InvalidOperationException($"Preset '{preset.Name}' produced an invalid click cycle.");
-                }
+                Name = "Rhythm",
+                DurationMicroseconds = 600_000,
+                Events =
+                [
+                    new MacroEvent { OffsetMicroseconds = 10_000, Type = MacroEventType.MouseDown, Data = 1 },
+                    new MacroEvent { OffsetMicroseconds = 70_000, Type = MacroEventType.MouseUp, Data = 1 },
+                    new MacroEvent { OffsetMicroseconds = 330_000, Type = MacroEventType.MouseDown, Data = 1 },
+                    new MacroEvent { OffsetMicroseconds = 410_000, Type = MacroEventType.MouseUp, Data = 1 },
+                ],
+            };
+            var normalized = PatternTiming.NormalizeLeftClicks(rhythm, 150, 25);
+            var analysis = PatternTiming.AnalyzeLeftClicks(rhythm);
+            if (normalized != 2 || analysis.MedianIntervalMilliseconds != 150 || analysis.MedianHoldMilliseconds != 25)
+            {
+                throw new InvalidOperationException("Click normalization changed the requested rhythm.");
             }
 
             var defaults = AppSettings.Defaults();
@@ -127,7 +134,15 @@ internal static class SelfTest
                 }
             }
 
-            Console.WriteLine($"SELF_TEST_OK serialization=3-events scaling=center input-size=40 presets={PresetFactory.BuiltIn.Count} hotkeys=validated custom-controls=validated hooks=installed precision-timer=ok");
+            using (var form = new MainForm(false))
+            {
+                if (form.ShortcutPreviewForTest != "RECORD / STOP  ·  CTRL + SHIFT + F6|PLAY / STOP  ·  CTRL + SHIFT + F7|EMERGENCY STOP  ·  PAUSE / BREAK")
+                {
+                    throw new InvalidOperationException($"Shortcut labels were not populated: {form.ShortcutPreviewForTest}");
+                }
+            }
+
+            Console.WriteLine("SELF_TEST_OK serialization=v2 scaling=center input-size=40 rhythm=normalized hotkeys=validated ui-labels=populated custom-controls=validated hooks=installed precision-timer=ok");
             return 0;
         }
         catch (Exception exception)

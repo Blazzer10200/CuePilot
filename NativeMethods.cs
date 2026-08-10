@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace WorkflowLooper;
 
@@ -64,6 +65,15 @@ internal static class NativeMethods
     {
         internal int X;
         internal int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct Rect
+    {
+        internal int Left;
+        internal int Top;
+        internal int Right;
+        internal int Bottom;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -145,6 +155,19 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint count, ref Input input, int size);
 
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetWindowText(IntPtr window, StringBuilder text, int maximumCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(IntPtr window, out Rect rectangle);
+
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern IntPtr CreateWaitableTimerEx(IntPtr attributes, string? timerName, uint flags, uint desiredAccess);
 
@@ -165,6 +188,9 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    internal static extern int SetWindowTheme(IntPtr window, string? subApplicationName, string? subIdentifierList);
 
     internal static int InputSize => Marshal.SizeOf<Input>();
 

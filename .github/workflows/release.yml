@@ -19,6 +19,9 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Test
+        run: dotnet test .\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
+
       - name: Publish Windows executable
         run: dotnet publish -c Release -o release
 
@@ -26,8 +29,15 @@ jobs:
         shell: pwsh
         run: '& ".\release\Workflow Looper.exe" --self-test'
 
+      - name: Package and checksum
+        shell: pwsh
+        run: |
+          Compress-Archive -LiteralPath "release\Workflow Looper.exe" -DestinationPath "release\Workflow-Looper-win-x64.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath "release\Workflow Looper.exe").Hash.ToLowerInvariant()
+          "$hash  Workflow Looper.exe" | Set-Content -Encoding ascii "release\Workflow-Looper-win-x64.sha256"
+
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$env:GITHUB_REF_NAME" "release\Workflow Looper.exe#Workflow Looper.exe" --verify-tag --generate-notes --title "Workflow Looper $env:GITHUB_REF_NAME"
+        run: gh release create "$env:GITHUB_REF_NAME" "release\Workflow Looper.exe#Workflow Looper.exe" "release\Workflow-Looper-win-x64.zip" "release\Workflow-Looper-win-x64.sha256" --verify-tag --generate-notes --title "Workflow Looper $env:GITHUB_REF_NAME"
