@@ -1,0 +1,9 @@
+bin/
+obj/
+publish*/
+release/
+.vs/
+*.user
+*.suo
+*.workflow.json
+*.zip

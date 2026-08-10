@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Self-test
+        shell: pwsh
+        run: '& ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test'
+
+      - name: Publish Windows executable
+        run: dotnet publish -c Release --no-build -o release
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-looper-win-x64
+          path: release/Workflow Looper.exe
+          if-no-files-found: error

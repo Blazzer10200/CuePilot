@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish Windows executable
+        run: dotnet publish -c Release -o release
+
+      - name: Self-test release
+        shell: pwsh
+        run: '& ".\release\Workflow Looper.exe" --self-test'
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$env:GITHUB_REF_NAME" "release\Workflow Looper.exe#Workflow Looper.exe" --verify-tag --generate-notes --title "Workflow Looper $env:GITHUB_REF_NAME"
