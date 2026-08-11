@@ -1,11 +1,25 @@
-# Workflow Looper
+<p align="center">
+  <img src="assets/branding/workflow-looper-icon.png" width="128" alt="Workflow Looper icon">
+</p>
 
-Workflow Looper is a local-first Windows recorder, precision macro editor, and triggered routine runner. It records physical keyboard and mouse input, replays it with high-resolution timing, and keeps every pattern on your PC.
+<h1 align="center">Workflow Looper</h1>
+
+<p align="center">Local-first recording, precision playback, and adaptive triggered routines for Windows.</p>
+
+<p align="center">
+  <a href="https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml"><img src="https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
+  <a href="https://github.com/Blazzer10200/WorkflowLooper/releases/latest"><img src="https://img.shields.io/github/v/release/Blazzer10200/WorkflowLooper" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-62e8b3" alt="MIT license"></a>
+</p>
+
+Workflow Looper records physical keyboard and mouse input, replays it with high-resolution timing, and keeps every pattern on your PC.
 
 ![Workflow Looper Studio](docs/workflow-looper.png)
 
-## What changed in 3.0
+## What changed in 3.1
 
+- Custom application icon and matching in-app identity.
+- Complete minimize, maximize, restore, resize, and title-bar interaction support.
 - Resizable, Per-Monitor-V2 interface with a unified Fluent-style icon system.
 - Built-in presets removed. Recordings and calibrated profiles replace canned rhythms.
 - Precision Editor for event delays, enable/disable, duplication, deletion, undo/redo, and click normalization.
@@ -77,11 +91,23 @@ Requirements:
 ## Build and verify
 
 ```powershell
-dotnet build -c Release
-dotnet test .\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
+dotnet build .\WorkflowLooper.sln -c Release
+dotnet test .\tests\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
 & ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test
-dotnet publish -c Release -o publish-v3
+dotnet publish .\WorkflowLooper.csproj -c Release -o publish
 ```
+
+## Project structure
+
+- `src/Application` — startup, settings, and the main window.
+- `src/Automation` — recording, playback, timing, input, and adaptive routines.
+- `src/Domain` — workflow and routine data models.
+- `src/Platform` — Windows integration, target matching, and visual cues.
+- `src/Presentation` — theme, controls, icons, and interaction surfaces.
+- `src/Diagnostics` — deterministic executable self-tests.
+- `tests/WorkflowLooper.Tests` — xUnit timing and persistence coverage.
+- `assets/branding` — source artwork, transparent PNG, and multi-size Windows icon.
+- `docs` — current UI screenshots.
 
 ## License
 

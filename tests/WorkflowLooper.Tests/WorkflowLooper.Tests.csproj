@@ -17,6 +17,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\WorkflowLooper.csproj" />
+    <ProjectReference Include="..\..\WorkflowLooper.csproj" />
   </ItemGroup>
 </Project>

@@ -38,6 +38,7 @@ internal sealed class MainForm : Form
 
     private readonly TableLayoutPanel root = new();
     private readonly Panel titleBar = new();
+    private readonly ThemedButton maximizeButton = new();
     private readonly Panel sidebar = new();
     private readonly Panel pageHost = new();
     private readonly PatternListControl patternList = new();
@@ -111,6 +112,14 @@ internal sealed class MainForm : Form
     {
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = "Workflow Looper";
+        using (var executableIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath))
+        {
+            if (executableIcon is not null)
+            {
+                Icon = (Icon)executableIcon.Clone();
+            }
+        }
+
         FormBorderStyle = FormBorderStyle.None;
         ClientSize = new Size(1180, 780);
         MinimumSize = new Size(1060, 720);
@@ -156,9 +165,9 @@ internal sealed class MainForm : Form
         titleBar.Padding = new Padding(14, 0, 0, 0);
         root.Controls.Add(titleBar, 0, 0);
 
-        var mark = new Panel { BackColor = AppTheme.Accent, Location = new Point(15, 14), Size = new Size(10, 10) };
-        var caption = MakeLabel("WORKFLOW LOOPER  ·  3.0", AppTheme.Muted, 8.5F, true);
-        caption.Location = new Point(36, 8);
+        var mark = new BrandMarkControl { Location = new Point(9, 5), Size = new Size(30, 30) };
+        var caption = MakeLabel("WORKFLOW LOOPER  ·  3.1", AppTheme.Muted, 8.5F, true);
+        caption.Location = new Point(47, 8);
         caption.Size = new Size(260, 24);
         titleBar.Controls.Add(mark);
         titleBar.Controls.Add(caption);
@@ -184,6 +193,11 @@ internal sealed class MainForm : Form
         minimize.Width = 46;
         minimize.AccessibleName = "Minimize";
         minimize.Click += (_, _) => WindowState = FormWindowState.Minimized;
+        ConfigureButton(maximizeButton, string.Empty, ButtonTone.Icon, ButtonGlyph.Maximize);
+        maximizeButton.Dock = DockStyle.Right;
+        maximizeButton.Width = 46;
+        maximizeButton.AccessibleName = "Maximize";
+        maximizeButton.Click += (_, _) => ToggleMaximize();
         var close = MakeButton(string.Empty, ButtonTone.Icon, ButtonGlyph.Close);
         close.Dock = DockStyle.Right;
         close.Width = 46;
@@ -191,9 +205,11 @@ internal sealed class MainForm : Form
         close.HoverColor = AppTheme.Coral;
         close.Click += (_, _) => Close();
         titleBar.Controls.Add(minimize);
+        titleBar.Controls.Add(maximizeButton);
         titleBar.Controls.Add(close);
         AttachWindowDrag(titleBar);
         AttachWindowDrag(caption);
+        AttachWindowDrag(mark);
     }
 
     private void BuildWorkspace()
@@ -231,12 +247,15 @@ internal sealed class MainForm : Form
         sidebar.Controls.Add(layout);
 
         var brand = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface };
-        var brandTitle = MakeLabel("WORKFLOW LOOPER", AppTheme.Text, 14F, true);
-        brandTitle.Location = new Point(2, 8);
-        brandTitle.Size = new Size(235, 30);
-        var brandLine = MakeLabel("LOCAL AUTOMATION STUDIO", AppTheme.Accent, 7.5F, true);
-        brandLine.Location = new Point(3, 43);
+        var brandMark = new BrandMarkControl { Location = new Point(1, 8), Size = new Size(44, 44) };
+        var brandTitle = MakeLabel("WORKFLOW LOOPER", AppTheme.Text, 10.5F, true);
+        brandTitle.AutoSize = false;
+        brandTitle.Location = new Point(55, 8);
+        brandTitle.Size = new Size(190, 28);
+        var brandLine = MakeLabel("PRECISION AUTOMATION", AppTheme.Accent, 7.2F, true);
+        brandLine.Location = new Point(56, 39);
         brandLine.AutoSize = true;
+        brand.Controls.Add(brandMark);
         brand.Controls.Add(brandTitle);
         brand.Controls.Add(brandLine);
         layout.Controls.Add(brand, 0, 0);
@@ -639,6 +658,7 @@ internal sealed class MainForm : Form
         speedStepper.ValueChanged += (_, _) => ApplyPatternExecutionSettings();
         trackCursorToggle.CheckedChanged += (_, _) => ApplyPatternExecutionSettings();
         routine.StatusChanged += (_, status) => SafeUi(() => UpdateRoutineStatus(status));
+        Resize += (_, _) => UpdateWindowChrome();
         FormClosed += (_, _) => DisposeRuntime();
     }
 
@@ -1803,14 +1823,16 @@ internal sealed class MainForm : Form
         var page = new Panel { BackColor = AppTheme.Canvas, Padding = new Padding(0), AutoScroll = true };
         var header = new Panel { Dock = DockStyle.Top, Height = 94, BackColor = AppTheme.Canvas };
         var kickerLabel = MakeLabel(kicker, AppTheme.Accent, 8F, true);
-        kickerLabel.Location = new Point(2, 0);
+        var rail = new Panel { BackColor = AppTheme.Accent, Location = new Point(0, 2), Size = new Size(3, 76) };
+        kickerLabel.Location = new Point(14, 0);
         kickerLabel.AutoSize = true;
         var titleLabel = MakeLabel(title, AppTheme.Text, 21F, true);
-        titleLabel.Location = new Point(0, 20);
+        titleLabel.Location = new Point(12, 20);
         titleLabel.AutoSize = true;
         var subtitleLabel = MakeLabel(subtitle, AppTheme.Muted, 9F);
-        subtitleLabel.Location = new Point(2, 58);
+        subtitleLabel.Location = new Point(14, 58);
         subtitleLabel.Size = new Size(820, 30);
+        header.Controls.Add(rail);
         header.Controls.Add(kickerLabel);
         header.Controls.Add(titleLabel);
         header.Controls.Add(subtitleLabel);
@@ -2023,6 +2045,21 @@ internal sealed class MainForm : Form
                 Location = new Point(Left + e.X - offset.X, Top + e.Y - offset.Y);
             }
         };
+        control.DoubleClick += (_, _) => ToggleMaximize();
+    }
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+        UpdateWindowChrome();
+    }
+
+    private void UpdateWindowChrome()
+    {
+        var maximized = WindowState == FormWindowState.Maximized;
+        maximizeButton.Glyph = maximized ? ButtonGlyph.Restore : ButtonGlyph.Maximize;
+        maximizeButton.AccessibleName = maximized ? "Restore" : "Maximize";
+        maximizeButton.Invalidate();
     }
 
     private void DisposeRuntime()

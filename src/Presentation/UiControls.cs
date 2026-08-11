@@ -35,6 +35,65 @@ internal sealed class SmoothPanel : Panel
     }
 }
 
+internal sealed class BrandMarkControl : Control
+{
+    internal BrandMarkControl()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+        BackColor = Color.Transparent;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var inset = Math.Max(2F, Math.Min(Width, Height) * 0.08F);
+        var bounds = new RectangleF(inset, inset, Width - inset * 2F, Height - inset * 2F);
+        var radius = Math.Max(4F, Math.Min(bounds.Width, bounds.Height) * 0.24F);
+        using var badge = RoundedRectangle(bounds, radius);
+        using var fill = new SolidBrush(AppTheme.Raised);
+        using var edge = new Pen(AppTheme.Border, Math.Max(1F, Width / 38F));
+        e.Graphics.FillPath(fill, badge);
+        e.Graphics.DrawPath(edge, badge);
+
+        var orbit = RectangleF.Inflate(bounds, -bounds.Width * 0.20F, -bounds.Height * 0.20F);
+        using var signal = new Pen(AppTheme.Accent, Math.Max(1.8F, Width / 9F))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+        };
+        e.Graphics.DrawArc(signal, orbit, 38, 292);
+        var arrow = new[]
+        {
+            new PointF(bounds.Right - bounds.Width * 0.19F, bounds.Top + bounds.Height * 0.25F),
+            new PointF(bounds.Right - bounds.Width * 0.12F, bounds.Top + bounds.Height * 0.43F),
+            new PointF(bounds.Right - bounds.Width * 0.31F, bounds.Top + bounds.Height * 0.37F),
+        };
+        using var accent = new SolidBrush(AppTheme.Accent);
+        e.Graphics.FillPolygon(accent, arrow);
+
+        var center = new PointF(bounds.Left + bounds.Width * 0.49F, bounds.Top + bounds.Height * 0.51F);
+        var clickRadius = Math.Max(1.8F, bounds.Width * 0.09F);
+        e.Graphics.DrawEllipse(signal, center.X - clickRadius, center.Y - clickRadius, clickRadius * 2F, clickRadius * 2F);
+        e.Graphics.FillEllipse(accent, center.X - clickRadius * 0.35F, center.Y - clickRadius * 0.35F, clickRadius * 0.7F, clickRadius * 0.7F);
+        e.Graphics.DrawLine(signal, center.X, center.Y + clickRadius, center.X, bounds.Bottom - bounds.Height * 0.19F);
+
+        using var timing = new Pen(AppTheme.Coral, Math.Max(1.6F, Width / 11F)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        e.Graphics.DrawLine(timing, bounds.Left + bounds.Width * 0.62F, bounds.Bottom - bounds.Height * 0.14F, bounds.Left + bounds.Width * 0.60F, bounds.Bottom - bounds.Height * 0.27F);
+    }
+
+    private static GraphicsPath RoundedRectangle(RectangleF bounds, float radius)
+    {
+        var diameter = radius * 2F;
+        var path = new GraphicsPath();
+        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+}
+
 internal sealed class ThemedButton : Button
 {
     private bool hovered;
@@ -154,6 +213,8 @@ internal static class IconCatalog
     internal static string Value(ButtonGlyph glyph) => glyph switch
     {
         ButtonGlyph.Minimize => "\uE921",
+        ButtonGlyph.Maximize => "\uE922",
+        ButtonGlyph.Restore => "\uE923",
         ButtonGlyph.Close => "\uE8BB",
         ButtonGlyph.Refresh => "\uE72C",
         ButtonGlyph.Folder => "\uE838",
@@ -180,6 +241,8 @@ internal enum ButtonGlyph
 {
     None,
     Minimize,
+    Maximize,
+    Restore,
     Close,
     Refresh,
     Folder,

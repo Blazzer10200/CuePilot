@@ -22,23 +22,20 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore
-
-      - name: Restore tests
-        run: dotnet restore .\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj
+        run: dotnet restore .\WorkflowLooper.sln
 
       - name: Build
-        run: dotnet build -c Release --no-restore
+        run: dotnet build .\WorkflowLooper.sln -c Release --no-restore
 
       - name: Unit tests
-        run: dotnet test .\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release --no-restore
+        run: dotnet test .\tests\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release --no-restore
 
       - name: Self-test
         shell: pwsh
         run: '& ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test'
 
       - name: Publish Windows executable
-        run: dotnet publish -c Release --no-build -o release
+        run: dotnet publish .\WorkflowLooper.csproj -c Release --no-build -o release
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v6

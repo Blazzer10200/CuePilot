@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.1.0
+
+- Added a custom Workflow Looper application icon and matching in-app brand mark.
+- Added maximize/restore controls and title-bar double-click behavior.
+- Refined page headers, window chrome, and product identity while preserving the compact layout.
+- Reorganized application code into focused `src` folders and documented the project structure.
+
 ## 3.0.0
 
 - Rebuilt the interface around responsive DPI-aware layouts and consistent Fluent-style icons.
