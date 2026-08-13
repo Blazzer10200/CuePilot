@@ -32,7 +32,7 @@ jobs:
 
       - name: Self-test
         shell: pwsh
-        run: '& ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test'
+        run: '& ".\bin\Release\net8.0-windows10.0.19041.0\win-x64\Workflow Looper.exe" --self-test'
 
       - name: Publish Windows executable
         run: dotnet publish .\WorkflowLooper.csproj -c Release --no-build -o release

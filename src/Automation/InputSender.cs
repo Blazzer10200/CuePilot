@@ -5,6 +5,12 @@ namespace WorkflowLooper;
 
 internal static class InputSender
 {
+    internal static void ReleaseAll()
+    {
+        try { SendLeftButton(true); } catch { }
+        try { SendVirtualKey(Keys.E, true); } catch { }
+    }
+
     internal static void SendLeftButton(bool up)
     {
         Send(new NativeMethods.Input
@@ -22,18 +28,29 @@ internal static class InputSender
 
     internal static void SendVirtualKey(Keys key, bool up)
     {
-        Send(new NativeMethods.Input
+        Send(CreateScanCodeInput(key, up));
+    }
+
+    internal static NativeMethods.Input CreateScanCodeInput(Keys key, bool up)
+    {
+        var scanCode = NativeMethods.MapVirtualKey((uint)key, NativeMethods.MapvkVkToVsc);
+        if (scanCode == 0)
+        {
+            throw new InvalidOperationException($"No keyboard scan code is available for {key}.");
+        }
+
+        return new NativeMethods.Input
         {
             Type = NativeMethods.InputKeyboard,
             Data = new NativeMethods.InputUnion
             {
                 Keyboard = new NativeMethods.KeyboardInput
                 {
-                    VirtualKey = (ushort)key,
-                    Flags = up ? NativeMethods.KeyeventfKeyup : 0,
+                    ScanCode = (ushort)scanCode,
+                    Flags = NativeMethods.KeyeventfScancode | (up ? NativeMethods.KeyeventfKeyup : 0),
                 },
             },
-        });
+        };
     }
 
     private static void Send(NativeMethods.Input input)

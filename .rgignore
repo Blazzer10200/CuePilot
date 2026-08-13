@@ -1,0 +1,12 @@
+# Ignore generated/runtime artifacts during ripgrep scans
+tmp/
+release/
+bin/
+obj/
+publish*/
+.vs/
+ui/node_modules/
+ui/dist/
+ui/src-tauri/target/
+tests/**/bin/
+tests/**/obj/

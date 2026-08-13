@@ -4,7 +4,6 @@ internal sealed class WindowTargetSettings
 {
     public string ProcessName { get; set; } = string.Empty;
     public string WindowTitle { get; set; } = string.Empty;
-    public bool RequireForeground { get; set; } = true;
 
     internal bool IsConfigured => !string.IsNullOrWhiteSpace(ProcessName);
 
@@ -12,70 +11,55 @@ internal sealed class WindowTargetSettings
     {
         ProcessName = ProcessName,
         WindowTitle = WindowTitle,
-        RequireForeground = RequireForeground,
     };
 }
 
-internal sealed class VisualCueSettings
+internal enum InputDeliveryMode
 {
-    public bool Enabled { get; set; }
-    public int OffsetX { get; set; }
-    public int OffsetY { get; set; }
-    public int Width { get; set; } = 160;
-    public int Height { get; set; } = 90;
-    public string Fingerprint { get; set; } = string.Empty;
-    public int SimilarityPercent { get; set; } = 86;
-
-    internal bool IsConfigured => Enabled && !string.IsNullOrWhiteSpace(Fingerprint);
-
-    internal VisualCueSettings Copy() => new()
-    {
-        Enabled = Enabled,
-        OffsetX = OffsetX,
-        OffsetY = OffsetY,
-        Width = Width,
-        Height = Height,
-        Fingerprint = Fingerprint,
-        SimilarityPercent = SimilarityPercent,
-    };
+    Automatic,
+    Foreground,
+    Application,
 }
 
-internal sealed class TriggeredRoutineSettings
+internal sealed class FishingRoutineSettings
 {
-    public int TapIntervalMilliseconds { get; set; } = 150;
-    public int HoldMilliseconds { get; set; } = 25;
-    public int TriggerHoldMilliseconds { get; set; } = 80;
+    public int FishingLowerTensionPercent { get; set; } = 55;
+    public int FishingUpperTensionPercent { get; set; } = 68;
+    public int FishingSampleMilliseconds { get; set; } = 40;
+    public int FishingMinimumPulseMilliseconds { get; set; } = 35;
+    public int FishingMaximumPulseMilliseconds { get; set; } = 90;
+    public int FishingMinimumRestMilliseconds { get; set; } = 70;
     public int MaximumDurationSeconds { get; set; } = 210;
     public int CollectDelayMilliseconds { get; set; } = 250;
-    public int CooldownSeconds { get; set; } = 5;
-    public bool PhysicalClickFinishes { get; set; } = true;
-    public bool CollectOnTimeout { get; set; } = true;
+    public bool CollectOnTimeout { get; set; }
+    public InputDeliveryMode InputMode { get; set; } = InputDeliveryMode.Automatic;
     public WindowTargetSettings TargetWindow { get; set; } = new();
-    public VisualCueSettings VisualCue { get; set; } = new();
 
-    internal TriggeredRoutineSettings Copy() => new()
+    internal FishingRoutineSettings Copy() => new()
     {
-        TapIntervalMilliseconds = TapIntervalMilliseconds,
-        HoldMilliseconds = HoldMilliseconds,
-        TriggerHoldMilliseconds = TriggerHoldMilliseconds,
+        FishingLowerTensionPercent = FishingLowerTensionPercent,
+        FishingUpperTensionPercent = FishingUpperTensionPercent,
+        FishingSampleMilliseconds = FishingSampleMilliseconds,
+        FishingMinimumPulseMilliseconds = FishingMinimumPulseMilliseconds,
+        FishingMaximumPulseMilliseconds = FishingMaximumPulseMilliseconds,
+        FishingMinimumRestMilliseconds = FishingMinimumRestMilliseconds,
         MaximumDurationSeconds = MaximumDurationSeconds,
         CollectDelayMilliseconds = CollectDelayMilliseconds,
-        CooldownSeconds = CooldownSeconds,
-        PhysicalClickFinishes = PhysicalClickFinishes,
         CollectOnTimeout = CollectOnTimeout,
+        InputMode = InputMode,
         TargetWindow = TargetWindow.Copy(),
-        VisualCue = VisualCue.Copy(),
     };
 
     internal void Clamp()
     {
-        TapIntervalMilliseconds = Math.Clamp(TapIntervalMilliseconds, 20, 5_000);
-        HoldMilliseconds = Math.Clamp(HoldMilliseconds, 1, TapIntervalMilliseconds - 1);
-        TriggerHoldMilliseconds = Math.Clamp(TriggerHoldMilliseconds, 0, 2_000);
+        FishingLowerTensionPercent = Math.Clamp(FishingLowerTensionPercent, 25, 80);
+        FishingUpperTensionPercent = Math.Clamp(FishingUpperTensionPercent, FishingLowerTensionPercent + 5, 85);
+        FishingSampleMilliseconds = Math.Clamp(FishingSampleMilliseconds, 20, 200);
+        FishingMinimumPulseMilliseconds = Math.Clamp(FishingMinimumPulseMilliseconds, 20, 80);
+        FishingMaximumPulseMilliseconds = Math.Clamp(FishingMaximumPulseMilliseconds, FishingMinimumPulseMilliseconds, 120);
+        FishingMinimumRestMilliseconds = Math.Clamp(FishingMinimumRestMilliseconds, 20, 250);
         MaximumDurationSeconds = Math.Clamp(MaximumDurationSeconds, 5, 3_600);
         CollectDelayMilliseconds = Math.Clamp(CollectDelayMilliseconds, 0, 10_000);
-        CooldownSeconds = Math.Clamp(CooldownSeconds, 0, 300);
-        VisualCue.SimilarityPercent = Math.Clamp(VisualCue.SimilarityPercent, 20, 95);
     }
 }
 
@@ -83,12 +67,11 @@ internal enum RoutineState
 {
     Stopped,
     Armed,
-    Tapping,
+    Regulating,
     Collecting,
-    Cooldown,
+    Stowing,
+    Casting,
     Faulted,
 }
 
-internal sealed record RoutineStatus(RoutineState State, string Detail, int ClickCount = 0, double CueSimilarity = 0);
-
-internal sealed record RhythmCalibration(int ClickCount, int IntervalMilliseconds, int HoldMilliseconds);
+internal sealed record RoutineStatus(RoutineState State, string Detail, int SampleCount = 0, double Confidence = 0);

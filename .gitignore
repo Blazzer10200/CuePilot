@@ -7,3 +7,8 @@ release/
 *.suo
 *.workflow.json
 *.zip
+ui/node_modules/
+ui/dist/
+ui/src-tauri/target/
+ui/src-tauri/resources/engine/*.exe
+tmp/

@@ -1,57 +1,54 @@
-# Workflow Looper Handoff
+# Handoff — WorkflowLooper — 2026-08-13 CDT
 
-## Session 1 — 2026-08-10 19:05 -05:00 (complete)
+## Current Objective
 
-### Completed
-- Released Workflow Looper v3.1.0: https://github.com/Blazzer10200/WorkflowLooper/releases/tag/v3.1.0
-- Added adaptive triggered routines, precision editing, target-window safety, rhythm calibration, configurable shortcuts, visual cue detection, and atomic pattern persistence.
-- Removed built-in presets and all preset UI/documentation assets.
-- Completed the native UI pass: custom controls/icons, restrained page motion, responsive 1060×720 minimum layout, full borderless window chrome, and custom branding.
-- Added the multi-size Windows icon, matching in-app brand mark, solution file, organized source tree, tests, CI, release packaging, checksum, and current screenshots.
-- Verified formatting, Release build (0 warnings/errors), 5/5 xUnit tests, development/published self-tests, GitHub Build/Release Actions, public checksum, and clean worktree at commit `da7be81`.
+- Replace the WinForms operator dashboard with a Rift-style Svelte/Tauri shell without changing the .NET capture, detector, input, or safety behavior.
 
-### In Progress
-- None. Project is intentionally parked after v3.1.0.
+## Current State
 
-### Key Decisions
-- Physical hold/release starts adaptive tapping — the minigame can appear early or late.
-- Visual completion uses a local 20×12 grayscale fingerprint — no screenshots, account, telemetry, or network runtime.
-- Default visual-change threshold is 86% — derived from the supplied fishing recording and remains user-adjustable.
-- Presets stay removed — recorded/calibrated rhythms are more trustworthy than canned timing.
-- App remains a portable self-contained Windows x64 executable — easiest GitHub distribution path.
+- Stable installed fishing build remains 5.0.12 at `%LOCALAPPDATA%\Programs\Workflow Looper\Workflow Looper.exe`; do not replace it with the Tauri build until feature parity and live validation pass.
+- The new Tauri shell now has an operator-polished control surface: live state/telemetry, dynamic routine phase, target capture that restores the console after the capture event, stopped-only editable controller settings, and a local diagnostics review drawer.
+- The native Tauri layer registers global `Pause / Break`; it sends the bridge `stop`, which releases held input through the existing engine path.
+- The prototype installer built at `C:\cargo-targets\release\bundle\nsis\Workflow Looper_0.1.0_x64-setup.exe`. It was launched and visibly rendered the shell; its .NET sidecar stayed alive after the snapshot.
 
-### Failed / Don't Retry
-- Shortcut values painted blank inside controls placed in the settings card's second table column; the final full-card selector layout is reliable and visually clearer.
-- Do not use the video pipeline directly on odd-width source frames; the analysis copy required even dimensions. The original recording was never modified.
+## Recent Relevant Changes
 
-### Gotchas
-- GUI preview commands must use `Start-Process -Wait`; direct PowerShell invocation can return before the WinExe saves its screenshot.
-- Keep app and target process at the same Windows integrity level or injected input may be rejected.
-- Do not perform automated live-game validation while the user is playing; it can steal focus or interfere with input.
+- Added `--ui-bridge` to the existing executable and `UiBridge.cs`: newline JSON over stdin/stdout, allowlisted `snapshot`, `start`, `stop`, `capture_target`, `save_settings`, and `shutdown` commands; no network listener.
+- Added `ui/`: Svelte 5/Vite field-console dashboard with target selection, live state/confidence/sample telemetry, start/stop controls, validated stopped-only settings, in-app diagnostics, responsive layout, focus states, and reduced-motion handling.
+- Added `ui/src-tauri/`: Tauri 2 shell, packaged .NET resource sidecar, explicit local command bridge, native Pause/Break shortcut, custom window controls, and narrow local diagnostics access (CSV tail + capped latest loss image only).
+- Added `ui/scripts/build-engine.ps1` to stage the current .NET release executable into the Tauri resource bundle.
 
-### Load-Bearing Invariants
-- `Pause / Break` must always release held input and stop playback/routines.
-- Target locks must stop automation when foreground focus leaves the captured process.
-- Physical mouse hooks must ignore injected events or the routine can trigger itself.
-- Pattern/settings migration, atomic replacement, and `.bak` preservation must remain intact.
+## Known Problems
 
-### Don't Touch
-- Published tag `v3.1.0` and release assets.
-- Existing user patterns/settings under `%LOCALAPPDATA%\WorkflowLooper`.
-- The source fishing recording under `C:\Users\BLAZZER\Videos\Snipping Tool`.
+- The Tauri UI does not yet expose named profiles or a live detector-frame preview.
+- The `capture_target` flow still uses a 3.5-second minimize window; it restores automatically when the bridge reports the captured target, but needs live gameplay validation.
+- The Tauri installer is a prototype artifact under `C:\cargo-targets`, not an official installed release.
 
-### Next Steps
-1. No required development work.
-2. When resuming, open `WorkflowLooper.sln`, read this file and `README.md`, then run the commands under README “Build and verify.”
-3. First optional task: user-driven in-game acceptance testing and tuning of interval, hold, and visual threshold.
+## Next Actions
 
-### Files Modified
-- `WorkflowLooper.csproj:11` — current version and packaging metadata.
-- `README.md:33` — routine usage; `README.md:91` — verification; `README.md:100` — project map.
-- `CHANGELOG.md:3` — v3.1.0 release notes.
-- `src/Application/MainForm.cs` — complete native UI and workflow orchestration.
-- `src/Automation/AdaptiveRoutineEngine.cs` — adaptive routine state machine.
-- `assets/branding/` — source artwork, transparent PNG, and Windows ICO.
-- `.github/workflows/` — verified build and tagged-release automation.
+1. Add named profiles and a live detector-frame preview without widening the bridge permission surface.
+2. Add frontend/component tests and bridge protocol tests, then do a daytime and nighttime live-test parity pass.
+3. Package as a versioned Tauri installer only after all existing safety/recovery behavior is verified; retain WinForms fallback until then.
 
----
+## Relevant Files
+
+- `src/Application/UiBridge.cs`, `src/Application/Program.cs`, `src/Application/AppSettings.cs`
+- `src/Automation/AdaptiveRoutineEngine.cs`, `src/Automation/FishingMeterDetector.cs`
+- `ui/src/App.svelte`, `ui/src/lib/engine.svelte.ts`, `ui/src/app.css`
+- `ui/src-tauri/src/lib.rs`, `ui/src-tauri/tauri.conf.json`, `ui/src-tauri/capabilities/default.json`
+- `ui/scripts/build-engine.ps1`, `ui/README.md`
+
+## Canonical Commands
+
+- `dotnet test tests\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release --no-restore`
+- `dotnet build WorkflowLooper.sln -c Release --no-restore`
+- `& '.\ui\scripts\build-engine.ps1' -Release`
+- `npm run check` and `npm run tauri build` from `ui\`
+- `cargo check` from `ui\src-tauri\`
+
+## Important Decisions
+
+- The Tauri frontend never accesses FiveM or sends input directly; only the existing .NET engine may do so.
+- Communication is a local stdin/stdout sidecar bridge, not HTTP/WebSocket.
+- Keep original 35–90 ms pulse cadence unchanged.
+- Use the existing Workflow Looper icon and Rift-style frameless-window conventions; do not copy Rift application logic.
