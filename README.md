@@ -1,113 +1,107 @@
 <p align="center">
-  <img src="assets/branding/workflow-looper-icon.png" width="128" alt="Workflow Looper icon">
+  <img src="assets/branding/cuepilot-icon.png" width="128" alt="CuePilot icon">
 </p>
 
-<h1 align="center">Workflow Looper</h1>
+<h1 align="center">CuePilot</h1>
 
-<p align="center">Local-first recording, precision playback, and adaptive triggered routines for Windows.</p>
+<p align="center">Local minigame assistance, precisely timed.</p>
 
-<p align="center">
-  <a href="https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml"><img src="https://github.com/Blazzer10200/WorkflowLooper/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
-  <a href="https://github.com/Blazzer10200/WorkflowLooper/releases/latest"><img src="https://img.shields.io/github/v/release/Blazzer10200/WorkflowLooper" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-62e8b3" alt="MIT license"></a>
-</p>
+CuePilot is a Svelte/Tauri desktop app backed by a local, headless .NET engine. Its activity library opens focused minigame readers that share one validated game target and safety core; the frontend never captures the game or sends input itself.
 
-Workflow Looper records physical keyboard and mouse input, replays it with high-resolution timing, and keeps every pattern on your PC.
+![CuePilot activity library](docs/cuepilot.png)
 
-![Workflow Looper Studio](docs/workflow-looper.png)
+## Install on Windows
 
-## What changed in 3.1
+1. Open the [latest CuePilot release](https://github.com/Blazzer10200/CuePilot/releases/latest).
+2. Download `CuePilot-5.1.0-Windows-x64-Setup.exe` and run it. The installer is per-user, so it does not require administrator access.
+3. Launch **CuePilot** from the Start menu, open an activity, and select the running FiveM window once.
+4. Use `F10` for Fishing, `F9` for Lockpicking Class C, and `Pause / Break` for an immediate emergency stop. Both activity shortcuts can be changed in Settings.
 
-- Custom application icon and matching in-app identity.
-- Complete minimize, maximize, restore, resize, and title-bar interaction support.
-- Resizable, Per-Monitor-V2 interface with a unified Fluent-style icon system.
-- Built-in presets removed. Recordings and calibrated profiles replace canned rhythms.
-- Precision Editor for event delays, enable/disable, duplication, deletion, undo/redo, and click normalization.
-- Version 2 pattern format with automatic v1 migration, atomic writes, and `.bak` protection.
-- Per-pattern loop count, playback speed, cursor behavior, and target-window lock.
-- Triggered Routine for variable-start minigames and other handoff workflows.
-- Physical-click rhythm calibration.
-- Optional local visual-end detection using a 20×12 grayscale fingerprint—not a screenshot.
-- Formal automated tests plus the executable self-test.
+CuePilot supports Windows 10/11 x64 and bundles its self-contained .NET engine. The installer checks WebView2 automatically, so users do not need Node.js, Rust, the .NET SDK, or repository files. A matching SHA-256 checksum is attached to every GitHub release. Because this community build is not code-signed, Windows SmartScreen may require **More info → Run anyway** on first installation.
 
-## Triggered Routine
+## Activities
 
-The routine is designed for workflows whose active phase can appear early or late:
+- **Fishing — Ready:** the current deterministic prompt and tension-meter controller.
+- **Vehicle Lockpicking — Class C live calibration:** input-free observation plus an explicitly armed Class C controller backed by recorded READY and SPIN calibration. Other vehicle classes remain gated until their own evidence is captured.
 
-1. Select **Capture Target**. Workflow Looper minimizes and captures the foreground application.
-2. Optionally select **Learn My Rhythm** and click naturally for 12 seconds.
-3. Set tap interval, button hold, maximum duration, collect delay, and cooldown.
-4. Optional: select **Capture Cue**, return to the target, place the cursor over the visible minigame, then press `Ctrl + Shift + F8`.
-5. Select **Arm Routine**.
-6. When the minigame appears, hold and release physical left-click. Precision tapping begins immediately.
-7. Tapping stops when the visual cue changes, you click physically again, or the safety duration expires.
-8. The routine releases the mouse, presses `E`, waits for the cooldown, and re-arms.
+The app opens on the activity library. Returning there stops any running activity and releases held input before changing workspaces. See [Activity architecture](docs/activities.md) for the module boundary and Lockpicking evidence checklist.
 
-The supplied fishing recording showed the circular `Increase Tension / LMB` control as the active cue and a green check with `FISHING.CAUGHT` as the completion cue. The default 86% change threshold was selected from those frames, but it remains editable for different displays and minigames.
+## Fishing profile
 
-![Triggered Routine](docs/routine.png)
+1. Select **Select FiveM target**, switch to FiveM, and wait for the console to return.
+2. Leave input delivery on **Automatic — focus FiveM** for verified physical scan-code input.
+3. Open **Settings** to choose a global Start / Stop shortcut (default `F10`). From FiveM, press it once to start and again to stop.
+4. Preflight resolves FiveM, verifies capture, activates the target, and checks input.
+5. The loop verifies the Cast prompt before pressing `E`, detects and controls the circular meter, verifies Keep Fish before collecting, then waits for the next verified Cast prompt.
 
-## Precision Editor
+Every LMB hold is independently capped at 35–90 ms by the feedback controller. LMB is never sent outside the active circle minigame.
 
-The editor keeps raw input transparent while making timing practical:
+## Dashboard
 
-- Edit delay before every event.
-- Disable noisy events without deleting them.
-- Duplicate or delete a selected event.
-- Undo and redo up to 50 editing operations.
-- Analyze median interval, hold duration, and timing range.
-- Normalize all complete left-click pairs to an exact interval and hold.
+- Target, capture, and input health are visible together.
+- Current automation state, detector confidence, and processed samples are shown live.
+- Controller settings and local detection evidence are available in focused secondary panels.
+- The Fishing Start / Stop shortcut is configurable from `F6` through `F12` and works while FiveM remains focused.
+- The Lockpicking Class C Start / Stop shortcut defaults to `F9` and is independently configurable from `F6` through `F12`.
+- `Pause / Break` is the global emergency stop and releases held input.
+- Fishing stops if FiveM stops being the active visible window.
 
-![Precision Editor](docs/editor.png)
+## Input modes
 
-## Safety
+- **Auto · Focus FiveM** — activates FiveM and uses physical scan codes. Recommended.
+- **Foreground only** — refuses input unless FiveM is already foreground.
 
-- `Pause / Break` is the default emergency stop.
-- Playback releases held buttons and keys during cancellation or failure.
-- A target lock stops automation when focus leaves the selected process.
-- Simulated input is rejected across some Windows privilege boundaries. Run Workflow Looper and the target at the same integrity level.
-- Some games or protected applications block simulated input. Workflow Looper does not include anti-cheat bypass, stealth, or detection-evasion behavior.
-- Visual cue capture is opt-in and stores only 240 grayscale samples in local settings.
+## Diagnostics
 
-## Storage
+Numeric fishing traces are stored under:
 
 ```text
-%LOCALAPPDATA%\WorkflowLooper\Patterns\
-%LOCALAPPDATA%\WorkflowLooper\settings.json
+%LOCALAPPDATA%\CuePilot\diagnostics\
 ```
 
-Patterns use readable `.workflow.json` files. Saving an existing pattern writes atomically and preserves the prior copy beside it as `.bak`.
+They contain detector measurements, high-level loop transitions, input state, and bounded annotated lock/loss screenshots with paired evidence metadata. Detection Review formats the trace as a compact local activity timeline; nothing is uploaded.
 
-## Download
-
-Download the portable Windows x64 ZIP or executable from [GitHub Releases](https://github.com/Blazzer10200/WorkflowLooper/releases). Compare the download against the published SHA-256 checksum before running it.
-
-Requirements:
-
-- Windows 10 version 1803 or newer; Windows 11 recommended.
-- x64 processor.
-- No separate .NET installation for the self-contained release.
-
-## Build and verify
+Useful engine probes:
 
 ```powershell
-dotnet build .\WorkflowLooper.sln -c Release
-dotnet test .\tests\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
-& ".\bin\Release\net8.0-windows\win-x64\Workflow Looper.exe" --self-test
-dotnet publish .\WorkflowLooper.csproj -c Release -o publish
+dotnet test .\tests\CuePilot.Tests\CuePilot.Tests.csproj -c Release
+dotnet run --project .\CuePilot.csproj -c Release -- --self-test
+dotnet run --project .\CuePilot.csproj -c Release -- --target-probe FiveM_b3258_GTAProcess
+dotnet run --project .\CuePilot.csproj -c Release -- --capture-probe FiveM_b3258_GTAProcess
+dotnet run --project .\CuePilot.csproj -c Release -- --input-probe FiveM_b3258_GTAProcess
 ```
+
+## Development
+
+From the repository root, install dependencies with `npm --prefix ui install` and run the desktop app with `npm --prefix ui run tauri:dev`. The complete local gate is:
+
+```powershell
+pwsh -NoProfile -File .\scripts\verify.ps1 -All
+```
+
+See the [development guide](docs/development.md) for focused checks, architecture boundaries, the inspection bridge, fixture hygiene, and the release gate.
 
 ## Project structure
 
-- `src/Application` — startup, settings, and the main window.
-- `src/Automation` — recording, playback, timing, input, and adaptive routines.
-- `src/Domain` — workflow and routine data models.
-- `src/Platform` — Windows integration, target matching, and visual cues.
-- `src/Presentation` — theme, controls, icons, and interaction surfaces.
-- `src/Diagnostics` — deterministic executable self-tests.
-- `tests/WorkflowLooper.Tests` — xUnit timing and persistence coverage.
-- `assets/branding` — source artwork, transparent PNG, and multi-size Windows icon.
-- `docs` — current UI screenshots.
+- `src/Application` — headless engine startup, persistence, and the versioned stdin/stdout bridge.
+- `src/Automation` — fishing and lockpicking detectors, temporal trackers, class profiles, controllers, and state machines.
+- `src/Capture` — visible-desktop frame capture.
+- `src/Input` — foreground-only physical input delivery and safety checks.
+- `src/Platform` — Windows target resolution and interop.
+- `ui/src` — Svelte desktop interface and engine client.
+- `ui/src/lib/activities` — activity picker and minigame-specific workspaces.
+- `ui/src-tauri` — Tauri window, sidecar lifecycle, global shortcut, diagnostics access, and installer configuration.
+- `tests/CuePilot.Tests` — fishing, lockpicking, migration, input, capture, and bridge contracts.
+- `docs` — activity architecture, development workflow, and operator-facing project references.
+
+For task-oriented entry points and search recipes, use the [code map](docs/code-map.md).
+
+## Safety
+
+- Run CuePilot and FiveM at the same Windows integrity level.
+- No anti-cheat bypass, injection, stealth, or detection-evasion behavior is included.
+- The emergency stop always attempts to release LMB and `E`.
+- The bridge is local newline JSON over redirected stdin/stdout; it opens no network listener.
 
 ## License
 

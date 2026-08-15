@@ -1,16 +1,16 @@
 name: Bug report
-description: Report reproducible incorrect behavior in Workflow Looper.
+description: Report reproducible incorrect behavior in CuePilot.
 title: "[Bug]: "
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve Workflow Looper. Do not attach private pattern files without reviewing their contents.
+      value: Thanks for helping improve CuePilot. Do not attach private game captures or diagnostics without reviewing their contents.
   - type: input
     id: version
     attributes:
       label: Version
-      placeholder: 2.1.0
+      placeholder: 5.0.12
     validations:
       required: true
   - type: dropdown
@@ -40,4 +40,4 @@ body:
     id: context
     attributes:
       label: Additional context
-      description: Include timing, shortcut, or display details that may matter. Never include passwords or secrets.
+      description: Include detector, target-window, input, or display details that may matter. Never include passwords or secrets.

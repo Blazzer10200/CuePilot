@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CuePilot Dev",
+  "identifier": "com.blazzer.cuepilot.dev",
+  "app": {
+    "windows": [{
+      "title": "CuePilot Dev",
+      "width": 1180,
+      "height": 760,
+      "minWidth": 760,
+      "minHeight": 620,
+      "decorations": false,
+      "center": true
+    }]
+  },
+  "bundle": {
+    "icon": ["../../assets/branding/cuepilot-dev.ico"]
+  }
+}

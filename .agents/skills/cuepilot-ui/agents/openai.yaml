@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workflow UI"
+  short_description: "Inspect and verify the live Tauri interface"
+  default_prompt: "Use $cuepilot-ui to inspect and verify the running CuePilot desktop UI."

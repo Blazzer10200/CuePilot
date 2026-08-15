@@ -1,0 +1,16 @@
+# Ignore generated/runtime artifacts during ripgrep scans
+tmp/
+release/
+bin/
+obj/
+publish*/
+.vs/
+ui/node_modules/
+ui/dist/
+ui/src-tauri/target/
+ui/src-tauri/gen/
+ui/src-tauri/Cargo.lock
+ui/package-lock.json
+ui/scripts/cdp/.tmp/
+tests/**/bin/
+tests/**/obj/

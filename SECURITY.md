@@ -6,4 +6,4 @@ Please report security-sensitive issues privately through GitHub Security Adviso
 
 ## Data boundary
 
-Workflow Looper does not require a network connection and does not collect telemetry. Recorded patterns may contain keystrokes, so never record passwords, recovery codes, payment details, or other secrets. Pattern files remain under `%LOCALAPPDATA%\WorkflowLooper\Patterns` unless the user exports them elsewhere.
+CuePilot does not require a network connection and does not collect telemetry. It stores local settings, numeric diagnostics, and bounded detector evidence for local Detection Review; it does not record keystrokes or upload data. Do not include passwords, recovery codes, payment details, or other secrets in issue reports or diagnostic files.
