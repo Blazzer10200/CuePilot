@@ -62,6 +62,10 @@ if ($Ui) {
 }
 
 if ($Rust) {
+    Write-Host "rust: stage engine sidecar"
+    & (Join-Path $repoRoot "ui/scripts/build-engine.ps1") -Release
+    Assert-NativeSuccess
+
     Write-Host "rust: format check"
     cargo fmt --manifest-path (Join-Path $repoRoot "ui/src-tauri/Cargo.toml") -- --check
     Assert-NativeSuccess

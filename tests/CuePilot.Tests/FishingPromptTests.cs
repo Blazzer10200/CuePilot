@@ -7,16 +7,25 @@ public sealed class FishingPromptTests
     [Fact]
     public async Task RoutineWorkRunsOffTheUiCallingThread()
     {
-        var callingThread = Environment.CurrentManagedThreadId;
-        var workerThread = callingThread;
+        var previousContext = SynchronizationContext.Current;
+        var uiContext = new SynchronizationContext();
+        SynchronizationContext? workerContext = uiContext;
+        SynchronizationContext.SetSynchronizationContext(uiContext);
 
-        await RoutineWorker.Start(() =>
+        try
         {
-            workerThread = Environment.CurrentManagedThreadId;
-            return Task.CompletedTask;
-        });
+            await RoutineWorker.Start(() =>
+            {
+                workerContext = SynchronizationContext.Current;
+                return Task.CompletedTask;
+            });
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
 
-        Assert.NotEqual(callingThread, workerThread);
+        Assert.Null(workerContext);
     }
 
     [Theory]
