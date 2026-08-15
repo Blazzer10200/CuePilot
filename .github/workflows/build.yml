@@ -55,6 +55,7 @@ jobs:
 
       - name: Rust format and bridge tests
         run: |
+          npm --prefix ui run engine:stage:release
           cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
           cargo test --manifest-path .\ui\src-tauri\Cargo.toml
 
