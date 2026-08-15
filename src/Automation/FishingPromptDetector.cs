@@ -348,8 +348,8 @@ internal static class FishingPromptDetector
         // Point-sampled prompt glyphs are sensitive to even a two-pixel size
         // change. Probe a dense small/normal UI pyramid, then retain a few
         // bounded large-layout levels for the supplied catch-card variants.
-        var scales = Enumerable.Range(0, 16)
-            .Select(index => 0.75 + index * 0.05)
+        var scales = Enumerable.Range(0, 18)
+            .Select(index => 0.65 + index * 0.05)
             .Concat(new[] { 1.75, 2.0, 2.5, 3.0, 3.5, 4.0 })
             .ToArray();
         return references.SelectMany(reference => scales.Select(scale => Scale(reference, scale))).ToArray();

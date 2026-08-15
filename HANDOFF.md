@@ -1,8 +1,8 @@
-# Handoff — CuePilot — 2026-08-14 23:35 CDT
+# Handoff — CuePilot — 2026-08-15 01:13 CDT
 
 ## Current Objective
 
-- Release CuePilot 5.1.0 as a complete Fishing and Vehicle Lockpicking desktop product with resolution-independent detection and an easy Windows installer.
+- Hold the published CuePilot 5.1.0 release stable while preparing an unpublished compatibility update locally.
 
 ## Current State
 
@@ -16,7 +16,9 @@
 - The headless engine is explicitly Per-Monitor-V2 DPI aware so capture bounds and physical cursor coordinates remain in the same coordinate space across Windows display scaling and mixed-monitor layouts.
 - Version fields agree at `5.1.0` in the .NET, npm, Cargo, and Tauri manifests.
 - The NSIS installer is per-user, needs no administrator rights, bundles the self-contained engine, and was installation-smoke-tested locally at version 5.1.0.
-- Git is on `codex/cuepilot-5.1.0`; the complete migration is awaiting final verification and publication.
+- CuePilot 5.1.0 is published at `Blazzer10200/CuePilot`; Git is on local branch `codex/post-release` with an unpublished compatibility batch.
+- The local batch uses a height-scaled virtual 16:9 HUD canvas across 5:4 through 32:9, retains a bounded frame-relative Fishing meter fallback for cropped/windowed evidence, recognizes prompt scales down to 65%, and captures the FiveM client area instead of including title bars and borders.
+- The unpublished full local gate passes: 181 .NET tests, engine self-test, 14 frontend tests, zero Svelte warnings/errors, frontend build, Rust format, and 8 Rust tests. Live Fishing and Lockpicking workspaces fit at 1180x760 with zero console errors.
 
 ## Recent Relevant Changes
 
@@ -24,6 +26,7 @@
 - Added lockpicking detection, temporal tracking, bounded evidence capture/replay, Class C control, and safety stops.
 - Added transformed-frame and cursor-mapping regressions covering standard, ultrawide, super-ultrawide, narrow/windowed, offset, and negative-coordinate monitor layouts.
 - Added shared safe-viewport geometry and Fishing prompt/meter regressions for 3440x1440 and 5120x1440 displays.
+- Added narrow-layout Fishing regressions for 1920x1200 and 1280x1024 plus client-area window capture for borderless and decorated FiveM windows.
 - Added DXGI capture support, instrumented Fishing sessions, bridge contract tests, frontend tests, and Rust bridge tests.
 - Added development/production identity separation, CDP-based UI inspection, brand tooling, desktop shortcut tooling, and task-oriented project documentation.
 - Renamed product/project/test assets from WorkflowLooper to CuePilot and removed the legacy WinForms UI source.
@@ -41,6 +44,7 @@
 2. Run the explicitly armed Class C controller through success and failure/retry cases; confirm READY clicks, SPIN direction/speed, terminal OPEN behavior, focus-loss stop, and Pause / Break release.
 3. Add only representative, privacy-reviewed evidence as regression fixtures and adjust detector/controller calibration from measured results.
 4. Run `scripts/verify.ps1 -All`, publish 5.1.0, and verify the GitHub release assets.
+5. Do not push or publish the local post-release compatibility batch until the user explicitly approves replacing the live build.
 
 ## Relevant Files
 

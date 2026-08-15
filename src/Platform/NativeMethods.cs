@@ -129,5 +129,13 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(IntPtr window, out Rect rectangle);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetClientRect(IntPtr window, out Rect rectangle);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClientToScreen(IntPtr window, ref CursorPoint point);
+
     internal static int InputSize => Marshal.SizeOf<Input>();
 }

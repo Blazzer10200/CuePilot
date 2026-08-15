@@ -236,6 +236,8 @@ public sealed class FishingPromptTests
     }
 
     [Theory]
+    [InlineData("cast-ready.png", "Cast", 0.65f)]
+    [InlineData("cast-ready.png", "Cast", 0.70f)]
     [InlineData("cast-ready.png", "Cast", 0.75f)]
     [InlineData("cast-ready.png", "Cast", 0.85f)]
     [InlineData("cast-ready.png", "Cast", 0.95f)]
@@ -243,6 +245,8 @@ public sealed class FishingPromptTests
     [InlineData("cast-ready.png", "Cast", 1.15f)]
     [InlineData("cast-ready.png", "Cast", 1.25f)]
     [InlineData("cast-ready.png", "Cast", 1.35f)]
+    [InlineData("collect-ready.png", "Collect", 0.65f)]
+    [InlineData("collect-ready.png", "Collect", 0.70f)]
     [InlineData("collect-ready.png", "Collect", 0.75f)]
     [InlineData("collect-ready.png", "Collect", 0.85f)]
     [InlineData("collect-ready.png", "Collect", 0.95f)]
@@ -311,6 +315,38 @@ public sealed class FishingPromptTests
         Assert.True(observation.Kind == FishingPromptKind.Cast,
             $"{frameWidth}x1440: {observation}{Environment.NewLine}{evidence}");
         Assert.True(observation.Confidence >= 0.65, observation.ToString());
+    }
+
+    [Theory]
+    [InlineData(1920, 1200, -107, 0, 2133, 1200)]
+    [InlineData(1280, 1024, -270, 0, 1820, 1024)]
+    public void LiveCastPromptIsFoundOnCenterCroppedNarrowLayouts(
+        int frameWidth,
+        int frameHeight,
+        int contentLeft,
+        int contentTop,
+        int contentWidth,
+        int contentHeight)
+    {
+        using var source = LoadFixture("cast-ready.png");
+        using var frame = new Bitmap(frameWidth, frameHeight);
+        using (var graphics = Graphics.FromImage(frame))
+        {
+            graphics.Clear(Color.FromArgb(9, 14, 16));
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(source, new Rectangle(
+                contentLeft + (int)Math.Round(contentWidth * 0.40),
+                contentTop + (int)Math.Round(contentHeight * 0.70),
+                (int)Math.Round(source.Width * 0.75),
+                (int)Math.Round(source.Height * 0.75)));
+        }
+
+        var observation = FishingPromptDetector.Analyze(frame, out var evidence);
+
+        Assert.True(observation.Kind == FishingPromptKind.Cast,
+            $"{frameWidth}x{frameHeight}: {observation}{Environment.NewLine}{evidence}");
+        Assert.True(observation.Confidence >= 0.65,
+            $"{frameWidth}x{frameHeight}: {observation}{Environment.NewLine}{evidence}");
     }
 
     private static Bitmap LoadFixture(string name) =>

@@ -39,12 +39,11 @@ internal static class WindowTargetService
 
         NativeMethods.EnumWindows((window, _) =>
         {
-            if (!NativeMethods.IsWindowVisible(window) || !NativeMethods.GetWindowRect(window, out var rectangle))
+            if (!NativeMethods.IsWindowVisible(window) || !TryGetCaptureBounds(window, out var bounds))
             {
                 return true;
             }
 
-            var bounds = Rectangle.FromLTRB(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
             if (bounds.Width < 320 || bounds.Height < 240)
             {
                 return true;
@@ -117,14 +116,12 @@ internal static class WindowTargetService
         IntPtr fallbackMatch = IntPtr.Zero;
         NativeMethods.EnumWindows((window, _) =>
         {
-            if (!NativeMethods.IsWindowVisible(window) || !NativeMethods.GetWindowRect(window, out var candidateRect))
+            if (!NativeMethods.IsWindowVisible(window) || !TryGetCaptureBounds(window, out var candidateBounds))
             {
                 return true;
             }
 
-            var width = candidateRect.Right - candidateRect.Left;
-            var height = candidateRect.Bottom - candidateRect.Top;
-            if (width < 320 || height < 240)
+            if (candidateBounds.Width < 320 || candidateBounds.Height < 240)
             {
                 return true;
             }
@@ -170,7 +167,7 @@ internal static class WindowTargetService
                 ? titleMatch
                 : fallbackMatch;
 
-        if (match == IntPtr.Zero || !NativeMethods.IsWindow(match) || !NativeMethods.GetWindowRect(match, out var rectangle))
+        if (match == IntPtr.Zero || !NativeMethods.IsWindow(match) || !TryGetCaptureBounds(match, out var bounds))
         {
             resolved = default!;
             detail = $"{target.ProcessName} is not running or has no captureable window.";
@@ -178,7 +175,6 @@ internal static class WindowTargetService
         }
 
         NativeMethods.GetWindowThreadProcessId(match, out var processId);
-        var bounds = Rectangle.FromLTRB(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
         resolved = new ResolvedWindowTarget(
             match,
             (int)processId,
@@ -249,6 +245,34 @@ internal static class WindowTargetService
         }
 
         return candidate.Bounds.Width * candidate.Bounds.Height > existing.Bounds.Width * existing.Bounds.Height;
+    }
+
+    private static bool TryGetCaptureBounds(IntPtr window, out Rectangle bounds)
+    {
+        if (NativeMethods.GetClientRect(window, out var client)
+            && client.Right > client.Left
+            && client.Bottom > client.Top)
+        {
+            var origin = new NativeMethods.CursorPoint { X = client.Left, Y = client.Top };
+            if (NativeMethods.ClientToScreen(window, ref origin))
+            {
+                bounds = new Rectangle(
+                    origin.X,
+                    origin.Y,
+                    client.Right - client.Left,
+                    client.Bottom - client.Top);
+                return true;
+            }
+        }
+
+        if (NativeMethods.GetWindowRect(window, out var outer))
+        {
+            bounds = Rectangle.FromLTRB(outer.Left, outer.Top, outer.Right, outer.Bottom);
+            return bounds.Width > 0 && bounds.Height > 0;
+        }
+
+        bounds = Rectangle.Empty;
+        return false;
     }
 
     private static string GetTitle(IntPtr window)

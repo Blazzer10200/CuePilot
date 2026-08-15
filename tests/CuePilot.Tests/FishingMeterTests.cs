@@ -557,6 +557,37 @@ public sealed class FishingMeterTests
     }
 
     [Theory]
+    [InlineData(2560, 1440, 0, 2560)]
+    [InlineData(3440, 1440, 440, 2560)]
+    [InlineData(5120, 1440, 1280, 2560)]
+    [InlineData(1920, 1200, -106.6667, 2133.3333)]
+    [InlineData(1280, 1024, -270.2222, 1820.4444)]
+    public void SafeViewportUsesOneHeightScaledCanvasAcrossAspectRatios(
+        int width,
+        int height,
+        double expectedLeft,
+        double expectedWidth)
+    {
+        var viewport = GameViewportGeometry.CenteredSafeViewport(new Rectangle(0, 0, width, height));
+
+        Assert.Equal(expectedLeft, viewport.Left, 3);
+        Assert.Equal(expectedWidth, viewport.Width, 3);
+        Assert.Equal(0, viewport.Top);
+        Assert.Equal(height, viewport.Height);
+    }
+
+    [Theory]
+    [InlineData(1920, 1200)]
+    [InlineData(1280, 1024)]
+    public void NarrowFramesProbeVirtualAndFrameRelativeMeterLayouts(int width, int height)
+    {
+        var regions = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, width, height));
+
+        Assert.True(regions.Count > 8);
+        Assert.Equal(regions.Count, regions.Distinct().Count());
+    }
+
+    [Theory]
     [InlineData("live-meter-sunset-rock.png")]
     [InlineData("live-meter-hillside.png")]
     [InlineData("live-meter-sky.png")]

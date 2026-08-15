@@ -1095,12 +1095,26 @@ internal static class FishingMeterService
             (0.406, 0.550),
         };
         var safeViewport = GameViewportGeometry.CenteredSafeViewport(bounds);
-        return primaryPositions
-            .Select(position => GetCaptureRegion(bounds, safeViewport, position.Item1, position.Item2, 0.24))
+        IEnumerable<Rectangle> RegionsFor(GameSafeViewport viewport) => primaryPositions
+            .Select(position => GetCaptureRegion(bounds, viewport, position.Item1, position.Item2, 0.24))
             .Concat(expandedPositions.Select(position =>
-                GetCaptureRegion(bounds, safeViewport, position.Item1, position.Item2, 0.46)))
-            .Distinct()
-            .ToArray();
+                GetCaptureRegion(bounds, viewport, position.Item1, position.Item2, 0.46)));
+
+        var regions = RegionsFor(safeViewport);
+        if (safeViewport.Left < bounds.Left)
+        {
+            // Some captured/windowed FiveM layouts position NUI relative to the
+            // visible frame rather than a center-cropped 16:9 canvas. Probe the
+            // previously supported frame-relative positions as a bounded narrow-
+            // aspect fallback so compatibility is additive rather than exclusive.
+            regions = regions.Concat(RegionsFor(new GameSafeViewport(
+                bounds.Left,
+                bounds.Top,
+                bounds.Width,
+                bounds.Height)));
+        }
+
+        return regions.Distinct().ToArray();
     }
 
     private static Rectangle GetCaptureRegion(
