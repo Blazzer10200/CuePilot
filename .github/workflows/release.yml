@@ -37,7 +37,7 @@ jobs:
           $npmVersion = (Get-Content -Raw .\ui\package.json | ConvertFrom-Json).version
           $cargoVersion = (Select-String -Path .\ui\src-tauri\Cargo.toml -Pattern '^version = "([^"]+)"$').Matches[0].Groups[1].Value
           $dotnetVersion = (Select-String -Path .\CuePilot.csproj -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
-          $versions = @($tauriVersion, $npmVersion, $cargoVersion, $dotnetVersion) | Sort-Object -Unique
+          $versions = @(@($tauriVersion, $npmVersion, $cargoVersion, $dotnetVersion) | Sort-Object -Unique)
           if ($versions.Count -ne 1 -or $versions[0] -ne $tagVersion) {
             throw "Release tag $tagVersion does not match project versions: $($versions -join ', ')."
           }
@@ -60,6 +60,7 @@ jobs:
           npm test
           npm run check
           Pop-Location
+          npm --prefix ui run engine:stage:release
           cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
           cargo test --manifest-path .\ui\src-tauri\Cargo.toml
 
