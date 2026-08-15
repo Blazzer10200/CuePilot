@@ -80,6 +80,7 @@ internal sealed class LockpickingClassController : IDisposable
         if (observation.State == LockpickingVisualState.Numbered
             && observation.Target is { Phase: LockpickingTargetPhase.Ready, Number: not null } readyTarget
             && observation.PredictedAction == "CLICK (OBSERVE ONLY)"
+            && readyTarget.HasLiteralNumber
             && observation.Confidence >= minimumObservationConfidence
             && readyTarget.Confidence >= minimumTargetConfidence
             && readyTarget.Number.Value == expectedTargetNumber

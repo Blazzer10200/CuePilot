@@ -824,7 +824,6 @@
       activity={lockpickingActivity}
       {targetValid}
       status={engine.snapshot?.lockpicking ?? stoppedLockpicking}
-      shortcut={engine.snapshot?.settings.lockpickingStartStop}
       onback={returnToActivities}
       onmode={async (mode) => { await engine.setLockpicking(mode); }}
       onsettings={openSettings}

@@ -65,7 +65,10 @@ internal static class Program
             var observation = LockpickingDetector.Analyze(bitmap);
             clock.Stop();
             var approachRatio = observation.Target?.ApproachRatio ?? 0;
-            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
+            var labels = observation.Targets is null
+                ? "-"
+                : string.Join(',', observation.Targets.Select(target => target.Number?.ToString() ?? "?"));
+            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} labels=[{labels}] target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) number={observation.Target?.Number?.ToString() ?? "-"} literal={observation.Target?.HasLiteralNumber ?? false} approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
             var evidence = LockpickingDetector.Inspect(bitmap);
             Console.WriteLine($"hud={evidence.HudConfidence:F3} open={evidence.OpenRingCoverage:F3} spin={evidence.SpinRingCoverage:F3} label={evidence.BottomLabelSignal:F3} arcs=[{string.Join(',', evidence.ArcProfile.Select(value => value.ToString("F3")))}]");
             Console.WriteLine(observation.Reason);

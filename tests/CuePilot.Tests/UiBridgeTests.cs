@@ -171,7 +171,7 @@ public sealed class UiBridgeTests
     }
 
     [Fact]
-    public void LockpickingShortcutToggleArmsClassCFromAStoppedState()
+    public void LockpickingShortcutRejectsUnavailableClassCAutomation()
     {
         var settings = AppSettings.Defaults();
         settings.Routine.TargetWindow = new WindowTargetSettings
@@ -189,11 +189,8 @@ public sealed class UiBridgeTests
             findTargets: () => [Candidate(3258, "FiveM")]);
 
         var response = FindResponse(messages, "lockpicking-toggle-1");
-        Assert.True(response.GetProperty("ok").GetBoolean());
-        var lockpicking = response.GetProperty("result").GetProperty("lockpicking");
-        Assert.True(lockpicking.GetProperty("observing").GetBoolean());
-        Assert.True(lockpicking.GetProperty("inputEnabled").GetBoolean());
-        Assert.Equal("C", lockpicking.GetProperty("vehicleClass").GetString());
+        Assert.False(response.GetProperty("ok").GetBoolean());
+        Assert.Contains("Class C automation is unavailable", response.GetProperty("error").GetString());
     }
 
     [Theory]

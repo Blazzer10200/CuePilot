@@ -32,13 +32,13 @@ Until those conditions pass, the activity may expose an observation workspace bu
 
 Fishing retains the existing .NET prompt detector, circular-meter tracker, feedback controller, settings drawer, and Detection Review timeline. The activity picker does not change its engine timing or detector behavior.
 
-### Vehicle Lockpicking — Class C live calibration
+### Vehicle Lockpicking — Observe-only calibration
 
 The .NET observer locates the right-side circular HUD relative to the selected FiveM frame, classifies numbered, transition, SPIN, OPEN, and disappearance states, and tracks the same active circle through its outlined, shrinking, and bright-green READY states. READY requires a verified target plus either measured inward ring motion or the observed bright fill and is reported once for that target. Stale presentation timestamps, slow analysis, and extreme capture stalls withhold the prediction; normal accumulated batches on a high-refresh display do not.
 
-Observe mode remains input-free. `Run Class C` is a separate explicit mode calibrated from live Class C session `20260814-133216`. It clicks each verified READY target once, requires two matching SPIN frames, and then moves clockwise at 1,140°/s on a 0.61× HUD-radius orbit. The orbit stops after 2.8 seconds at most. Focus loss, Pause / Break, capture failure, HUD disappearance after an action, repeated uncertain states, or OPEN confirmation stops all lockpicking input. Classes A, B, and D remain unavailable until their own live evidence is recorded.
+Observe mode remains input-free. Automated Class C input is unavailable in the 5.1.1 release while concurrent target-label recognition is validated from saved evidence. Classes A, B, and D remain unavailable until their own live evidence is recorded.
 
-Class C can be toggled from FiveM with its independently configurable `F6`–`F12` shortcut, which defaults to `F9`; Fishing defaults to `F10`, duplicate activity bindings are rejected, and Pause / Break remains the unconditional emergency stop. Observe mode is never started by the automation shortcut.
+Fishing defaults to `F10`; Pause / Break remains the unconditional emergency stop. Observe mode never sends input.
 
 After initial acquisition, HUD search is localized around the prior frame and the capture loop runs without an artificial post-analysis delay. The first full search remains available immediately when the HUD appears or tracking confidence is lost.
 

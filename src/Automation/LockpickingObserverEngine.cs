@@ -37,6 +37,8 @@ internal sealed class LockpickingObserverEngine : IDisposable
     private string evidenceDirectory = string.Empty;
     private string lastEvidenceKey = string.Empty;
     private int savedEvidenceCount;
+    private int savedNonNumberedEvidenceCount;
+    private int savedNumberedEvidenceCount;
     private int savedSpinEvidenceCount;
     private long lastSpinEvidenceTimestamp;
     private LockpickingClassController? automation;
@@ -44,6 +46,9 @@ internal sealed class LockpickingObserverEngine : IDisposable
     private string vehicleClass = string.Empty;
 
     private const int MaximumEvidenceFrames = 72;
+    // Numbered bubbles are the calibration-critical phase. Keep a dense, lossless
+    // HUD replay so one Observe run can be analysed frame-by-frame.
+    private const int MaximumNumberedEvidenceFrames = 180;
     private const int MaximumSpinEvidenceFrames = 30;
     private static readonly long SpinEvidenceIntervalTicks = Math.Max(1, Stopwatch.Frequency / 12);
 
@@ -84,6 +89,8 @@ internal sealed class LockpickingObserverEngine : IDisposable
             Directory.CreateDirectory(evidenceDirectory);
             lastEvidenceKey = string.Empty;
             savedEvidenceCount = 0;
+            savedNonNumberedEvidenceCount = 0;
+            savedNumberedEvidenceCount = 0;
             savedSpinEvidenceCount = 0;
             lastSpinEvidenceTimestamp = 0;
             observing = true;
@@ -192,6 +199,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     var observation = rawObservation;
                     sampleCount++;
                     var sampleTimestamp = Stopwatch.GetTimestamp();
+                    if (!inputEnabled)
+                    {
+                        TrySaveTargetTrace(frame.Bitmap, sampleCount);
+                    }
                     observation = tracker.Track(
                         observation,
                         sampleTimestamp,
@@ -344,10 +355,14 @@ internal sealed class LockpickingObserverEngine : IDisposable
         long sampleTimestamp)
     {
         var evidenceKey = $"{observation.State}:{observation.Target?.Phase}:{observation.PredictedAction}";
+        var saveNumberedFrame = observation.State == LockpickingVisualState.Numbered
+            && savedNumberedEvidenceCount < MaximumNumberedEvidenceFrames;
         var saveSpinBurst = observation.State == LockpickingVisualState.Spin
             && savedSpinEvidenceCount < MaximumSpinEvidenceFrames
             && (lastSpinEvidenceTimestamp == 0 || sampleTimestamp - lastSpinEvidenceTimestamp >= SpinEvidenceIntervalTicks);
-        if (savedEvidenceCount >= MaximumEvidenceFrames || (!saveSpinBurst && evidenceKey == lastEvidenceKey))
+        if (!saveNumberedFrame
+            && !saveSpinBurst
+            && (savedNonNumberedEvidenceCount >= MaximumEvidenceFrames || evidenceKey == lastEvidenceKey))
         {
             return;
         }
@@ -357,7 +372,8 @@ internal sealed class LockpickingObserverEngine : IDisposable
             var sequence = savedEvidenceCount + 1;
             var kind = saveSpinBurst ? "spinburst" : observation.State.ToString().ToLowerInvariant();
             var stem = $"{sequence:00}-{kind}-{sampleCount:000000}";
-            var evidenceRegion = saveSpinBurst ? HudEvidenceRegion(frame, observation) : new Rectangle(0, 0, frame.Width, frame.Height);
+            var croppedHudEvidence = saveSpinBurst || saveNumberedFrame;
+            var evidenceRegion = croppedHudEvidence ? HudEvidenceRegion(frame, observation) : new Rectangle(0, 0, frame.Width, frame.Height);
             using var evidence = new Bitmap(evidenceRegion.Width, evidenceRegion.Height, PixelFormat.Format24bppRgb);
             using (var graphics = Graphics.FromImage(evidence))
             {
@@ -367,7 +383,9 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     evidenceRegion,
                     GraphicsUnit.Pixel);
             }
-            evidence.Save(Path.Combine(evidenceDirectory, $"{stem}.jpg"), ImageFormat.Jpeg);
+            var imageFormat = croppedHudEvidence ? ImageFormat.Png : ImageFormat.Jpeg;
+            var extension = croppedHudEvidence ? "png" : "jpg";
+            evidence.Save(Path.Combine(evidenceDirectory, $"{stem}.{extension}"), imageFormat);
             File.AppendAllText(
                 Path.Combine(evidenceDirectory, "events.jsonl"),
                 JsonSerializer.Serialize(new
@@ -376,6 +394,7 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     sampleCount,
                     frame = new { frame.Width, frame.Height },
                     evidenceRegion = new { evidenceRegion.Left, evidenceRegion.Top, evidenceRegion.Width, evidenceRegion.Height },
+                    evidenceFormat = extension,
                     capture = new
                     {
                         capture.Backend,
@@ -388,6 +407,14 @@ internal sealed class LockpickingObserverEngine : IDisposable
                 }) + Environment.NewLine);
             lastEvidenceKey = evidenceKey;
             savedEvidenceCount = sequence;
+            if (saveNumberedFrame)
+            {
+                savedNumberedEvidenceCount++;
+            }
+            else if (!saveSpinBurst)
+            {
+                savedNonNumberedEvidenceCount++;
+            }
             if (saveSpinBurst)
             {
                 savedSpinEvidenceCount++;
@@ -410,6 +437,27 @@ internal sealed class LockpickingObserverEngine : IDisposable
         var left = Math.Clamp((int)Math.Round(observation.HudCenterX * frame.Width - width / 2d), 0, frame.Width - width);
         var top = Math.Clamp((int)Math.Round(observation.HudCenterY * frame.Height - height / 2d), 0, frame.Height - height);
         return new Rectangle(left, top, width, height);
+    }
+
+    private void TrySaveTargetTrace(Bitmap frame, int sampleCount)
+    {
+        try
+        {
+            var trace = LockpickingDetector.TraceTargets(frame);
+            File.AppendAllText(
+                Path.Combine(evidenceDirectory, "candidate-trace.jsonl"),
+                JsonSerializer.Serialize(new
+                {
+                    diagnostic = "lockpick-target-trace-v1",
+                    capturedAt = DateTimeOffset.Now,
+                    sampleCount,
+                    trace,
+                }) + Environment.NewLine);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ExternalException)
+        {
+            // Optional local diagnostics must not interrupt observation.
+        }
     }
 
     public void Dispose()

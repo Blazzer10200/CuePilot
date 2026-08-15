@@ -19,8 +19,8 @@ describe("activity registry", () => {
       "Background range",
       "Input cadence",
     ]);
-    expect(lockpicking.statusLabel).toBe("Class C test");
-    expect(lockpicking.capabilities).toContain("Class C control");
+    expect(lockpicking.statusLabel).toBe("Observe only");
+    expect(lockpicking.capabilities).toContain("Local calibration");
     expect(lockpicking.capabilities).toContain("Safe observation");
   });
 });

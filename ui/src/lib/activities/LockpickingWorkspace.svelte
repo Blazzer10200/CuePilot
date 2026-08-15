@@ -1,26 +1,24 @@
 <script lang="ts">
-  import { ArrowLeft, CarFront, ChevronRight, CircleDot, Eye, Gauge, KeyRound, MousePointer2, OctagonX, Play, ScanEye, Settings2, ShieldCheck } from "@lucide/svelte";
+  import { ArrowLeft, CarFront, ChevronRight, CircleDot, Eye, Gauge, KeyRound, MousePointer2, OctagonX, ScanEye, Settings2, ShieldCheck } from "@lucide/svelte";
   import type { ActivityDefinition } from "../activities";
-  import type { HotkeyBinding, LockpickingObserveStatus } from "../engine.svelte";
+  import type { LockpickingObserveStatus } from "../engine.svelte";
 
   interface Props {
     activity: ActivityDefinition;
     targetValid: boolean;
     status: LockpickingObserveStatus;
-    shortcut?: HotkeyBinding;
     onback: () => void | Promise<void>;
     onmode: (mode: "observe" | "classC" | "stop") => void | Promise<void>;
     onsettings: () => void | Promise<void>;
   }
 
-  let { activity, targetValid, status, shortcut, onback, onmode, onsettings }: Props = $props();
+  let { activity, targetValid, status, onback, onmode, onsettings }: Props = $props();
   let pending = $state(false);
   const observation = $derived(status.observation);
   const hasHud = $derived(observation.state !== "Hidden");
   const percent = $derived(Math.round(status.confidence * 100));
   const spin = $derived(status.spin);
   const targetLabel = $derived(observation.target?.number ? `Target ${observation.target.number}` : observation.target ? "Target acquired" : "No active target");
-  const shortcutLabel = $derived(shortcut?.key ?? "F9");
 
   async function setMode(mode: "observe" | "classC" | "stop") {
     if (pending || (mode !== "stop" && !targetValid)) return;
@@ -44,7 +42,7 @@
   <div class="lockpick-hero__copy">
     <p class="eyebrow"><CarFront size={14} strokeWidth={1.9} /> Vehicle access reader</p>
     <h1 id="lockpick-heading">Vehicle lockpicking</h1>
-    <p>{status.inputEnabled ? "Class C is running from verified visual states. Pause / Break releases all input immediately." : "Observe safely or run the calibrated Class C sequence when FiveM is ready."}</p>
+    <p>Observe numbered targets and collect local calibration evidence. Automated Class C input is unavailable in this release.</p>
   </div>
   <div class="lockpick-hero__actions">
     {#if status.observing}
@@ -52,7 +50,6 @@
     {:else}
       <button class="lockpick-observe-button secondary" aria-label="Lockpicking settings" onclick={onsettings} disabled={pending}><Settings2 size={16} strokeWidth={1.9} /></button>
       <button class="lockpick-observe-button secondary" onclick={() => setMode("observe")} disabled={pending || !targetValid}><Eye size={16} strokeWidth={1.9} /> Observe only</button>
-      <button class="lockpick-observe-button" onclick={() => setMode("classC")} disabled={pending || !targetValid}><Play size={16} strokeWidth={1.9} /> Run Class C</button>
     {/if}
   </div>
 </section>
@@ -116,6 +113,6 @@
 </section>
 
 <footer class="status-footer">
-  <div class="safety-summary"><ShieldCheck size={15} strokeWidth={1.9} /><p><strong>Safe by default</strong><i></i><kbd>{shortcutLabel}</kbd> Class C start / stop<i></i><kbd>Pause / Break</kbd> emergency stop</p></div>
+  <div class="safety-summary"><ShieldCheck size={15} strokeWidth={1.9} /><p><strong>Safe by default</strong><i></i>Observation never sends input<i></i><kbd>Pause / Break</kbd> emergency stop</p></div>
   <div class="system-status" aria-label="System status"><span><i></i>Local only</span><b aria-hidden="true"></b><span>{status.captureBackend}</span></div>
 </footer>

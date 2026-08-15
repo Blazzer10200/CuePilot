@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.1.1 - 2026-08-15 - Fishing release
+
+- Ships the verified Fishing automation, local evidence review, and CuePilot desktop installer for general use.
+- Keeps vehicle lockpicking in safe Observe-only calibration mode while concurrent-target literal-label recognition is validated; Class C automation cannot be started by the UI or shortcut.
+
 ## 5.1.0 - 2026-08-14 - Complete CuePilot desktop
 
 - Makes Fishing and Vehicle Lockpicking use one centered, height-scaled FiveM safe viewport across 16:9, 16:10, 5:4/windowed-style, 21:9, and 32:9 layouts while retaining the recorded detector fast paths and false-positive gates.
