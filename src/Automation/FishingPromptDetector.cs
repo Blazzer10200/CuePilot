@@ -1,8 +1,9 @@
+using System.Drawing;
 using System.Drawing.Imaging;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal enum FishingPromptKind
 {
@@ -16,6 +17,24 @@ internal readonly record struct FishingPromptObservation(
     double Confidence,
     double CastConfidence = 0,
     double CollectConfidence = 0);
+
+internal readonly record struct FishingPromptMatchEvidence(
+    FishingPromptKind Kind,
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    double Score,
+    double KeyScore,
+    double GlyphScore,
+    double TextScore,
+    double ContrastScore,
+    double BackgroundScore);
+
+internal readonly record struct FishingPromptEvidence(
+    FishingPromptMatchEvidence Cast,
+    FishingPromptMatchEvidence Collect,
+    string DecisionReason);
 
 internal sealed class FishingPromptStabilityGate(
     FishingPromptKind expected,
@@ -44,6 +63,20 @@ internal sealed class FishingPromptStabilityGate(
         misses = 0;
         return false;
     }
+
+    internal void Reset()
+    {
+        matches = 0;
+        misses = 0;
+    }
+}
+
+internal static class FishingPromptArbitration
+{
+    internal static bool ShouldSuppress(
+        FishingPromptObservation prompt,
+        FishingMeterObservation meter) =>
+        prompt.Kind != FishingPromptKind.None && meter.IsVisible;
 }
 
 internal sealed class FishingPromptClearGate(FishingPromptKind pressed, int requiredMissingSamples = 3)
@@ -70,39 +103,71 @@ internal sealed class FishingPromptClearGate(FishingPromptKind pressed, int requ
 
 internal static class FishingPromptDetector
 {
+    private const double MinimumGlyphScore = 0.95;
     private static readonly Lazy<PromptTemplate[]> Templates = new(LoadTemplates);
 
-    internal static FishingPromptObservation Analyze(Bitmap bitmap)
+    internal static FishingPromptObservation Analyze(Bitmap bitmap) => Analyze(bitmap, out _);
+
+    internal static FishingPromptObservation Analyze(Bitmap bitmap, out FishingPromptEvidence evidence)
     {
+        evidence = default;
         if (bitmap.Width < 150 || bitmap.Height < 44)
             return new FishingPromptObservation(FishingPromptKind.None, 0);
 
         using var pixels = new PixelBuffer(bitmap);
         var usePromptRegion = pixels.Width >= 640 && pixels.Height >= 360;
+        var frameBounds = new Rectangle(0, 0, pixels.Width, pixels.Height);
+        var safeViewport = GameViewportGeometry.CenteredSafeViewport(frameBounds);
         var brightSearchRegion = usePromptRegion
-            ? Rectangle.FromLTRB(
-                pixels.Width * 25 / 100,
-                pixels.Height * 55 / 100,
-                Math.Min(pixels.Width, pixels.Width * 70 / 100 + 48),
-                pixels.Height)
+            ? safeViewport.SearchRegion(0.25, 0.55, 0.88, 1, frameBounds)
             : new Rectangle(0, 0, pixels.Width, pixels.Height);
         var brightPoints = pixels.FindNeutralPoints(200, 35, brightSearchRegion);
         var templates = Templates.Value;
-        var scores = new double[templates.Length];
+        var matches = new PromptMatch[templates.Length];
         Parallel.For(0, templates.Length, index =>
         {
-            scores[index] = FindBestScore(pixels, templates[index], brightPoints);
+            matches[index] = FindBestMatch(pixels, templates[index], brightPoints);
         });
-        var castScore = templates.Select((template, index) => (template, index))
-            .Where(item => item.template.Kind == FishingPromptKind.Cast)
-            .Max(item => scores[item.index]);
-        var collectScore = templates.Select((template, index) => (template, index))
-            .Where(item => item.template.Kind == FishingPromptKind.Collect)
-            .Max(item => scores[item.index]);
+        // This runs for every captured frame. Keep the selection allocation-free:
+        // the templates are fixed and ordered by kind, so a direct pass preserves
+        // MaxBy's first-match tie behavior without constructing LINQ iterators.
+        var castIndex = -1;
+        var collectIndex = -1;
+        for (var index = 0; index < templates.Length; index++)
+        {
+            if (templates[index].Kind == FishingPromptKind.Cast)
+            {
+                if (castIndex < 0 || matches[index].Score.Total > matches[castIndex].Score.Total)
+                {
+                    castIndex = index;
+                }
+            }
+            else if (templates[index].Kind == FishingPromptKind.Collect
+                && (collectIndex < 0 || matches[index].Score.Total > matches[collectIndex].Score.Total))
+            {
+                collectIndex = index;
+            }
+        }
 
+        if (castIndex < 0 || collectIndex < 0)
+        {
+            throw new InvalidOperationException("Fishing prompt templates must include cast and collect variants.");
+        }
+
+        var castScore = matches[castIndex].Score.Total;
+        var collectScore = matches[collectIndex].Score.Total;
         var kind = castScore >= collectScore ? FishingPromptKind.Cast : FishingPromptKind.Collect;
         var best = Math.Max(castScore, collectScore);
         var other = Math.Min(castScore, collectScore);
+        var decisionReason = best < 0.65
+            ? $"Best prompt score {best:P0} is below the 65% gate"
+            : best - other < 0.012
+                ? $"Cast and collect scores are separated by only {best - other:P1}"
+                : $"Accepted {kind} at {best:P0}";
+        evidence = new FishingPromptEvidence(
+            ToEvidence(templates[castIndex], matches[castIndex]),
+            ToEvidence(templates[collectIndex], matches[collectIndex]),
+            decisionReason);
         if (best < 0.65 || best - other < 0.012)
             return new FishingPromptObservation(FishingPromptKind.None, best, castScore, collectScore);
         return new FishingPromptObservation(kind, best, castScore, collectScore);
@@ -113,29 +178,49 @@ internal static class FishingPromptDetector
         WindowTargetSettings target,
         out FrameSourceStatus status)
     {
+        using var sample = CaptureAndAnalyze(frameSource, target, out status);
+        return sample?.Observation ?? new FishingPromptObservation(FishingPromptKind.None, 0);
+    }
+
+    internal static FishingPromptFrameSample? CaptureAndAnalyze(
+        IFrameSource frameSource,
+        WindowTargetSettings target,
+        out FrameSourceStatus status)
+    {
         if (!WindowTargetService.TryResolve(target, out var resolved, out var detail))
         {
             status = new FrameSourceStatus(FrameSourceState.TargetUnavailable, frameSource.Name, detail, TimeSpan.MaxValue, 0);
-            return new FishingPromptObservation(FishingPromptKind.None, 0);
+            return null;
         }
 
         var region = new Rectangle(Point.Empty, resolved.Bounds.Size);
         if (!frameSource.TryCapture(target, region, out var frame, out status) || frame is null)
-            return new FishingPromptObservation(FishingPromptKind.None, 0);
-        using (frame)
+            return null;
+        try
         {
-            return Analyze(frame.Bitmap);
+            var observation = Analyze(frame.Bitmap, out var evidence);
+            return new FishingPromptFrameSample(frame, observation, evidence);
+        }
+        catch
+        {
+            frame.Dispose();
+            throw;
         }
     }
 
-    private static double FindBestScore(PixelBuffer source, PromptTemplate template, IReadOnlyList<Point> brightPoints)
+    private static PromptMatch FindBestMatch(PixelBuffer source, PromptTemplate template, IReadOnlyList<Point> brightPoints)
     {
-        if (template.Width > source.Width || template.Height > source.Height) return 0;
+        if (template.Width > source.Width || template.Height > source.Height) return default;
         var usePromptRegion = source.Width >= 640 && source.Height >= 360;
-        var minimumX = usePromptRegion ? source.Width * 25 / 100 : 0;
-        var maximumX = usePromptRegion ? source.Width * 70 / 100 : source.Width;
-        var minimumY = usePromptRegion ? source.Height * 55 / 100 : 0;
-        var best = 0d;
+        var sourceBounds = new Rectangle(0, 0, source.Width, source.Height);
+        var safeViewport = GameViewportGeometry.CenteredSafeViewport(sourceBounds);
+        var promptRegion = usePromptRegion
+            ? safeViewport.SearchRegion(0.25, 0.55, 0.88, 1, sourceBounds)
+            : sourceBounds;
+        var minimumX = promptRegion.Left;
+        var maximumX = promptRegion.Right;
+        var minimumY = promptRegion.Top;
+        var best = default(PromptMatch);
         foreach (var brightPoint in brightPoints)
         {
             var x = brightPoint.X - template.SearchAnchor.X;
@@ -146,20 +231,47 @@ internal static class FishingPromptDetector
             {
                 if (source.IsNeutralAt(x + point.X, y + point.Y, 70, 60)) continue;
                 misses++;
-                if (misses > 2) break;
+                if (misses > 5) break;
             }
 
-            if (misses > 2) continue;
+            // The key outline is anti-aliased differently at fractional UI
+            // scales. Six of eleven anchors still establishes the keycap while
+            // allowing the full glyph/text mask to make the final decision.
+            if (misses > 5) continue;
             var score = ScoreAt(source, template, x, y);
-            if (score > best) best = score;
-            if (best >= 0.985) return best;
+            if (score.Total > best.Score.Total) best = new PromptMatch(x, y, score);
+            if (best.Score.Total >= 0.985) return best;
         }
 
         return best;
     }
 
-    private static double ScoreAt(PixelBuffer source, PromptTemplate template, int x, int y)
+    private static PromptScore ScoreAt(PixelBuffer source, PromptTemplate template, int x, int y)
     {
+        var glyphForegroundMatches = 0;
+        foreach (var point in template.GlyphForeground)
+        {
+            if (source.IsNeutralAt(x + point.X, y + point.Y, 125, 60)) glyphForegroundMatches++;
+        }
+
+        var glyphBackgroundMatches = 0;
+        foreach (var point in template.GlyphBackground)
+        {
+            if (source.IsDarkAt(x + point.X, y + point.Y, 110)) glyphBackgroundMatches++;
+        }
+
+        var glyphForegroundScore = template.GlyphForeground.Length == 0
+            ? 0
+            : glyphForegroundMatches / (double)template.GlyphForeground.Length;
+        var glyphBackgroundScore = template.GlyphBackground.Length == 0
+            ? 0
+            : glyphBackgroundMatches / (double)template.GlyphBackground.Length;
+        var glyphScore = glyphForegroundScore * 0.70 + glyphBackgroundScore * 0.30;
+        if (glyphScore < MinimumGlyphScore)
+        {
+            return new PromptScore(0, 0, glyphScore, 0, 0, 0);
+        }
+
         var keyMatches = 0;
         foreach (var point in template.KeyForeground)
         {
@@ -172,6 +284,14 @@ internal static class FishingPromptDetector
             if (source.IsNeutralAt(x + point.X, y + point.Y, 125, 60)) textMatches++;
         }
 
+        var contrastMatches = 0;
+        foreach (var pair in template.TextContrastPairs)
+        {
+            var foreground = source.LuminanceAt(x + pair.Foreground.X, y + pair.Foreground.Y);
+            var background = source.LuminanceAt(x + pair.Background.X, y + pair.Background.Y);
+            if (foreground - background >= 12) contrastMatches++;
+        }
+
         var backgroundMatches = 0;
         foreach (var point in template.TextBackground)
         {
@@ -180,26 +300,58 @@ internal static class FishingPromptDetector
 
         var keyScore = keyMatches / (double)template.KeyForeground.Length;
         var textScore = textMatches / (double)template.TextForeground.Length;
+        var contrastScore = template.TextContrastPairs.Length == 0
+            ? 0
+            : contrastMatches / (double)template.TextContrastPairs.Length;
         var backgroundScore = template.TextBackground.Length == 0
             ? 1
             : backgroundMatches / (double)template.TextBackground.Length;
-        return keyScore * 0.20 + textScore * 0.40 + backgroundScore * 0.40;
+        // Text foreground alone is ambiguous over sand, foam, or sky: a bright
+        // scene can satisfy every white-text sample for both prompt templates.
+        // The GTA prompt font has a stable dark outline/shadow immediately
+        // beside each white stroke. Scoring those signed local-contrast pairs
+        // preserves the letter geometry without requiring a dark world behind it.
+        var total = keyScore * 0.15
+            + glyphScore * 0.10
+            + textScore * 0.20
+            + contrastScore * 0.40
+            + backgroundScore * 0.15;
+        return new PromptScore(total, keyScore, glyphScore, textScore, contrastScore, backgroundScore);
     }
+
+    private static FishingPromptMatchEvidence ToEvidence(PromptTemplate template, PromptMatch match) => new(
+        template.Kind,
+        match.X,
+        match.Y,
+        template.Width,
+        template.Height,
+        match.Score.Total,
+        match.Score.Key,
+        match.Score.Glyph,
+        match.Score.Text,
+        match.Score.Contrast,
+        match.Score.Background);
 
     private static PromptTemplate[] LoadTemplates()
     {
         var references = new[]
         {
-            LoadTemplate("WorkflowLooper.Vision.CastReady.png", FishingPromptKind.Cast, new Rectangle(37, 39, 210, 44)),
-            LoadTemplate("WorkflowLooper.Vision.CollectReady.png", FishingPromptKind.Collect, new Rectangle(240, 12, 146, 44)),
-            LoadTemplate("WorkflowLooper.Vision.CatchCard.png", FishingPromptKind.Collect, new Rectangle(354, 126, 150, 44)),
+            LoadTemplate("CuePilot.Vision.CastReady.png", FishingPromptKind.Cast, new Rectangle(37, 39, 210, 44)),
+            LoadTemplate("CuePilot.Vision.CollectReady.png", FishingPromptKind.Collect, new Rectangle(240, 12, 146, 44)),
+            LoadTemplate("CuePilot.Vision.CatchCard.png", FishingPromptKind.Collect, new Rectangle(354, 126, 150, 44)),
         };
 
         // FiveM's NUI can render at very different effective sizes after a
         // resolution, DPI, or UI-scale change. Keep the pyramid bounded, but
         // cover the large prompt layout supplied from the live game as well as
         // the original compact captures.
-        var scales = new[] { 0.85, 1.0, 1.15, 1.5, 2.0, 3.0, 4.0 };
+        // Point-sampled prompt glyphs are sensitive to even a two-pixel size
+        // change. Probe a dense small/normal UI pyramid, then retain a few
+        // bounded large-layout levels for the supplied catch-card variants.
+        var scales = Enumerable.Range(0, 16)
+            .Select(index => 0.75 + index * 0.05)
+            .Concat(new[] { 1.75, 2.0, 2.5, 3.0, 3.5, 4.0 })
+            .ToArray();
         return references.SelectMany(reference => scales.Select(scale => Scale(reference, scale))).ToArray();
     }
 
@@ -211,13 +363,20 @@ internal static class FishingPromptDetector
             (int)Math.Round(point.X * scale),
             (int)Math.Round(point.Y * scale));
         Point[] ScalePoints(IEnumerable<Point> points) => points.Select(ScalePoint).Distinct().ToArray();
+        TextContrastPair[] ScalePairs(IEnumerable<TextContrastPair> pairs) => pairs
+            .Select(pair => new TextContrastPair(ScalePoint(pair.Foreground), ScalePoint(pair.Background)))
+            .Distinct()
+            .ToArray();
 
         return new PromptTemplate(
             source.Kind,
             (int)Math.Round(source.Width * scale),
             (int)Math.Round(source.Height * scale),
             ScalePoints(source.KeyForeground),
+            ScalePoints(source.GlyphForeground),
+            ScalePoints(source.GlyphBackground),
             ScalePoints(source.TextForeground),
+            ScalePairs(source.TextContrastPairs),
             ScalePoints(source.TextBackground),
             ScalePoints(source.KeyAnchors),
             ScalePoint(source.SearchAnchor));
@@ -231,6 +390,7 @@ internal static class FishingPromptDetector
         crop = Rectangle.Intersect(new Rectangle(Point.Empty, reference.Size), crop);
         var keyForeground = new List<Point>();
         var strongGlyph = new List<Point>();
+        var glyphBackground = new List<Point>();
         var textForeground = new List<Point>();
         var textBackground = new List<Point>();
         for (var y = 0; y < crop.Height; y += 2)
@@ -240,7 +400,11 @@ internal static class FishingPromptDetector
                 var color = reference.GetPixel(crop.Left + x, crop.Top + y);
                 if (color.A < 32) continue;
                 if (x < 48 && IsNeutral(color, 70, 60)) keyForeground.Add(new Point(x, y));
-                if (x is >= 14 and <= 32 && y is >= 8 and <= 35 && IsNeutral(color, 200, 35)) strongGlyph.Add(new Point(x, y));
+                if (x is >= 14 and <= 32 && y is >= 8 and <= 35)
+                {
+                    if (IsNeutral(color, 180, 45)) strongGlyph.Add(new Point(x, y));
+                    else if ((color.R + color.G + color.B) / 3 <= 95) glyphBackground.Add(new Point(x, y));
+                }
                 if (x < 50) continue;
                 if (IsNeutral(color, 125, 60)) textForeground.Add(new Point(x, y));
                 else textBackground.Add(new Point(x, y));
@@ -249,13 +413,27 @@ internal static class FishingPromptDetector
 
         if (keyForeground.Count < 20 || textForeground.Count < 20)
             throw new InvalidOperationException($"Fishing prompt reference {resourceName} is incomplete.");
+        var textContrastPairs = CreateTextContrastPairs(reference, crop, textForeground);
+        if (textContrastPairs.Length < 20)
+            throw new InvalidOperationException($"Fishing prompt reference {resourceName} has insufficient text contrast.");
         const int anchorCount = 11;
         var anchors = Enumerable.Range(0, anchorCount)
             .Select(index => keyForeground[index * (keyForeground.Count - 1) / (anchorCount - 1)])
             .ToArray();
         if (strongGlyph.Count == 0) throw new InvalidOperationException($"Fishing prompt reference {resourceName} has no key glyph.");
         var searchAnchor = strongGlyph[strongGlyph.Count / 2];
-        return new PromptTemplate(kind, crop.Width, crop.Height, keyForeground.ToArray(), textForeground.ToArray(), textBackground.ToArray(), anchors, searchAnchor);
+        return new PromptTemplate(
+            kind,
+            crop.Width,
+            crop.Height,
+            keyForeground.ToArray(),
+            strongGlyph.ToArray(),
+            glyphBackground.ToArray(),
+            textForeground.ToArray(),
+            textContrastPairs,
+            textBackground.ToArray(),
+            anchors,
+            searchAnchor);
     }
 
     private static bool IsNeutral(Color color, int minimumBrightness, int maximumSpread)
@@ -265,15 +443,72 @@ internal static class FishingPromptDetector
         return (color.R + color.G + color.B) / 3 >= minimumBrightness && brightest - darkest <= maximumSpread;
     }
 
+    private static TextContrastPair[] CreateTextContrastPairs(
+        Bitmap reference,
+        Rectangle crop,
+        IReadOnlyList<Point> foregroundPoints)
+    {
+        var pairs = new List<TextContrastPair>();
+        foreach (var foreground in foregroundPoints)
+        {
+            var foregroundLuminance = Luminance(reference.GetPixel(
+                crop.Left + foreground.X,
+                crop.Top + foreground.Y));
+            TextContrastPair? best = null;
+            var bestDelta = 0d;
+            for (var radius = 1; radius <= 5 && best is null; radius++)
+            {
+                for (var offsetY = -radius; offsetY <= radius; offsetY++)
+                {
+                    for (var offsetX = -radius; offsetX <= radius; offsetX++)
+                    {
+                        if (Math.Max(Math.Abs(offsetX), Math.Abs(offsetY)) != radius) continue;
+                        var background = new Point(foreground.X + offsetX, foreground.Y + offsetY);
+                        if (background.X < 50 || background.X >= crop.Width
+                            || background.Y < 0 || background.Y >= crop.Height) continue;
+                        var delta = foregroundLuminance - Luminance(reference.GetPixel(
+                            crop.Left + background.X,
+                            crop.Top + background.Y));
+                        if (delta < 35 || delta <= bestDelta) continue;
+                        bestDelta = delta;
+                        best = new TextContrastPair(foreground, background);
+                    }
+                }
+            }
+
+            if (best is not null) pairs.Add(best.Value);
+        }
+
+        return pairs.Distinct().ToArray();
+    }
+
+    private static double Luminance(Color color) =>
+        color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
+
     private sealed record PromptTemplate(
         FishingPromptKind Kind,
         int Width,
         int Height,
         Point[] KeyForeground,
+        Point[] GlyphForeground,
+        Point[] GlyphBackground,
         Point[] TextForeground,
+        TextContrastPair[] TextContrastPairs,
         Point[] TextBackground,
         Point[] KeyAnchors,
         Point SearchAnchor);
+
+    private readonly record struct PromptScore(
+        double Total,
+        double Key,
+        double Glyph,
+        double Text,
+        double Contrast,
+        double Background);
+
+    private readonly record struct TextContrastPair(Point Foreground, Point Background);
+
+    private readonly record struct PromptMatch(int X, int Y, PromptScore Score);
 
     private sealed class PixelBuffer : IDisposable
     {
@@ -318,6 +553,20 @@ internal static class FishingPromptDetector
             return (red + green + blue) / 3 >= minimumBrightness && brightest - darkest <= maximumSpread;
         }
 
+        internal bool IsDarkAt(int x, int y, int maximumBrightness)
+        {
+            var row = data.Stride >= 0 ? y : Height - 1 - y;
+            var offset = row * Math.Abs(data.Stride) + x * 4;
+            return (bytes[offset] + bytes[offset + 1] + bytes[offset + 2]) / 3 <= maximumBrightness;
+        }
+
+        internal double LuminanceAt(int x, int y)
+        {
+            var row = data.Stride >= 0 ? y : Height - 1 - y;
+            var offset = row * Math.Abs(data.Stride) + x * 4;
+            return bytes[offset + 2] * 0.2126 + bytes[offset + 1] * 0.7152 + bytes[offset] * 0.0722;
+        }
+
         internal List<Point> FindNeutralPoints(int minimumBrightness, int maximumSpread, Rectangle region)
         {
             region = Rectangle.Intersect(new Rectangle(0, 0, Width, Height), region);
@@ -339,4 +588,15 @@ internal static class FishingPromptDetector
             if (ownsBitmap) bitmap.Dispose();
         }
     }
+}
+
+internal sealed class FishingPromptFrameSample(
+    FrameLease frame,
+    FishingPromptObservation observation,
+    FishingPromptEvidence evidence) : IDisposable
+{
+    internal FrameLease Frame { get; } = frame;
+    internal FishingPromptObservation Observation { get; } = observation;
+    internal FishingPromptEvidence Evidence { get; } = evidence;
+    public void Dispose() => Frame.Dispose();
 }

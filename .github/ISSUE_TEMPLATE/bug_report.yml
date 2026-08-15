@@ -1,11 +1,11 @@
 name: Bug report
-description: Report reproducible incorrect behavior in Workflow Looper.
+description: Report reproducible incorrect behavior in CuePilot.
 title: "[Bug]: "
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve Workflow Looper. Do not attach private game captures or diagnostics without reviewing their contents.
+      value: Thanks for helping improve CuePilot. Do not attach private game captures or diagnostics without reviewing their contents.
   - type: input
     id: version
     attributes:

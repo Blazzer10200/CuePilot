@@ -1,13 +1,23 @@
 {
-  "name": "workflow-looper-ui",
+  "name": "cuepilot-ui",
   "private": true,
-  "version": "0.1.0",
+  "version": "5.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "tauri": "tauri"
+    "test": "vitest run",
+    "engine:stage": "pwsh -NoProfile -File scripts/build-engine.ps1",
+    "engine:stage:release": "pwsh -NoProfile -File scripts/build-engine.ps1 -Release",
+    "tauri": "tauri",
+    "tauri:dev": "npm run engine:stage && tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:build:portable": "npm run engine:stage:release && tauri build --no-bundle",
+    "tauri:build": "npm run engine:stage:release && tauri build",
+    "cdp:dev": "pwsh -NoProfile -File scripts/run-dev-inspectable.ps1 -WaitForCdp",
+    "cdp:serve": "node scripts/cdp/serve.cjs",
+    "cdp:doctor": "bash scripts/cdp/c.sh doctor",
+    "cdp:inspect": "bash scripts/cdp/c.sh inspect"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0",
@@ -19,6 +29,7 @@
     "@tauri-apps/cli": "^2.9.0",
     "svelte-check": "^4.1.0",
     "typescript": "^5.7.3",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^3.2.4"
   }
 }

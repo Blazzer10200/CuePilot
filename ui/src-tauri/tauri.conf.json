@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Workflow Looper",
-  "version": "0.1.0",
-  "identifier": "com.blazzer.workflow-looper",
+  "productName": "CuePilot",
+  "version": "5.1.0",
+  "identifier": "com.blazzer.cuepilot",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [{
-      "title": "Workflow Looper",
+      "title": "CuePilot",
       "width": 1180,
       "height": 760,
       "minWidth": 760,
@@ -26,8 +26,11 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
-    "icon": ["../../assets/branding/workflow-looper.ico"],
-    "resources": ["resources/engine/Workflow Looper.exe"],
-    "windows": { "webviewInstallMode": { "type": "embedBootstrapper" } }
+    "icon": ["../../assets/branding/cuepilot.ico"],
+    "resources": ["resources/engine/CuePilot.exe"],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": { "installMode": "currentUser" }
+    }
   }
 }

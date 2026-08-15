@@ -19,25 +19,72 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Test
-        run: dotnet test .\tests\WorkflowLooper.Tests\WorkflowLooper.Tests.csproj -c Release
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
-      - name: Publish Windows executable
-        run: dotnet publish .\WorkflowLooper.csproj -c Release -o release
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Self-test release
-        shell: pwsh
-        run: '& ".\release\Workflow Looper.exe" --self-test'
-
-      - name: Package and checksum
+      - name: Verify release tag and version
         shell: pwsh
         run: |
-          Compress-Archive -LiteralPath "release\Workflow Looper.exe" -DestinationPath "release\Workflow-Looper-win-x64.zip"
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath "release\Workflow Looper.exe").Hash.ToLowerInvariant()
-          "$hash  Workflow Looper.exe" | Set-Content -Encoding ascii "release\Workflow-Looper-win-x64.sha256"
+          $tagVersion = $env:GITHUB_REF_NAME.TrimStart('v')
+          $tauriVersion = (Get-Content -Raw .\ui\src-tauri\tauri.conf.json | ConvertFrom-Json).version
+          $npmVersion = (Get-Content -Raw .\ui\package.json | ConvertFrom-Json).version
+          $cargoVersion = (Select-String -Path .\ui\src-tauri\Cargo.toml -Pattern '^version = "([^"]+)"$').Matches[0].Groups[1].Value
+          $dotnetVersion = (Select-String -Path .\CuePilot.csproj -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
+          $versions = @($tauriVersion, $npmVersion, $cargoVersion, $dotnetVersion) | Sort-Object -Unique
+          if ($versions.Count -ne 1 -or $versions[0] -ne $tagVersion) {
+            throw "Release tag $tagVersion does not match project versions: $($versions -join ', ')."
+          }
+
+      - name: Test engine
+        run: dotnet test .\tests\CuePilot.Tests\CuePilot.Tests.csproj -c Release
+
+      - name: Headless engine self-test
+        shell: pwsh
+        run: '& ".\bin\Release\net8.0-windows10.0.19041.0\win-x64\CuePilot.exe" --self-test'
+
+      - name: Install frontend dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Test frontend and Rust bridge
+        shell: pwsh
+        run: |
+          Push-Location ui
+          npm test
+          npm run check
+          Pop-Location
+          cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
+          cargo test --manifest-path .\ui\src-tauri\Cargo.toml
+
+      - name: Build Tauri installer
+        working-directory: ui
+        run: npm run tauri:build
+
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          $installers = @(Get-ChildItem -LiteralPath "ui\src-tauri\target\release\bundle\nsis" -Filter "*.exe")
+          if ($installers.Count -ne 1) { throw "Expected one NSIS installer, found $($installers.Count)." }
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $assetName = "CuePilot-$version-Windows-x64-Setup.exe"
+          $assetPath = Join-Path "release" $assetName
+          Copy-Item -LiteralPath $installers[0].FullName -Destination $assetPath
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $assetPath).Hash.ToLowerInvariant()
+          "$hash  $assetName" | Set-Content -Encoding ascii "release\$assetName.sha256"
 
       - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$env:GITHUB_REF_NAME" "release\Workflow Looper.exe#Workflow Looper.exe" "release\Workflow-Looper-win-x64.zip" "release\Workflow-Looper-win-x64.sha256" --verify-tag --generate-notes --title "Workflow Looper $env:GITHUB_REF_NAME"
+        run: |
+          $installer = (Get-ChildItem -LiteralPath release -Filter "*.exe" -File).FullName
+          $checksum = (Get-ChildItem -LiteralPath release -Filter "*.sha256" -File).FullName
+          gh release create "$env:GITHUB_REF_NAME" $installer $checksum --verify-tag --generate-notes --title "CuePilot $env:GITHUB_REF_NAME"

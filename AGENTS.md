@@ -1,29 +1,39 @@
-# WorkflowLooper (root)
+# CuePilot (root)
 
 ## Current direction
-- This repo is mid-migration from the legacy WinForms dashboard to a Svelte/Tauri shell.
-- Primary logic remains in .NET for capture, detection, input control, and routine orchestration.
+- Svelte/Tauri is the only product UI; the packaged .NET executable is a headless local engine sidecar.
+- Capture, detection, input control, routine orchestration, and safety remain authoritative in .NET.
 - Keep migration in sync with [`HANDOFF.md`](HANDOFF.md).
 
 ## Fast repository map
-- `src/` = .NET application and runtime logic
+- `src/` = headless .NET engine and runtime logic
   - `Automation/` = detector/routine engine orchestration (`AdaptiveRoutineEngine`, detector implementations)
   - `Capture/`, `Input/`, `Platform/` = frame source + input action + host platform hooks
-  - `Application/` = app startup and bridge entry points
-  - `Presentation/` and `Diagnostics/` = legacy UI + safety/diagnostic hooks
+  - `Application/` = engine startup, settings, and the versioned local bridge
+  - `Diagnostics/` = headless engine self-test
 - `ui/` = Svelte + Tauri front-end
   - `ui/src/` = app shell and state wiring
+  - `ui/src/lib/activities.ts` = typed activity registry and readiness metadata
+  - `ui/src/lib/activities/` = activity picker and activity-specific workspaces
   - `ui/src-tauri/` = Rust bridge shell
-- `tests/` = NUnit test suite and fixture assets
+- `tests/` = xUnit engine/bridge test suite and fixture assets
 - `assets/` = model/vision helper assets
+- `docs/development.md` = canonical setup, verification, inspection, and release workflow
+- `docs/activities.md` = activity boundary and readiness contract
+- `docs/code-map.md` = task-oriented call paths, edit points, and search recipes
 
 ## High-signal edit points
 - Start with:
   - `src/Automation/AdaptiveRoutineEngine.cs`
   - `src/Automation/*Detector*.cs`
+  - `src/Automation/LockpickingClassProfiles.cs`
+  - `src/Automation/LockpickingClassController.cs`
+  - `src/Automation/LockpickingObserverEngine.cs`
   - `src/Application/UiBridge.cs`
-  - `ui/src/lib/App.svelte`
-  - `ui/src-tauri/src/lib.rs`
+  - `ui/src/App.svelte`
+  - `ui/src/lib/activities.ts`
+  - `ui/src/lib/engine.svelte.ts`
+  - `ui/src-tauri/src/engine_bridge.rs`
 
 ## Runtime boundaries
 - Keep the .NET side authoritative for capture + detection + safety checks.
@@ -31,14 +41,24 @@
 - Avoid changing transport/security assumptions without matching updates on both sides of the bridge.
 
 ## Local validation
-- `.NET`: `dotnet restore`, `dotnet build WorkflowLooper.sln`, `dotnet test`
-- `UI`: `npm run check --prefix ui`, `npm run build --prefix ui`
-- `Rust`: `cargo check --manifest-path ui/src-tauri/Cargo.toml`
+- Full local gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
+- `.NET`: `dotnet build CuePilot.sln -c Release`, `dotnet test tests/CuePilot.Tests/CuePilot.Tests.csproj -c Release`
+- `UI`: `npm test --prefix ui`, `npm run check --prefix ui`, `npm run build --prefix ui`
+- `Rust`: `cargo test --manifest-path ui/src-tauri/Cargo.toml`
 
 ## Search and navigation defaults
 - Use `rg` for code search.
 - `tmp/` is noise output from sessions and should be treated as non-source.
+- Generated Tauri schemas, dependency locks, build output, and CDP captures are excluded by `.rgignore`; address them explicitly when the task actually concerns them.
+- Preview repository cleanup with `pwsh -NoProfile -File scripts/clean-workspace.ps1`; dependency caches are opt-in and should normally be preserved for faster iteration.
 - Prefer these entry points after edits:
   - run `rg` from repo root
   - inspect files directly with explicit paths from this map
   - use `.rgignore` for quick scans
+
+## Tauri UI inspection
+- Use the repo-local `$cuepilot-ui` skill for live Svelte/Tauri UI work.
+- Start with `bash ui/scripts/cdp/c.sh inspect`; use `map` or `find` to discover selectors.
+- Use `act` for interaction plus settled verification, and `look` only when pixels matter.
+- Diagnose availability with `npm --prefix ui run cdp:doctor`; the supported inspectable launcher is `npm --prefix ui run cdp:dev`.
+- CDP is development-only. Never enable it in release configuration or kill CuePilot by image name.

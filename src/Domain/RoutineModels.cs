@@ -1,7 +1,8 @@
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal sealed class WindowTargetSettings
 {
+    public int ProcessId { get; set; }
     public string ProcessName { get; set; } = string.Empty;
     public string WindowTitle { get; set; } = string.Empty;
 
@@ -9,6 +10,7 @@ internal sealed class WindowTargetSettings
 
     internal WindowTargetSettings Copy() => new()
     {
+        ProcessId = ProcessId,
         ProcessName = ProcessName,
         WindowTitle = WindowTitle,
     };
@@ -18,7 +20,6 @@ internal enum InputDeliveryMode
 {
     Automatic,
     Foreground,
-    Application,
 }
 
 internal sealed class FishingRoutineSettings

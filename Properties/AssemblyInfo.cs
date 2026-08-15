@@ -1,3 +1,3 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("WorkflowLooper.Tests")]
+[assembly: InternalsVisibleTo("CuePilot.Tests")]

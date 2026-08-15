@@ -1,11 +1,12 @@
-namespace WorkflowLooper;
+using System.Drawing;
+using System.Text.Json;
+
+namespace CuePilot;
 
 internal static class Program
 {
-    [STAThread]
     private static int Main(string[] args)
     {
-        ApplicationConfiguration.Initialize();
         if (args.Contains("--self-test", StringComparer.OrdinalIgnoreCase)) return SelfTest.Run();
         if (args.Contains("--ui-bridge", StringComparer.OrdinalIgnoreCase)) return UiBridge.Run();
 
@@ -24,100 +25,130 @@ internal static class Program
         var inputProbe = ArgumentValue(args, "--input-probe");
         if (inputProbe is not null) return RunInputProbe(inputProbe);
 
+        var prompt = ArgumentValue(args, "--analyze-prompt");
+        if (prompt is not null)
+        {
+            using var bitmap = new Bitmap(prompt);
+            var observation = FishingPromptDetector.Analyze(bitmap, out var evidence);
+            Console.WriteLine($"kind={observation.Kind} confidence={observation.Confidence:P1} cast={observation.CastConfidence:P1} collect={observation.CollectConfidence:P1}");
+            Console.WriteLine(evidence);
+            return observation.Kind == FishingPromptKind.None ? 2 : 0;
+        }
+
+        var promptBenchmark = ArgumentValue(args, "--benchmark-prompt");
+        if (promptBenchmark is not null) return RunPromptBenchmark(promptBenchmark);
+
         var meter = ArgumentValue(args, "--analyze-meter");
         if (meter is not null)
         {
             using var bitmap = new Bitmap(meter);
-            var observation = FishingMeterService.AnalyzeFrame(bitmap);
-            Console.WriteLine($"visible={observation.IsVisible} tension={observation.TensionRatio:P1} progress={observation.ProgressRatio:P1} caught={observation.IsCaught} failed={observation.IsFailed} confidence={observation.Confidence:P1}");
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var analysis = FishingMeterService.AnalyzeFrameDetailed(bitmap);
+            clock.Stop();
+            var observation = analysis.Observation;
+            Console.WriteLine($"visible={observation.IsVisible} tension={observation.TensionRatio:P1} progress={observation.ProgressRatio:P1} caught={observation.IsCaught} failed={observation.IsFailed} confidence={observation.Confidence:P1} detector_ms={clock.Elapsed.TotalMilliseconds:F2} candidates={analysis.CandidateCount}");
+            foreach (var candidate in FishingMeterService.InspectFrame(bitmap))
+            {
+                Console.WriteLine(candidate);
+            }
             return observation.IsVisible ? 0 : 2;
         }
 
         var benchmark = ArgumentValue(args, "--benchmark-meter");
         if (benchmark is not null) return RunMeterBenchmark(benchmark);
 
-        var render = ArgumentValue(args, "--render-dashboard");
-        if (render is not null)
+        var lockpicking = ArgumentValue(args, "--analyze-lockpicking");
+        if (lockpicking is not null)
         {
-            using var form = new MainForm(false, AppSettings.Defaults())
-            {
-                StartPosition = FormStartPosition.Manual,
-                Location = Screen.PrimaryScreen?.WorkingArea.Location ?? Point.Empty,
-                ShowInTaskbar = false,
-                TopMost = true,
-            };
-            var renderReady = args.Contains("--ready", StringComparer.OrdinalIgnoreCase);
-            var renderEmpty = args.Contains("--empty", StringComparer.OrdinalIgnoreCase);
-            var renderFault = args.Contains("--fault", StringComparer.OrdinalIgnoreCase);
-            if (renderEmpty) form.PrepareEmptyForPreview();
-            else if (renderFault) form.PrepareFaultForPreview();
-            else if (renderReady) form.PrepareReadyForPreview();
-            else form.PrepareForPreview();
-            var renderAdvanced = args.Contains("--advanced", StringComparer.OrdinalIgnoreCase);
-            form.Show();
-            form.WindowState = FormWindowState.Normal;
-            form.BringToFront();
-            if (args.Contains("--compact", StringComparer.OrdinalIgnoreCase)) form.Size = form.MinimumSize;
-            if (renderAdvanced) form.ShowAdvancedForPreview();
-            else if (!renderReady) form.PrimeForRenderPreview();
-            form.PerformLayout();
-            form.Refresh();
-            Application.DoEvents();
-            var renderControl = args.Contains("--render-control", StringComparer.OrdinalIgnoreCase);
-            using var bitmap = RenderDashboardBitmap(form, renderReady, renderAdvanced, renderControl);
-            bitmap.Save(render);
-            return 0;
+            using var bitmap = new Bitmap(lockpicking);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var observation = LockpickingDetector.Analyze(bitmap);
+            clock.Stop();
+            var approachRatio = observation.Target?.ApproachRatio ?? 0;
+            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
+            var evidence = LockpickingDetector.Inspect(bitmap);
+            Console.WriteLine($"hud={evidence.HudConfidence:F3} open={evidence.OpenRingCoverage:F3} spin={evidence.SpinRingCoverage:F3} label={evidence.BottomLabelSignal:F3} arcs=[{string.Join(',', evidence.ArcProfile.Select(value => value.ToString("F3")))}]");
+            Console.WriteLine(observation.Reason);
+            return observation.State == LockpickingVisualState.Hidden ? 2 : 0;
         }
 
-        Application.Run(new MainForm());
-        return 0;
-    }
-
-    private static Bitmap RenderDashboardBitmap(MainForm form, bool ready, bool advanced, bool renderControl)
-    {
-        if (advanced) form.ShowAdvancedForPreview();
-        else if (ready) form.HideAdvancedForPreview();
-        Refresh(form);
-        return renderControl ? CaptureControl(form, advanced) : CaptureWindow(form);
-    }
-
-    private static Bitmap CaptureControl(MainForm form, bool advanced)
-    {
-        var bitmap = new Bitmap(form.ClientSize.Width, form.ClientSize.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        form.DrawToBitmap(bitmap, new Rectangle(Point.Empty, form.ClientSize));
-        if (advanced)
+        var lockpickingReplay = ArgumentValue(args, "--replay-lockpicking");
+        if (lockpickingReplay is not null)
         {
-            var bounds = form.AdvancedBoundsForPreview;
-            using var layer = new Bitmap(bounds.Width, bounds.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            form.AdvancedControlForPreview.DrawToBitmap(layer, new Rectangle(Point.Empty, bounds.Size));
-            using var graphics = Graphics.FromImage(bitmap);
-            graphics.DrawImageUnscaled(layer, bounds.Location);
+            return ReplayLockpicking(lockpickingReplay, ArgumentDouble(args, "--fps", 30));
         }
-        return bitmap;
-    }
 
-    private static void Refresh(Control control)
-    {
-        control.PerformLayout();
-        control.Refresh();
-        Application.DoEvents();
-        Thread.Sleep(150);
-        control.Refresh();
-        Application.DoEvents();
-    }
+        var replay = ArgumentValue(args, "--replay-session");
+        if (replay is not null) return ReplayDebugSession(replay);
 
-    private static Bitmap CaptureWindow(Form form)
-    {
-        var bitmap = new Bitmap(form.Width, form.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.CopyFromScreen(form.PointToScreen(Point.Empty), Point.Empty, form.Size, CopyPixelOperation.SourceCopy);
-        return bitmap;
+        Console.Error.WriteLine("CuePilot Engine is started by the Tauri desktop application. Use --self-test or a documented probe command for direct execution.");
+        return 2;
     }
 
     private static string? ArgumentValue(string[] args, string name)
     {
         var index = Array.FindIndex(args, item => item.Equals(name, StringComparison.OrdinalIgnoreCase));
         return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+    }
+
+    private static double ArgumentDouble(string[] args, string name, double fallback) =>
+        double.TryParse(ArgumentValue(args, name), out var value) && value > 0 ? value : fallback;
+
+    private static int ReplayLockpicking(string directory, double framesPerSecond)
+    {
+        if (!Directory.Exists(directory))
+        {
+            Console.Error.WriteLine($"LOCKPICKING_REPLAY_FAILED missing={directory}");
+            return 2;
+        }
+
+        var files = Directory.EnumerateFiles(directory)
+            .Where(path => Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (files.Length == 0)
+        {
+            Console.Error.WriteLine("LOCKPICKING_REPLAY_FAILED no image frames found.");
+            return 2;
+        }
+
+        var tracker = new LockpickingObservationTracker();
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var start = System.Diagnostics.Stopwatch.GetTimestamp();
+        var ticksPerFrame = System.Diagnostics.Stopwatch.Frequency / framesPerSecond;
+        var lastKey = string.Empty;
+        var detectorTicks = 0L;
+        LockpickingObservation? previousRawObservation = null;
+        for (var index = 0; index < files.Length; index++)
+        {
+            using var bitmap = new Bitmap(files[index]);
+            var detectorStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            var rawObservation = LockpickingDetector.Analyze(bitmap, previousRawObservation);
+            detectorTicks += System.Diagnostics.Stopwatch.GetTimestamp() - detectorStarted;
+            previousRawObservation = rawObservation;
+            var observation = tracker.Track(
+                rawObservation,
+                start + (long)Math.Round(index * ticksPerFrame),
+                TimeSpan.Zero,
+                0);
+            var key = $"{observation.State}:{observation.PredictedAction}";
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+            var transitionKey = $"{key}:{observation.Target?.Number}:{observation.Target?.Phase}";
+            if (!transitionKey.Equals(lastKey, StringComparison.Ordinal))
+            {
+                Console.WriteLine(
+                    $"t={index / framesPerSecond:F3}s state={observation.State} target={observation.Target?.Number?.ToString() ?? "-"} " +
+                    $"phase={observation.Target?.Phase.ToString() ?? "None"} approach={observation.Target?.ApproachRatio ?? 0:F2} " +
+                    $"eta_ms={observation.Target?.TimeToReadyMilliseconds?.ToString("F0") ?? "-"} action=\"{observation.PredictedAction}\"");
+                lastKey = transitionKey;
+            }
+        }
+
+        var detectorMeanMilliseconds = detectorTicks * 1000d / System.Diagnostics.Stopwatch.Frequency / files.Length;
+        Console.WriteLine($"frames={files.Length} fps={framesPerSecond:F2} detector_mean_ms={detectorMeanMilliseconds:F2} summary=[{string.Join(',', counts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}]");
+        return 0;
     }
 
     private static int RunTargetProbe(string processName)
@@ -160,7 +191,7 @@ internal static class Program
             return 2;
         }
 
-        using var source = new GdiFrameSource();
+        using var source = FrameSourceFactory.Create();
         var region = new Rectangle(Point.Empty, resolved.Bounds.Size);
         if (!source.TryCapture(target, region, out var frame, out var status) || frame is null)
         {
@@ -170,7 +201,7 @@ internal static class Program
 
         using (frame)
         {
-            outputPath ??= Path.Combine(Path.GetTempPath(), "workflow-looper-prompt-capture.png");
+            outputPath ??= Path.Combine(Path.GetTempPath(), "cuepilot-prompt-capture.png");
             frame.Bitmap.Save(outputPath);
             if (captureOnly)
             {
@@ -223,5 +254,91 @@ internal static class Program
         Console.WriteLine($"frames={files.Length} visible={visible} missed={missed.Count} detector_mean_ms={(files.Length == 0 ? 0 : milliseconds / files.Length):F2}");
         if (missed.Count > 0) Console.WriteLine($"missed_frames={string.Join(',', missed)}");
         return 0;
+    }
+
+    private static int RunPromptBenchmark(string directory)
+    {
+        var files = Directory.EnumerateFiles(directory)
+            .Where(path => Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path)
+            .ToArray();
+        var elapsedTicks = 0L;
+        var matches = new List<string>();
+        foreach (var file in files)
+        {
+            using var frame = new Bitmap(file);
+            var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            var observation = FishingPromptDetector.Analyze(frame);
+            elapsedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - startedAt;
+            if (observation.Kind != FishingPromptKind.None)
+            {
+                matches.Add($"{Path.GetFileName(file)}:{observation.Kind}:{observation.Confidence:F3}");
+            }
+        }
+
+        var milliseconds = elapsedTicks * 1_000d / System.Diagnostics.Stopwatch.Frequency;
+        Console.WriteLine($"frames={files.Length} matches={matches.Count} detector_mean_ms={(files.Length == 0 ? 0 : milliseconds / files.Length):F2}");
+        if (matches.Count > 0) Console.WriteLine($"matched_frames={string.Join(',', matches)}");
+        return 0;
+    }
+
+    private static int ReplayDebugSession(string directory)
+    {
+        var manifestPath = Path.Combine(directory, "session.json");
+        if (!File.Exists(manifestPath))
+        {
+            Console.Error.WriteLine($"REPLAY_FAILED missing={manifestPath}");
+            return 2;
+        }
+
+        using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        if (!manifest.RootElement.TryGetProperty("frames", out var frames)
+            || frames.ValueKind != JsonValueKind.Array)
+        {
+            Console.Error.WriteLine("REPLAY_FAILED session manifest has no frames array.");
+            return 2;
+        }
+
+        var checkedFrames = 0;
+        var failures = 0;
+        var meterTracker = new FishingMeterTracker();
+        foreach (var frame in frames.EnumerateArray())
+        {
+            var label = frame.GetProperty("label").GetString() ?? "unknown";
+            var imageName = frame.GetProperty("imageName").GetString() ?? string.Empty;
+            var imagePath = Path.Combine(directory, imageName);
+            if (!File.Exists(imagePath))
+            {
+                Console.WriteLine($"frame={label} result=missing_file path={imageName}");
+                failures++;
+                continue;
+            }
+
+            using var bitmap = new Bitmap(imagePath);
+            checkedFrames++;
+            if (label.StartsWith("prompt-", StringComparison.OrdinalIgnoreCase))
+            {
+                var observation = FishingPromptDetector.Analyze(bitmap, out var evidence);
+                var expected = label.EndsWith("-confirmed", StringComparison.OrdinalIgnoreCase);
+                var passed = !expected || observation.Kind != FishingPromptKind.None;
+                if (!passed) failures++;
+                Console.WriteLine(
+                    $"frame={label} detector=prompt result={(passed ? "pass" : "fail")} kind={observation.Kind} confidence={observation.Confidence:F3} reason={evidence.DecisionReason}");
+            }
+            else if (label.StartsWith("meter-", StringComparison.OrdinalIgnoreCase))
+            {
+                var analysis = FishingMeterService.AnalyzeFrameDetailed(bitmap, meterTracker);
+                var expected = label.Equals("meter-confirmed", StringComparison.OrdinalIgnoreCase);
+                var passed = !expected || analysis.Observation.IsVisible;
+                if (!passed) failures++;
+                Console.WriteLine(
+                    $"frame={label} detector=meter result={(passed ? "pass" : "fail")} visible={analysis.Observation.IsVisible} confidence={analysis.Observation.Confidence:F3} reason={analysis.PrimaryCandidate?.Evidence.DecisionReason ?? "no candidate"}");
+            }
+        }
+
+        Console.WriteLine($"REPLAY_COMPLETE frames={checkedFrames} failures={failures}");
+        return failures == 0 ? 0 : 2;
     }
 }

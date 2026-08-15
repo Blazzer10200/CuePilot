@@ -1,20 +1,10 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal static class NativeMethods
 {
-    internal const int WmHotkey = 0x0312;
-    internal const int WmKeydown = 0x0100;
-    internal const int WmKeyup = 0x0101;
-    internal const int WmLbuttondown = 0x0201;
-    internal const int WmLbuttonup = 0x0202;
-    internal const uint MkLbutton = 0x0001;
-    internal const uint ModAlt = 0x0001;
-    internal const uint ModControl = 0x0002;
-    internal const uint ModShift = 0x0004;
-    internal const uint ModNoRepeat = 0x4000;
     internal const uint MapvkVkToVsc = 0;
 
     internal const uint InputMouse = 0;
@@ -23,7 +13,15 @@ internal static class NativeMethods
     internal const uint KeyeventfScancode = 0x0008;
     internal const uint MouseeventfLeftdown = 0x0002;
     internal const uint MouseeventfLeftup = 0x0004;
+    internal const uint MouseeventfMove = 0x0001;
+    internal const uint MouseeventfVirtualdesk = 0x4000;
+    internal const uint MouseeventfAbsolute = 0x8000;
     internal const int SwRestore = 9;
+    internal const int VkPause = 0x13;
+    internal const int SmXvirtualscreen = 76;
+    internal const int SmYvirtualscreen = 77;
+    internal const int SmCxvirtualscreen = 78;
+    internal const int SmCyvirtualscreen = 79;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Rect
@@ -32,6 +30,13 @@ internal static class NativeMethods
         internal int Top;
         internal int Right;
         internal int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct CursorPoint
+    {
+        internal int X;
+        internal int Y;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -70,14 +75,6 @@ internal static class NativeMethods
     }
 
     [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint virtualKey);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool UnregisterHotKey(IntPtr window, int id);
-
-    [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint count, ref Input input, int size);
 
     [DllImport("user32.dll")]
@@ -85,6 +82,16 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetCursorPos(out CursorPoint point);
+
+    [DllImport("user32.dll")]
+    internal static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetrics(int index);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -105,17 +112,6 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetForegroundWindow(IntPtr window);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool ReleaseCapture();
-
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    internal static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
     internal delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
 

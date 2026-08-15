@@ -1,7 +1,9 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Drawing;
 using System.Text;
 
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal static class WindowTargetService
 {
@@ -14,27 +16,92 @@ internal static class WindowTargetService
         bool IsForeground,
         bool IsMinimized);
 
-    internal static WindowTargetSettings CaptureForeground()
+    internal sealed record FiveMWindowTarget(
+        int ProcessId,
+        string ProcessName,
+        string WindowTitle,
+        Rectangle Bounds,
+        bool IsForeground,
+        bool IsMinimized)
     {
-        var window = NativeMethods.GetForegroundWindow();
-        if (window == IntPtr.Zero)
+        internal WindowTargetSettings ToSettings() => new()
         {
-            throw new InvalidOperationException("Windows did not report a foreground application.");
-        }
-
-        NativeMethods.GetWindowThreadProcessId(window, out var processId);
-        if (processId == 0)
-        {
-            throw new InvalidOperationException("The foreground application's process could not be identified.");
-        }
-
-        using var process = Process.GetProcessById((int)processId);
-        return new WindowTargetSettings
-        {
-            ProcessName = process.ProcessName,
-            WindowTitle = GetTitle(window),
+            ProcessId = ProcessId,
+            ProcessName = ProcessName,
+            WindowTitle = WindowTitle,
         };
     }
+
+    internal static IReadOnlyList<FiveMWindowTarget> FindFiveMTargets()
+    {
+        var foreground = NativeMethods.GetForegroundWindow();
+        var byProcess = new Dictionary<int, FiveMWindowTarget>();
+
+        NativeMethods.EnumWindows((window, _) =>
+        {
+            if (!NativeMethods.IsWindowVisible(window) || !NativeMethods.GetWindowRect(window, out var rectangle))
+            {
+                return true;
+            }
+
+            var bounds = Rectangle.FromLTRB(rectangle.Left, rectangle.Top, rectangle.Right, rectangle.Bottom);
+            if (bounds.Width < 320 || bounds.Height < 240)
+            {
+                return true;
+            }
+
+            NativeMethods.GetWindowThreadProcessId(window, out var nativeProcessId);
+            if (nativeProcessId == 0)
+            {
+                return true;
+            }
+
+            try
+            {
+                using var process = Process.GetProcessById((int)nativeProcessId);
+                if (!process.ProcessName.StartsWith("FiveM", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                var title = GetTitle(window);
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    return true;
+                }
+
+                var candidate = new FiveMWindowTarget(
+                    (int)nativeProcessId,
+                    process.ProcessName,
+                    title,
+                    bounds,
+                    window == foreground,
+                    NativeMethods.IsIconic(window));
+                if (!byProcess.TryGetValue(candidate.ProcessId, out var existing) || Prefer(candidate, existing))
+                {
+                    byProcess[candidate.ProcessId] = candidate;
+                }
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
+            {
+                // The process can exit between window enumeration and inspection.
+            }
+
+            return true;
+        }, IntPtr.Zero);
+
+        return byProcess.Values
+            .OrderByDescending(candidate => candidate.IsForeground)
+            .ThenBy(candidate => candidate.IsMinimized)
+            .ThenBy(candidate => candidate.WindowTitle, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.ProcessId)
+            .ToArray();
+    }
+
+    internal static bool IsFiveMTarget(WindowTargetSettings? target) =>
+        target is not null
+        && !string.IsNullOrWhiteSpace(target.ProcessName)
+        && target.ProcessName.StartsWith("FiveM", StringComparison.OrdinalIgnoreCase);
 
     internal static bool TryResolve(WindowTargetSettings target, out ResolvedWindowTarget resolved, out string detail)
     {
@@ -45,7 +112,9 @@ internal static class WindowTargetService
             return false;
         }
 
-        IntPtr match = IntPtr.Zero;
+        IntPtr processMatch = IntPtr.Zero;
+        IntPtr titleMatch = IntPtr.Zero;
+        IntPtr fallbackMatch = IntPtr.Zero;
         NativeMethods.EnumWindows((window, _) =>
         {
             if (!NativeMethods.IsWindowVisible(window) || !NativeMethods.GetWindowRect(window, out var candidateRect))
@@ -70,20 +139,36 @@ internal static class WindowTargetService
                 }
 
                 var title = GetTitle(window);
-                if (match == IntPtr.Zero || (!string.IsNullOrWhiteSpace(target.WindowTitle)
-                    && title.Equals(target.WindowTitle, StringComparison.OrdinalIgnoreCase)))
+                if (fallbackMatch == IntPtr.Zero)
                 {
-                    match = window;
+                    fallbackMatch = window;
                 }
 
-                return match == IntPtr.Zero || string.IsNullOrWhiteSpace(target.WindowTitle)
-                    || !title.Equals(target.WindowTitle, StringComparison.OrdinalIgnoreCase);
+                if (!string.IsNullOrWhiteSpace(target.WindowTitle)
+                    && title.Equals(target.WindowTitle, StringComparison.OrdinalIgnoreCase))
+                {
+                    titleMatch = window;
+                }
+
+                if (target.ProcessId > 0 && candidateProcessId == target.ProcessId)
+                {
+                    processMatch = window;
+                    return false;
+                }
+
+                return true;
             }
-            catch (ArgumentException)
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
             {
                 return true;
             }
         }, IntPtr.Zero);
+
+        var match = processMatch != IntPtr.Zero
+            ? processMatch
+            : titleMatch != IntPtr.Zero
+                ? titleMatch
+                : fallbackMatch;
 
         if (match == IntPtr.Zero || !NativeMethods.IsWindow(match) || !NativeMethods.GetWindowRect(match, out var rectangle))
         {
@@ -149,6 +234,21 @@ internal static class WindowTargetService
         }
 
         return IsTargetForeground(target);
+    }
+
+    private static bool Prefer(FiveMWindowTarget candidate, FiveMWindowTarget existing)
+    {
+        if (candidate.IsForeground != existing.IsForeground)
+        {
+            return candidate.IsForeground;
+        }
+
+        if (candidate.IsMinimized != existing.IsMinimized)
+        {
+            return !candidate.IsMinimized;
+        }
+
+        return candidate.Bounds.Width * candidate.Bounds.Height > existing.Bounds.Width * existing.Bounds.Height;
     }
 
     private static string GetTitle(IntPtr window)

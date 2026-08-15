@@ -1,5 +1,67 @@
 # Changelog
 
+## 5.1.0 - 2026-08-14 - Complete CuePilot desktop
+
+- Makes Fishing and Vehicle Lockpicking use one centered, height-scaled FiveM safe viewport across 16:9, 16:10, 5:4/windowed-style, 21:9, and 32:9 layouts while retaining the recorded detector fast paths and false-positive gates.
+- Makes the headless engine Per-Monitor-V2 DPI aware and keeps capture, target, virtual-desktop, and cursor coordinates physical and normalized across Windows scaling and mixed-monitor layouts.
+- Adds cross-resolution Fishing prompt/meter regressions, Lockpicking HUD/controller regressions, minimum/default/wide desktop UI validation, and an installer-first GitHub release path with checksums.
+- Completes the WorkflowLooper-to-CuePilot migration, removes the obsolete WinForms surface and prior project/test assets, and publishes the Svelte/Tauri shell with its packaged self-contained .NET engine as the only supported product.
+
+- Adds a HUD-relative .NET lockpicking detector trained against both supplied 1920×1080 live attempts, with numbered-target, empty-transition, disappearance, and SPIN replay fixtures.
+- Adds an input-free observer that reuses FiveM targeting and DXGI/GDI capture, requires a stable target plus measured inward ring motion or the verified bright-green fill before reporting READY, edge-triggers that prediction once per target, stops on capture faults, and stores bounded local transition evidence for calibration.
+- Uses DXGI presentation timestamps and accumulated-frame counts to reject genuinely stale or extreme capture stalls without mistaking normal 120 Hz frame batches for stale images, and adds a deterministic full-sequence replay probe for recorded attempts.
+- Fixes numbered-target handoff from live evidence so a bright READY circle remains selected through the click transition and the detector then commits to the newly active outlined circle instead of falling back to the previous target.
+- Adds a bounded 12 Hz SPIN calibration burst with HUD-cropped frames, cursor angle/radius, clockwise travel and speed, elapsed time, frame age, capture latency, and frame-batch metadata; the live workspace surfaces the same telemetry while input stays gated.
+- Makes non-32-bit detector input explicitly pixel-scaled so 120-DPI live JPEGs replay identically outside the DPI-aware app, and recognizes the early SPIN transition before leftover numbered geometry can win.
+- Removes the observer's fixed 35 ms post-frame delay, reuses the acquired HUD location on following frames, and rejects most target-search positions with a cheap ring prefilter; the supplied 1080p 30 FPS sequence now averages 23.7 ms per detector frame while preserving state transitions.
+- Replaces the preparation-only Lockpicking page with a polished live debug workspace showing HUD boundary, target center, approach ring/ratio, READY ETA, confidence, capture latency, frame batch, sample count, state, and predicted action.
+- Adds a separate, explicitly armed Class C controller based on live session `20260814-133216`: it clicks each temporally verified READY target once, requires two SPIN frames, then follows a bounded clockwise orbit at the recorded 1,140°/s and 0.61× HUD radius calibration.
+- Adds absolute virtual-desktop cursor delivery, action/input telemetry, and fail-safe stops for Pause / Break, focus loss, capture faults, HUD disappearance, uncertain states, OPEN confirmation, and a 2.8-second SPIN limit. Observe mode remains input-free; classes A, B, and D remain gated.
+- Splits reusable Lockpicking class profiles from the generic controller, adds a task-oriented code map, and refreshes repository routing documentation for faster feature work.
+- Removes obsolete preparation-workspace CSS and the unused Tauri dialog plugin, and makes workspace cleanup selective, path-validated, and dependency-cache preserving by default.
+
+## 5.0.15 - Reliable shortcut ownership
+
+- Adds a persisted Fishing Start / Stop toggle selectable from `F6` through `F12`, removes the dashboard-only automation button, and keeps `Pause / Break` as a separate emergency release.
+- Makes the development profile passive for global shortcuts so CuePilot Dev can remain open while the official build owns the live FiveM controls.
+- Treats unavailable Windows hotkeys as a nonfatal warning instead of crashing the second CuePilot profile during startup.
+
+## 5.0.14 - Reliable live meter identity
+
+- Requires signed local contrast between the white `LMB` letter strokes and the dark keycap background, preventing bright water over dark clothing from acquiring a false fishing-meter lock.
+- Adds paired 2560×1440 live regressions from the intermittent run: the exact player/water false confirmation is rejected while the real meter at the observed position and scale still acquires.
+
+## 5.0.13 - CuePilot desktop and live fishing reliability
+
+- Renames the product to CuePilot across the desktop UI, engine executable, installer metadata, internal projects, scripts, tests, documentation, and local data paths, then removes the transitional old-name migration and development aliases after preserving the user's data.
+- Integrates the approved CuePilot mark across the titlebar, favicon, executable, and installer, with deterministic PNG and multi-resolution ICO generation from one untouched source asset.
+- Adds visually distinct `CuePilot` and `CuePilot Dev` desktop launchers, executable identities, WebView profiles, titlebar marks, taskbar icons, and stable local shortcut assets.
+- Refines the activity library, truthful Fishing status hero, Settings save feedback, Vehicle Lockpicking readiness workspace, typography, focus states, and restrained motion without changing automation behavior.
+- Makes the Svelte/Tauri application the only product UI and removes the legacy WinForms presentation layer without changing detector or controller timing.
+- Adds correlated .NET bridge responses, authoritative live snapshots, FiveM target validation, WebView reload recovery, sidecar health reporting, and bounded shutdown behavior.
+- Preserves emergency-shortcut configuration in Tauri, adds the missing collect-on-timeout setting, and surfaces complete pending/offline/error states in the desktop UI.
+- Adds .NET bridge, Rust protocol, and Svelte engine-client tests; stages the engine automatically for development and release builds; and changes CI/release artifacts to the NSIS installer.
+- Tracks the confirmed fishing-meter position and scale across frames, uses local contrast for exposure tolerance, and validates the real LMB glyph during the zero-progress startup state.
+- Arbitrates prompt and meter evidence on the same frame before sending `E`, suppressing input when the meter remains visible.
+- Saves bounded, annotated exact-frame lock/loss evidence with paired JSON metrics and presents it in the polished Detection Review panel.
+- Turns the local fishing trace into a compact activity timeline, keeps existing evidence visible during refresh, traps keyboard focus inside both drawers, and removes unused migration-era capture and styling leftovers.
+- Adds a launch-time activity library, preserves Fishing as the ready module, and introduces an input-disabled Vehicle Lockpicking preparation workspace with safe in/out navigation and a tested typed catalog.
+- Matches prompt lettering through its local white-stroke/dark-outline contrast instead of requiring a dark game background, covering bright water, shoreline, and sky while retaining strict `E` keycap validation.
+- Adds file-based prompt analysis/benchmark probes and live-background cast, meter-start, and failure regression fixtures.
+- Removes avoidable prompt-selection allocations and repeated snapshot validation while preserving detector thresholds, controller timing, and the bridge schema.
+- Hardens frontend/sidecar lifecycle cleanup against stale connection failures and shutdown-only sidecar launches, with a focused regression test.
+- Adds one canonical development guide and narrows default repository searches around generated schemas, lockfiles, build output, and inspection captures.
+- Adds bounded, replayable Fishing debug sessions that begin before preflight, preserve decisive near-miss/confirmed frames, expose named detector rejection gates in Detection Review, and never perform additional capture or input.
+- Adds a bounded second-scale meter search at measured daylight HUD positions, making all three supplied startup-meter frames pass through the production full-frame locator while preserving full-frame character/reel rejection guards and reporting detector timing in the offline probe.
+- Keeps a periodically replaced latest full-frame prompt sample beside the strongest near-miss, so a zero-score Cast/Keep Fish investigation can distinguish an absent prompt from a later unrecognized prompt.
+- Densifies the prompt scale pyramid through common fractional UI sizes and lets anti-aliased keycap candidates reach the strict glyph/text scorer, restoring Cast and Keep Fish recognition from 75%–135% without weakening the final confidence, stability, meter-suppression, or foreground-input gates.
+- Adds `F10` as a fixed one-key in-game start shortcut so the fishing HUD can remain visible and FiveM can remain foreground, while preserving the configurable emergency-stop shortcut.
+- Records a bounded 120-frame rolling sequence of the bottom 35% of every prompt scan and reports when no fishing HUD is actually present, closing the evidence gap between intermittent prompts and periodic diagnostic snapshots.
+- Replaces the GDI-only game-frame path with DXGI Desktop Duplication for prompt and meter detection after live evidence proved GDI omitted the visible FiveM action HUD; keeps GDI only as a clearly reported fallback.
+- Requires a verified current LMB prompt identity before acquiring a live fishing-meter lock, preventing character, rod, and water geometry from starting false regulation while preserving tracked active-meter performance.
+- Replays five manually captured active meters across rock, hillside, sky, sunset water, and evening backgrounds through the production acquisition path.
+- Uses the verified live LMB prompt to disambiguate orange scenery from the red failure mark during fresh acquisition while preserving failure detection after lock.
+
 ## 5.0.12 - Coherent daylight frames
 
 - Captures one full FiveM frame per meter sample and searches all calibrated meter positions within it, preventing one control sample from combining several animated UI states.
@@ -134,7 +196,7 @@
 
 ## 3.1.0
 
-- Added a custom Workflow Looper application icon and matching in-app brand mark.
+- Added a custom application icon and matching in-app brand mark.
 - Added maximize/restore controls and title-bar double-click behavior.
 - Refined page headers, window chrome, and product identity while preserving the compact layout.
 - Reorganized application code into focused `src` folders and documented the project structure.

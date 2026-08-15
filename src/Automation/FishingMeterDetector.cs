@@ -1,9 +1,12 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal readonly record struct FishingMeterObservation(
     bool IsVisible,
@@ -16,18 +19,49 @@ internal readonly record struct FishingMeterObservation(
     internal static FishingMeterObservation Missing => new(false, 0, 0, false, 0);
 }
 
+internal readonly record struct FishingMeterEvidence(
+    double DarkDisk,
+    double DiskContrast,
+    double RingStrength,
+    double RingRadiusRatio,
+    double ProgressStrength,
+    double CaughtStrength,
+    double FailureStrength,
+    double LmbPromptStrength,
+    double CenterOffsetX,
+    double CenterOffsetY,
+    double CandidateConfidence,
+    bool PassedVisibility,
+    string DecisionReason);
+
+internal readonly record struct FishingMeterCandidateEvidence(
+    int RegionIndex,
+    Rectangle Region,
+    FishingMeterEvidence Evidence,
+    bool IsTracked = false,
+    double Scale = 1);
+
+internal sealed record FishingMeterFrameAnalysis(
+    FishingMeterObservation Observation,
+    FishingMeterCandidateEvidence? PrimaryCandidate,
+    int CandidateCount)
+{
+    internal bool UsedTrackedRegion => PrimaryCandidate?.IsTracked == true;
+}
+
 internal static class FishingMeterReacquisition
 {
     // FiveM briefly fades/recomposes the circular UI around a pulse. A meter is
-    // only considered gone after this many consecutive, successfully-captured
-    // detector misses; capture failures are handled separately by the engine.
-    internal const int ConsecutiveMissingSamplesBeforeComplete = 36;
+    // only considered gone after this much continuously unavailable time;
+    // capture failures are handled separately by the engine. Time keeps this
+    // grace period stable when bright-scene analysis takes longer than usual.
+    internal static readonly TimeSpan MissingDurationBeforeComplete = TimeSpan.FromSeconds(2);
 
-    internal static bool HasEnded(int consecutiveMissingSamples, double highestProgress) =>
-        consecutiveMissingSamples >= ConsecutiveMissingSamplesBeforeComplete && highestProgress < 0.55;
+    internal static bool HasEnded(TimeSpan missingDuration, double highestProgress) =>
+        missingDuration >= MissingDurationBeforeComplete && highestProgress < 0.55;
 
-    internal static bool ShouldCollectAfterMeterLoss(int consecutiveMissingSamples, double highestProgress) =>
-        consecutiveMissingSamples >= ConsecutiveMissingSamplesBeforeComplete && highestProgress >= 0.55;
+    internal static bool ShouldCollectAfterMeterLoss(TimeSpan missingDuration, double highestProgress) =>
+        missingDuration >= MissingDurationBeforeComplete && highestProgress >= 0.55;
 }
 
 internal sealed class FishingMeterStabilityGate(int requiredMatches = 2, int toleratedMisses = 1)
@@ -70,9 +104,22 @@ internal sealed class FishingFailureGate(int requiredMatches = 2)
 internal static class FishingMeterDetector
 {
     private const int AngleSamples = 120;
+    private const int DarknessAngleSamples = 48;
+    private static readonly (double X, double Y)[] MeterDirections = CreateDirections(AngleSamples);
+    private static readonly (double X, double Y)[] DarknessDirections = CreateDirections(DarknessAngleSamples);
+    private static readonly Lazy<LmbPromptTemplate> LmbTemplate = new(LoadLmbPromptTemplate);
 
-    internal static FishingMeterObservation Analyze(Bitmap bitmap)
+    internal static FishingMeterObservation Analyze(Bitmap bitmap) => Analyze(bitmap, out _);
+
+    internal static FishingMeterObservation Analyze(Bitmap bitmap, out FishingMeterEvidence evidence) =>
+        Analyze(bitmap, out evidence, requireActiveIdentity: false);
+
+    internal static FishingMeterObservation Analyze(
+        Bitmap bitmap,
+        out FishingMeterEvidence evidence,
+        bool requireActiveIdentity)
     {
+        evidence = default;
         if (bitmap.Width < 80 || bitmap.Height < 80)
         {
             return FishingMeterObservation.Missing;
@@ -81,14 +128,194 @@ internal static class FishingMeterDetector
         using var pixels = new BitmapPixels(bitmap);
         var shortest = Math.Min(pixels.Width, pixels.Height);
         var approximateRadius = shortest * 0.20;
-        var expectedCenterX = pixels.Width / 2d;
+        var expectedCenterX = pixels.Width >= pixels.Height * 1.15 ? pixels.Width * 0.40 : pixels.Width / 2d;
         var expectedCenterY = pixels.Height / 2d;
+        var searchStep = Math.Max(2, shortest / 80);
+        var calibratedCenter = FindDarkestCenter(
+            pixels,
+            expectedCenterX,
+            expectedCenterY,
+            approximateRadius,
+            searchDistance: 0,
+            searchStep);
+        var observation = AnalyzeCenter(
+            pixels,
+            calibratedCenter.X,
+            calibratedCenter.Y,
+            expectedCenterX,
+            expectedCenterY,
+            approximateRadius,
+            requireActiveIdentity,
+            out evidence);
+        if (observation.IsVisible)
+        {
+            return observation;
+        }
+
+        // A calibrated center is the strongest location hint. Only fall back to
+        // the wider dark-disk search when it contains no meter evidence. This
+        // prevents reflective water from pulling an otherwise valid daylight
+        // meter away from its known UI position while retaining tolerance for a
+        // slightly shifted HUD layout.
+        var searchDistance = Math.Max(4, (int)Math.Round(shortest * 0.08));
+        var fallbackCenter = FindDarkestCenter(
+            pixels,
+            expectedCenterX,
+            expectedCenterY,
+            approximateRadius,
+            searchDistance,
+            searchStep);
+        if (Math.Abs(fallbackCenter.X - calibratedCenter.X) < 0.5
+            && Math.Abs(fallbackCenter.Y - calibratedCenter.Y) < 0.5)
+        {
+            return FishingMeterObservation.Missing;
+        }
+
+        var fallbackObservation = AnalyzeCenter(
+            pixels,
+            fallbackCenter.X,
+            fallbackCenter.Y,
+            expectedCenterX,
+            expectedCenterY,
+            approximateRadius,
+            requireActiveIdentity,
+            out var fallbackEvidence);
+        if (fallbackObservation.IsVisible)
+        {
+            evidence = fallbackEvidence;
+            return fallbackObservation;
+        }
+
+        if (fallbackEvidence.CandidateConfidence > evidence.CandidateConfidence)
+        {
+            evidence = fallbackEvidence;
+        }
+
+        return FishingMeterObservation.Missing;
+    }
+
+    private static FishingMeterObservation AnalyzeCenter(
+        BitmapPixels pixels,
+        double centerX,
+        double centerY,
+        double expectedCenterX,
+        double expectedCenterY,
+        double approximateRadius,
+        bool requireActiveIdentity,
+        out FishingMeterEvidence evidence)
+    {
+        var darkness = DarkDiskScore(pixels, centerX, centerY, approximateRadius);
+        var diskContrast = DiskContrastScore(pixels, centerX, centerY, approximateRadius);
+        var ringRadius = FindTensionRing(pixels, centerX, centerY, approximateRadius, out var ringStrength);
+        var progress = MeasureProgress(pixels, centerX, centerY, approximateRadius);
+        var caughtStrength = MeasureCaughtMark(pixels, centerX, centerY, approximateRadius);
+        var failureStrength = MeasureFailureMark(pixels, centerX, centerY, approximateRadius);
+        // The warm tension ring alone is not unique: the reel, HUD controls,
+        // and character clothing can create similar dark/warm circles during
+        // the cast. The initial minigame's ring is still close to the center;
+        // a large apparent ring without progress is a false HUD match in the
+        // supplied cast scene. Once progress/catch/failure appears, tension can
+        // legitimately expand across the full circle.
+        var initialRing = ringRadius / approximateRadius <= 0.72;
+        // Once the completion arc has filled, FiveM can replace the warm
+        // tension ring with lime. Treat that substantial circular progress
+        // signal as its own meter proof; otherwise a valid bright-day caught
+        // frame falls into the visual-loss/reacquisition path.
+        var completedArc = progress >= 0.18;
+        var activeMeter = ringStrength >= 0.16
+            && (progress >= 0.03
+                || darkness >= 0.18 && (caughtStrength >= 0.015 || failureStrength >= 0.02));
+        // Before progress appears, demand a substantially coherent ring as well
+        // as the nearby prompt. Daylight character/reel edges can satisfy the
+        // old weak-ring rule, but the recorded initial meter remains well above
+        // this conservative floor throughout its pulse animation.
+        var diskEvidence = darkness >= 0.56 || diskContrast >= 0.12;
+        var startupCandidate = initialRing
+            && ringStrength >= 0.30
+            && diskEvidence
+            && progress < 0.03
+            && caughtStrength < 0.015
+            && failureStrength < 0.02;
+        // Identity is measured on every plausible meter shape, not only the
+        // zero-progress startup frame. A live session can enter this detector
+        // after the progress arc has already begun, and acquisition still must
+        // prove the adjacent LMB keycap before any mouse input is allowed.
+        var plausibleMeterShape = startupCandidate
+            || requireActiveIdentity && (activeMeter || completedArc);
+        var lmbPromptStrength = plausibleMeterShape
+            ? MeasureLmbPrompt(pixels, centerX, centerY, approximateRadius)
+            : 0;
+        // A verified Increase Tension / LMB prompt proves this is the active
+        // minigame, even when orange scenery contaminates the red-mark probe.
+        // This exception is acquisition-only; after lock, the failure mark
+        // remains authoritative because the prompt disappears on failure.
+        var failed = failureStrength >= 0.02
+            && !(requireActiveIdentity && lmbPromptStrength >= 0.90);
+        var currentLmbProof = lmbPromptStrength >= 0.97;
+        var legacyLmbProof = HasLegacyLmbIdentity(lmbPromptStrength, darkness, diskContrast);
+        var initialMeter = initialRing && ringStrength >= 0.35 && (currentLmbProof || legacyLmbProof);
+        var visible = diskEvidence && (activeMeter || initialMeter || completedArc);
+        var decisionReason = visible
+            ? failed ? "Failure meter passed all visibility gates"
+                : completedArc ? "Completed progress arc passed visibility"
+                : activeMeter ? "Active meter passed ring and progress gates"
+                : "Startup meter passed disk, ring, and LMB gates"
+            : !diskEvidence ? $"Disk evidence failed: dark {darkness:P0} / contrast {diskContrast:P0}"
+            : !initialRing && progress < 0.03 ? $"Startup ring radius {ringRadius / approximateRadius:P0} exceeds 72%"
+            : ringStrength < 0.30 ? $"Ring strength {ringStrength:P0} is below the 30% startup gate"
+            : ringStrength < 0.35 ? $"Ring strength {ringStrength:P0} is below the 35% acceptance gate"
+            : !currentLmbProof && !legacyLmbProof ? $"LMB signature {lmbPromptStrength:P0} did not satisfy the 97% current or legacy gate"
+            : "Candidate did not satisfy an active, startup, completed, or failure meter path";
+        var confidence = Math.Clamp(
+            (darkness - 0.45) * 1.5 + diskContrast * 0.8 + ringStrength * 1.5
+                + progress * 0.35 + lmbPromptStrength * 0.22,
+            0,
+            1);
+        evidence = new FishingMeterEvidence(
+            darkness,
+            diskContrast,
+            ringStrength,
+            ringRadius / approximateRadius,
+            progress,
+            caughtStrength,
+            failureStrength,
+            lmbPromptStrength,
+            (centerX - expectedCenterX) / approximateRadius,
+            (centerY - expectedCenterY) / approximateRadius,
+            confidence,
+            visible,
+            decisionReason);
+        if (!visible)
+        {
+            return FishingMeterObservation.Missing;
+        }
+
+        return new FishingMeterObservation(
+            true,
+            Math.Clamp(ringRadius / approximateRadius, 0, 1.2),
+            Math.Clamp(progress, 0, 1),
+            caughtStrength >= 0.035 && progress >= 0.35,
+            confidence,
+            failed);
+    }
+
+    internal static bool HasCurrentLmbIdentity(FishingMeterEvidence evidence) =>
+        evidence.LmbPromptStrength >= 0.90;
+
+    private static bool HasLegacyLmbIdentity(double strength, double darkness, double contrast) =>
+        strength >= 0.45 && darkness >= 0.65 && contrast >= 0.18;
+
+    private static (double X, double Y) FindDarkestCenter(
+        BitmapPixels pixels,
+        double expectedCenterX,
+        double expectedCenterY,
+        double approximateRadius,
+        int searchDistance,
+        int searchStep)
+    {
         var centerX = expectedCenterX;
         var centerY = expectedCenterY;
-        var searchDistance = Math.Max(4, (int)Math.Round(shortest * 0.08));
-        var searchStep = Math.Max(2, shortest / 80);
         var bestDarkness = 0d;
-
         for (var offsetY = -searchDistance; offsetY <= searchDistance; offsetY += searchStep)
         {
             for (var offsetX = -searchDistance; offsetX <= searchDistance; offsetX += searchStep)
@@ -106,7 +333,7 @@ internal static class FishingMeterDetector
         }
 
         // Refine around the best coarse location without allowing the search to
-        // drift into the animated background.
+        // drift farther into the animated background.
         var refinedX = centerX;
         var refinedY = centerY;
         for (var offsetY = -searchStep; offsetY <= searchStep; offsetY++)
@@ -114,55 +341,18 @@ internal static class FishingMeterDetector
             for (var offsetX = -searchStep; offsetX <= searchStep; offsetX++)
             {
                 var candidate = DarkDiskScore(pixels, centerX + offsetX, centerY + offsetY, approximateRadius);
-                if (candidate > bestDarkness)
+                if (candidate <= bestDarkness)
                 {
-                    bestDarkness = candidate;
-                    refinedX = centerX + offsetX;
-                    refinedY = centerY + offsetY;
+                    continue;
                 }
+
+                bestDarkness = candidate;
+                refinedX = centerX + offsetX;
+                refinedY = centerY + offsetY;
             }
         }
 
-        centerX = refinedX;
-        centerY = refinedY;
-        var ringRadius = FindTensionRing(pixels, centerX, centerY, approximateRadius, out var ringStrength);
-        var progress = MeasureProgress(pixels, centerX, centerY, approximateRadius);
-        var caughtStrength = MeasureCaughtMark(pixels, centerX, centerY, approximateRadius);
-        var failureStrength = MeasureFailureMark(pixels, centerX, centerY, approximateRadius);
-        var promptStrength = MeasurePrompt(pixels);
-        // The warm tension ring alone is not unique: the reel, HUD controls,
-        // and character clothing can create similar dark/warm circles during
-        // the cast. The initial minigame's ring is still close to the center;
-        // a large apparent ring without progress is a false HUD match in the
-        // supplied cast scene. Once progress/catch/failure appears, tension can
-        // legitimately expand across the full circle.
-        var initialRing = ringRadius / approximateRadius <= 0.72;
-        // Once the completion arc has filled, FiveM can replace the warm
-        // tension ring with lime. Treat that substantial circular progress
-        // signal as its own meter proof; otherwise a valid bright-day caught
-        // frame falls into the visual-loss/reacquisition path.
-        var completedArc = progress >= 0.18;
-        var visible = bestDarkness >= 0.56
-            && ((ringStrength >= 0.16
-                    && (progress >= 0.03 || caughtStrength >= 0.015 || failureStrength >= 0.02
-                        || initialRing && promptStrength >= 0.012))
-                || completedArc);
-        if (!visible)
-        {
-            return FishingMeterObservation.Missing;
-        }
-
-        var confidence = Math.Clamp(
-            (bestDarkness - 0.45) * 1.8 + ringStrength * 1.5 + progress * 0.35 + promptStrength * 4,
-            0,
-            1);
-        return new FishingMeterObservation(
-            true,
-            Math.Clamp(ringRadius / approximateRadius, 0, 1.2),
-            Math.Clamp(progress, 0, 1),
-            caughtStrength >= 0.035 && progress >= 0.35,
-            confidence,
-            failureStrength >= 0.02);
+        return (refinedX, refinedY);
     }
 
     private static double DarkDiskScore(BitmapPixels bitmap, double centerX, double centerY, double radius)
@@ -172,9 +362,9 @@ internal static class FishingMeterDetector
         for (var radialStep = 3; radialStep <= 9; radialStep++)
         {
             var sampleRadius = radius * radialStep / 10d;
-            for (var angleIndex = 0; angleIndex < 48; angleIndex++)
+            for (var angleIndex = 0; angleIndex < DarknessAngleSamples; angleIndex++)
             {
-                var color = Sample(bitmap, centerX, centerY, sampleRadius, angleIndex, 48);
+                var color = Sample(bitmap, centerX, centerY, sampleRadius, angleIndex, DarknessAngleSamples);
                 if (Luminance(color) < 62)
                 {
                     dark++;
@@ -185,6 +375,39 @@ internal static class FishingMeterDetector
         }
 
         return count == 0 ? 0 : dark / (double)count;
+    }
+
+    private static double DiskContrastScore(BitmapPixels bitmap, double centerX, double centerY, double radius)
+    {
+        var innerLuminance = 0d;
+        var innerCount = 0;
+        var outerLuminance = 0d;
+        var outerCount = 0;
+        for (var angleIndex = 0; angleIndex < DarknessAngleSamples; angleIndex++)
+        {
+            for (var radialStep = 3; radialStep <= 8; radialStep++)
+            {
+                innerLuminance += Luminance(Sample(
+                    bitmap, centerX, centerY, radius * radialStep / 10d, angleIndex, DarknessAngleSamples));
+                innerCount++;
+            }
+
+            for (var radialStep = 11; radialStep <= 14; radialStep++)
+            {
+                outerLuminance += Luminance(Sample(
+                    bitmap, centerX, centerY, radius * radialStep / 10d, angleIndex, DarknessAngleSamples));
+                outerCount++;
+            }
+        }
+
+        if (innerCount == 0 || outerCount == 0)
+        {
+            return 0;
+        }
+
+        var innerAverage = innerLuminance / innerCount;
+        var outerAverage = outerLuminance / outerCount;
+        return Math.Clamp((outerAverage - innerAverage) / Math.Max(48, outerAverage), 0, 1);
     }
 
     private static double FindTensionRing(BitmapPixels bitmap, double centerX, double centerY, double meterRadius, out double strength)
@@ -323,51 +546,221 @@ internal static class FishingMeterDetector
         return count == 0 ? 0 : red / (double)count;
     }
 
-    private static double MeasurePrompt(BitmapPixels bitmap)
+    private static double MeasureLmbPrompt(
+        BitmapPixels bitmap,
+        double centerX,
+        double centerY,
+        double meterRadius)
     {
-        // The game's static "Increase Tension / LMB" prompt sits immediately
-        // to the right of the meter and is visible before the lime progress arc
-        // has developed. It distinguishes the initial meter from reel geometry.
-        var left = (int)Math.Round(bitmap.Width * 0.70);
-        var right = bitmap.Width - 1;
-        var top = (int)Math.Round(bitmap.Height * 0.18);
-        var bottom = (int)Math.Round(bitmap.Height * 0.55);
-        var brightNeutral = 0;
-        var count = 0;
-        for (var y = top; y <= bottom; y += 2)
+        // The startup state has no progress arc yet, so prove it with the real
+        // outlined LMB keycap rather than a generic count of bright pixels.
+        var template = LmbTemplate.Value;
+        var baseScale = Math.Min(bitmap.Width, bitmap.Height) / 259d;
+        var best = 0d;
+        foreach (var scaleFactor in new[] { 0.65, 0.80, 0.90, 1d, 1.10, 1.20 })
         {
-            for (var x = left; x <= right; x += 2)
+            var scale = baseScale * scaleFactor;
+            var width = Math.Max(24, (int)Math.Round(template.Width * scale));
+            var height = Math.Max(15, (int)Math.Round(template.Height * scale));
+            var minimumX = Math.Max(0, (int)Math.Round(centerX + meterRadius * 1.12));
+            var maximumX = Math.Min(bitmap.Width - width, (int)Math.Round(centerX + meterRadius * 2.08));
+            var minimumY = Math.Max(0, (int)Math.Round(centerY - meterRadius * 1.30));
+            var maximumY = Math.Min(bitmap.Height - height, (int)Math.Round(centerY - meterRadius * 0.24));
+            if (maximumX < minimumX || maximumY < minimumY) continue;
+            for (var y = minimumY; y <= maximumY; y++)
             {
-                var color = bitmap.GetPixel(x, y);
-                var brightest = Math.Max(color.R, Math.Max(color.G, color.B));
-                var darkest = Math.Min(color.R, Math.Min(color.G, color.B));
-                if ((color.R + color.G + color.B) / 3 >= 150 && brightest - darkest <= 45)
+                for (var x = minimumX; x <= maximumX; x++)
                 {
-                    brightNeutral++;
-                }
+                    var foregroundMatches = 0;
+                    foreach (var point in template.Foreground)
+                    {
+                        var color = bitmap.GetPixel(
+                            x + (int)Math.Round(point.X * scale),
+                            y + (int)Math.Round(point.Y * scale));
+                        if (IsNeutral(color, 115, 70)) foregroundMatches++;
+                    }
 
-                count++;
+                    var glyphBackgroundMatches = 0;
+                    foreach (var point in template.GlyphBackground)
+                    {
+                        var color = bitmap.GetPixel(
+                            x + (int)Math.Round(point.X * scale),
+                            y + (int)Math.Round(point.Y * scale));
+                        if (Luminance(color) <= 115) glyphBackgroundMatches++;
+                    }
+
+                    var outerBackgroundMatches = 0;
+                    foreach (var point in template.OuterBackground)
+                    {
+                        var color = bitmap.GetPixel(
+                            x + (int)Math.Round(point.X * scale),
+                            y + (int)Math.Round(point.Y * scale));
+                        if (Luminance(color) <= 115) outerBackgroundMatches++;
+                    }
+
+                    var contrastMatches = 0;
+                    var contrastSamples = 0;
+                    foreach (var pair in template.ContrastPairs)
+                    {
+                        var foregroundX = x + (int)Math.Round(pair.Foreground.X * scale);
+                        var foregroundY = y + (int)Math.Round(pair.Foreground.Y * scale);
+                        var backgroundX = x + (int)Math.Round(pair.Background.X * scale);
+                        var backgroundY = y + (int)Math.Round(pair.Background.Y * scale);
+                        if (foregroundX == backgroundX && foregroundY == backgroundY) continue;
+                        contrastSamples++;
+                        var foreground = Luminance(bitmap.GetPixel(foregroundX, foregroundY));
+                        var background = Luminance(bitmap.GetPixel(backgroundX, backgroundY));
+                        if (foreground - background >= 35) contrastMatches++;
+                    }
+
+                    var foregroundScore = foregroundMatches / (double)template.Foreground.Length;
+                    var glyphBackgroundScore = glyphBackgroundMatches / (double)template.GlyphBackground.Length;
+                    var outerBackgroundScore = outerBackgroundMatches / (double)template.OuterBackground.Length;
+                    var contrastScore = contrastSamples == 0 ? 0 : contrastMatches / (double)contrastSamples;
+                    best = Math.Max(best,
+                        foregroundScore * 0.35
+                            + glyphBackgroundScore * 0.20
+                            + outerBackgroundScore * 0.05
+                            + contrastScore * 0.40);
+                }
             }
         }
 
-        return count == 0 ? 0 : brightNeutral / (double)count;
+        return best;
+    }
+
+    private static LmbPromptTemplate LoadLmbPromptTemplate()
+    {
+        using var stream = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("CuePilot.Vision.TensionReady.png")
+            ?? throw new InvalidOperationException("Missing fishing LMB prompt reference.");
+        using var reference = new Bitmap(stream);
+        var foreground = new List<Point>();
+        var glyphBackground = new List<Point>();
+        var outerBackground = new List<Point>();
+        for (var y = 1; y < reference.Height - 1; y += 2)
+        {
+            for (var x = 1; x < reference.Width - 1; x += 2)
+            {
+                var color = reference.GetPixel(x, y);
+                var insideGlyph = x is >= 7 and <= 45 && y is >= 6 and <= 26;
+                if (insideGlyph && IsNeutral(color, 145, 70)) foreground.Add(new Point(x, y));
+                else if (insideGlyph && Luminance(color) <= 72) glyphBackground.Add(new Point(x, y));
+                else if (Luminance(color) <= 72) outerBackground.Add(new Point(x, y));
+            }
+        }
+
+        if (foreground.Count < 12 || glyphBackground.Count < 30 || outerBackground.Count < 30)
+            throw new InvalidOperationException("Fishing LMB prompt reference is incomplete.");
+        var sampledForeground = SampleEvenly(foreground, 48);
+        return new LmbPromptTemplate(
+            reference.Width,
+            reference.Height,
+            sampledForeground,
+            SampleEvenly(glyphBackground, 48),
+            SampleEvenly(outerBackground, 32),
+            CreateLmbContrastPairs(reference, sampledForeground));
+    }
+
+    private static LmbContrastPair[] CreateLmbContrastPairs(
+        Bitmap reference,
+        IReadOnlyList<Point> foreground)
+    {
+        var pairs = new List<LmbContrastPair>();
+        foreach (var point in foreground)
+        {
+            var foregroundLuminance = Luminance(reference.GetPixel(point.X, point.Y));
+            var bestDifference = 0d;
+            var bestBackground = Point.Empty;
+            for (var offsetY = -4; offsetY <= 4; offsetY++)
+            {
+                for (var offsetX = -4; offsetX <= 4; offsetX++)
+                {
+                    if (offsetX == 0 && offsetY == 0) continue;
+                    var x = point.X + offsetX;
+                    var y = point.Y + offsetY;
+                    if (x < 0 || x >= reference.Width || y < 0 || y >= reference.Height) continue;
+                    var difference = foregroundLuminance - Luminance(reference.GetPixel(x, y));
+                    if (difference <= bestDifference) continue;
+                    bestDifference = difference;
+                    bestBackground = new Point(x, y);
+                }
+            }
+
+            if (bestDifference >= 50)
+            {
+                pairs.Add(new LmbContrastPair(point, bestBackground));
+            }
+        }
+
+        if (pairs.Count < 20)
+            throw new InvalidOperationException("Fishing LMB prompt reference has insufficient local contrast.");
+        return pairs.ToArray();
+    }
+
+    private static Point[] SampleEvenly(IReadOnlyList<Point> points, int maximum)
+    {
+        if (points.Count <= maximum) return points.ToArray();
+        return Enumerable.Range(0, maximum)
+            .Select(index => points[index * (points.Count - 1) / (maximum - 1)])
+            .Distinct()
+            .ToArray();
+    }
+
+    private static bool IsNeutral(Color color, int minimumBrightness, int maximumSpread)
+    {
+        var brightest = Math.Max(color.R, Math.Max(color.G, color.B));
+        var darkest = Math.Min(color.R, Math.Min(color.G, color.B));
+        return (color.R + color.G + color.B) / 3 >= minimumBrightness && brightest - darkest <= maximumSpread;
     }
 
     private static Color Sample(BitmapPixels bitmap, double centerX, double centerY, double radius, int angleIndex, int angleCount)
     {
-        var angle = angleIndex * Math.PI * 2 / angleCount;
-        var x = Math.Clamp((int)Math.Round(centerX + Math.Cos(angle) * radius), 0, bitmap.Width - 1);
-        var y = Math.Clamp((int)Math.Round(centerY + Math.Sin(angle) * radius), 0, bitmap.Height - 1);
+        var direction = angleCount switch
+        {
+            AngleSamples => MeterDirections[angleIndex],
+            DarknessAngleSamples => DarknessDirections[angleIndex],
+            _ => CreateDirection(angleIndex, angleCount),
+        };
+        var x = Math.Clamp((int)Math.Round(centerX + direction.X * radius), 0, bitmap.Width - 1);
+        var y = Math.Clamp((int)Math.Round(centerY + direction.Y * radius), 0, bitmap.Height - 1);
         return bitmap.GetPixel(x, y);
     }
 
+    private static (double X, double Y)[] CreateDirections(int count)
+    {
+        var directions = new (double X, double Y)[count];
+        for (var index = 0; index < count; index++)
+        {
+            directions[index] = CreateDirection(index, count);
+        }
+
+        return directions;
+    }
+
+    private static (double X, double Y) CreateDirection(int index, int count)
+    {
+        var angle = index * Math.PI * 2 / count;
+        return (Math.Cos(angle), Math.Sin(angle));
+    }
+
     private static bool IsWarmRing(Color color) =>
-        color.R >= 78 && color.R >= color.B + 8 && color.R >= color.G + 4;
+        color.R >= 48 && color.R >= color.B + 7 && color.R >= color.G + 3;
 
     private static bool IsLime(Color color) =>
-        color.G >= 120 && color.G >= color.R + 18 && color.G >= color.B + 10;
+        color.G >= 78 && color.G >= color.R + 14 && color.G >= color.B + 8;
 
     private static double Luminance(Color color) => color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722;
+
+    private sealed record LmbPromptTemplate(
+        int Width,
+        int Height,
+        Point[] Foreground,
+        Point[] GlyphBackground,
+        Point[] OuterBackground,
+        LmbContrastPair[] ContrastPairs);
+
+    private readonly record struct LmbContrastPair(Point Foreground, Point Background);
 
     private sealed class BitmapPixels : IDisposable
     {
@@ -507,40 +900,173 @@ internal sealed class FishingTensionController
     }
 }
 
+internal sealed class FishingMeterTracker
+{
+    private double? centerXRatio;
+    private double? centerYRatio;
+    private double regionHeightRatio = 0.24;
+
+    internal bool HasLock => centerXRatio is not null && centerYRatio is not null;
+
+    internal void Reset()
+    {
+        centerXRatio = null;
+        centerYRatio = null;
+        regionHeightRatio = 0.24;
+    }
+
+    internal Rectangle? GetRegion(Rectangle bounds, double scale = 1)
+    {
+        if (centerXRatio is null || centerYRatio is null) return null;
+        var height = Math.Clamp(
+            (int)Math.Round(bounds.Height * regionHeightRatio * scale),
+            Math.Min(180, bounds.Height),
+            Math.Min(440, bounds.Height));
+        var width = Math.Min(bounds.Width, (int)Math.Round(height * 1.30));
+        var centerX = bounds.Left + (int)Math.Round(bounds.Width * centerXRatio.Value);
+        var centerY = bounds.Top + (int)Math.Round(bounds.Height * centerYRatio.Value);
+        var left = Math.Clamp(centerX - (int)Math.Round(width * 0.40), bounds.Left, bounds.Right - width);
+        var top = Math.Clamp(centerY - height / 2, bounds.Top, bounds.Bottom - height);
+        return new Rectangle(left, top, width, height);
+    }
+
+    internal void Update(Rectangle frameBounds, FishingMeterCandidateEvidence candidate)
+    {
+        var shortest = Math.Min(candidate.Region.Width, candidate.Region.Height);
+        var radius = shortest * 0.20;
+        var expectedX = candidate.Region.Width >= candidate.Region.Height * 1.15
+            ? candidate.Region.Width * 0.40
+            : candidate.Region.Width / 2d;
+        var actualX = candidate.Region.Left + expectedX + candidate.Evidence.CenterOffsetX * radius;
+        var actualY = candidate.Region.Top + candidate.Region.Height / 2d + candidate.Evidence.CenterOffsetY * radius;
+        centerXRatio = Math.Clamp((actualX - frameBounds.Left) / frameBounds.Width, 0, 1);
+        centerYRatio = Math.Clamp((actualY - frameBounds.Top) / frameBounds.Height, 0, 1);
+        regionHeightRatio = Math.Clamp(candidate.Region.Height / (double)frameBounds.Height, 0.12, 0.42);
+    }
+}
+
 internal static class FishingMeterService
 {
     private const double DecisiveConfidence = 0.92;
 
-    internal static Rectangle GetRelativeCaptureRegion(Size size) =>
-        GetCaptureRegion(new Rectangle(Point.Empty, size));
+    internal static FishingMeterObservation AnalyzeFrame(Bitmap frame) =>
+        AnalyzeFrameDetailed(frame).Observation;
 
-    internal static FishingMeterObservation AnalyzeFrame(Bitmap frame)
+    internal static FishingMeterFrameAnalysis AnalyzeFrameDetailed(
+        Bitmap frame,
+        FishingMeterTracker? tracker = null)
     {
-        var best = FishingMeterObservation.Missing;
-        foreach (var region in GetCaptureRegions(new Rectangle(Point.Empty, frame.Size)))
+        var frameBounds = new Rectangle(Point.Empty, frame.Size);
+        FishingMeterObservation best = FishingMeterObservation.Missing;
+        FishingMeterCandidateEvidence? primary = null;
+        var candidateCount = 0;
+        var inspected = new HashSet<Rectangle>();
+
+        bool Inspect(Rectangle region, int index, bool tracked = false, double scale = 1)
         {
+            if (region.Width < 80 || region.Height < 80 || !inspected.Add(region)) return false;
+            candidateCount++;
             using var meter = frame.Clone(region, PixelFormat.Format32bppArgb);
-            var observation = FishingMeterDetector.Analyze(meter);
-            if (!observation.IsVisible || best.IsVisible && observation.Confidence <= best.Confidence)
+            var observation = FishingMeterDetector.Analyze(
+                meter,
+                out var evidence,
+                requireActiveIdentity: tracker is not null && !tracker.HasLock);
+            // Every fresh lock must prove the adjacent live LMB prompt. This
+            // includes apparent failure frames: warm scenery can resemble the
+            // red failure mark, while a genuine failure is only actionable
+            // after this tracker has already observed the active meter.
+            var requiresIdentity = tracker is not null && !tracker.HasLock;
+            if (observation.IsVisible
+                && requiresIdentity
+                && !FishingMeterDetector.HasCurrentLmbIdentity(evidence))
             {
-                continue;
+                observation = FishingMeterObservation.Missing;
+                evidence = evidence with
+                {
+                    PassedVisibility = false,
+                    DecisionReason = $"Meter acquisition requires the verified LMB identity; strongest signature was {evidence.LmbPromptStrength:P0}",
+                };
+            }
+            var candidate = new FishingMeterCandidateEvidence(index, region, evidence, tracked, scale);
+            if (observation.IsVisible)
+            {
+                if (!best.IsVisible || observation.Confidence > best.Confidence)
+                {
+                    best = observation;
+                    primary = candidate;
+                }
+            }
+            else if (!best.IsVisible
+                && (primary is null
+                    || tracked && !primary.Value.IsTracked
+                    || tracked == primary.Value.IsTracked
+                        && evidence.CandidateConfidence > primary.Value.Evidence.CandidateConfidence))
+            {
+                primary = candidate;
             }
 
-            best = observation;
-            if (best.Confidence >= DecisiveConfidence)
+            return observation.IsVisible;
+        }
+
+        var trackedRegion = tracker?.GetRegion(frameBounds);
+        if (trackedRegion is { } firstTracked && Inspect(firstTracked, -1, tracked: true))
+        {
+            tracker!.Update(frameBounds, primary!.Value);
+            return new FishingMeterFrameAnalysis(best, primary, candidateCount);
+        }
+
+        // Tiny regression/reference images are already tightly cropped around
+        // the meter. Inspecting them directly avoids manufacturing a second
+        // crop that cuts off the LMB keycap.
+        if (frame.Width <= 512 && frame.Height <= 512 && Inspect(frameBounds, -2))
+        {
+            tracker?.Update(frameBounds, primary!.Value);
+            return new FishingMeterFrameAnalysis(best, primary, candidateCount);
+        }
+
+        var staticRegions = GetCaptureRegions(frameBounds);
+        for (var index = 0; index < staticRegions.Count; index++)
+        {
+            _ = Inspect(staticRegions[index], index);
+            if (best.IsVisible && best.Confidence >= DecisiveConfidence)
             {
-                return best;
+                tracker?.Update(frameBounds, primary!.Value);
+                return new FishingMeterFrameAnalysis(best, primary, candidateCount);
             }
         }
 
-        return best;
+        if (best.IsVisible)
+        {
+            tracker?.Update(frameBounds, primary!.Value);
+            return new FishingMeterFrameAnalysis(best, primary, candidateCount);
+        }
+
+        if (tracker?.HasLock == true)
+        {
+            foreach (var scale in new[] { 0.90, 1.10 })
+            {
+                if (tracker.GetRegion(frameBounds, scale) is not { } scaled) continue;
+                if (!Inspect(scaled, scale < 1 ? -3 : -4, tracked: true, scale)) continue;
+                tracker.Update(frameBounds, primary!.Value);
+                return new FishingMeterFrameAnalysis(best, primary, candidateCount);
+            }
+        }
+
+        return new FishingMeterFrameAnalysis(best, primary, candidateCount);
     }
 
-    internal static Rectangle GetCaptureRegion(Rectangle bounds)
+    internal static IReadOnlyList<FishingMeterCandidateEvidence> InspectFrame(Bitmap frame)
     {
-        // Retain the original center-oriented region for diagnostics and callers
-        // that request one region. Live capture uses the complete candidate set.
-        return GetCaptureRegion(bounds, 0.536, 0.443);
+        var regions = GetCaptureRegions(new Rectangle(Point.Empty, frame.Size));
+        var evidence = new FishingMeterCandidateEvidence[regions.Count];
+        for (var index = 0; index < regions.Count; index++)
+        {
+            using var meter = frame.Clone(regions[index], PixelFormat.Format32bppArgb);
+            _ = FishingMeterDetector.Analyze(meter, out var candidate);
+            evidence[index] = new FishingMeterCandidateEvidence(index, regions[index], candidate);
+        }
+
+        return evidence;
     }
 
     internal static IReadOnlyList<Rectangle> GetCaptureRegions(Rectangle bounds)
@@ -548,9 +1074,9 @@ internal static class FishingMeterService
         // FiveM positions the fishing UI relative to the active camera/UI layout.
         // The supplied bright-day frames place the meter left-of-center, while the
         // recorded 2560x1440 frame puts it right-of-center. Probe those observed
-        // positions with compact square captures rather than inspecting the full
-        // desktop or assuming one fixed coordinate.
-        var positions = new[]
+        // positions with bounded rectangular captures rather than inspecting the
+        // full desktop or assuming one fixed coordinate and UI scale.
+        var primaryPositions = new[]
         {
             (0.536, 0.443),
             (0.35, 0.53),
@@ -558,34 +1084,65 @@ internal static class FishingMeterService
             (0.50, 0.50),
             (0.666, 0.55),
         };
-        return positions
-            .Select(position => GetCaptureRegion(bounds, position.Item1, position.Item2))
+        // The user-supplied daylight captures span a second HUD scale and a
+        // wider set of camera-relative positions. Probe only those measured
+        // centers at the larger scale. This is a bounded image-pyramid fallback,
+        // not a full-screen sliding window, so the live loop stays predictable.
+        var expandedPositions = new[]
+        {
+            (0.367, 0.369),
+            (0.287, 0.431),
+            (0.406, 0.550),
+        };
+        var safeViewport = GameViewportGeometry.CenteredSafeViewport(bounds);
+        return primaryPositions
+            .Select(position => GetCaptureRegion(bounds, safeViewport, position.Item1, position.Item2, 0.24))
+            .Concat(expandedPositions.Select(position =>
+                GetCaptureRegion(bounds, safeViewport, position.Item1, position.Item2, 0.46)))
             .Distinct()
             .ToArray();
     }
 
-    private static Rectangle GetCaptureRegion(Rectangle bounds, double horizontal, double vertical)
+    private static Rectangle GetCaptureRegion(
+        Rectangle bounds,
+        GameSafeViewport safeViewport,
+        double horizontal,
+        double vertical,
+        double heightRatio = 0.24)
     {
         // The supplied 1080p recording puts the black meter disk at roughly
-        // 100 px across. A 24% capture square makes that disk approximately
-        // two fifths of the crop, which matches the ring sampler's radius
-        // range. The former 37% crop made the disk too small for its expected radius
-        // and caused intermittent losses during the bright daytime pulse UI.
-        var size = Math.Clamp((int)Math.Round(bounds.Height * 0.24), 240, 400);
-        size = Math.Min(size, Math.Min(bounds.Width, bounds.Height));
-        var centerX = bounds.Left + (int)Math.Round(bounds.Width * horizontal);
-        var centerY = bounds.Top + (int)Math.Round(bounds.Height * vertical);
-        var left = Math.Clamp(centerX - size / 2, bounds.Left, bounds.Right - size);
-        var top = Math.Clamp(centerY - size / 2, bounds.Top, bounds.Bottom - size);
-        return new Rectangle(left, top, size, size);
+        // 100 px across. The primary 24% capture makes that disk approximately
+        // two fifths of the crop, which matches the ring sampler's radius range.
+        // The measured 46% fallback handles the alternate UI scale without
+        // replacing the faster primary path.
+        var height = Math.Clamp((int)Math.Round(bounds.Height * heightRatio), 240, 400);
+        height = Math.Min(height, Math.Min(bounds.Width, bounds.Height));
+        var width = Math.Min(bounds.Width, (int)Math.Round(height * 1.30));
+        var centerX = (int)Math.Round(safeViewport.MapX(horizontal));
+        var centerY = (int)Math.Round(safeViewport.MapY(vertical));
+        // Keep the circular meter at 40% of the crop width, leaving a narrow
+        // right-hand lane for the actual Increase Tension/LMB keycap.
+        var left = Math.Clamp(centerX - (int)Math.Round(width * 0.40), bounds.Left, bounds.Right - width);
+        var top = Math.Clamp(centerY - height / 2, bounds.Top, bounds.Bottom - height);
+        return new Rectangle(left, top, width, height);
     }
 
     internal static FishingMeterObservation Observe(IFrameSource frameSource, WindowTargetSettings target, out FrameSourceStatus status)
     {
+        using var sample = CaptureAndAnalyze(frameSource, target, null, out status);
+        return sample?.Analysis.Observation ?? FishingMeterObservation.Missing;
+    }
+
+    internal static FishingMeterFrameSample? CaptureAndAnalyze(
+        IFrameSource frameSource,
+        WindowTargetSettings target,
+        FishingMeterTracker? tracker,
+        out FrameSourceStatus status)
+    {
         if (!WindowTargetService.TryResolve(target, out var resolved, out var detail))
         {
             status = new FrameSourceStatus(FrameSourceState.TargetUnavailable, frameSource.Name, detail, TimeSpan.MaxValue, 0);
-            return FishingMeterObservation.Missing;
+            return null;
         }
 
         // The pulse UI animates while the five candidate positions are being
@@ -596,15 +1153,30 @@ internal static class FishingMeterService
         var wholeTarget = new Rectangle(Point.Empty, resolved.Bounds.Size);
         if (!frameSource.TryCapture(target, wholeTarget, out var frame, out status) || frame is null)
         {
-            return FishingMeterObservation.Missing;
+            return null;
         }
 
-        using (frame)
+        try
         {
-            return AnalyzeFrame(frame.Bitmap);
+            return new FishingMeterFrameSample(frame, AnalyzeFrameDetailed(frame.Bitmap, tracker));
+        }
+        catch
+        {
+            frame.Dispose();
+            throw;
         }
     }
 
+}
+
+internal sealed class FishingMeterFrameSample(
+    FrameLease frame,
+    FishingMeterFrameAnalysis analysis) : IDisposable
+{
+    internal FrameLease Frame { get; } = frame;
+    internal FishingMeterFrameAnalysis Analysis { get; } = analysis;
+    internal FishingMeterObservation Observation => Analysis.Observation;
+    public void Dispose() => Frame.Dispose();
 }
 
 internal sealed class FishingDiagnosticLog : IDisposable
@@ -613,12 +1185,9 @@ internal sealed class FishingDiagnosticLog : IDisposable
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly string directory;
 
-    internal FishingDiagnosticLog()
+    internal FishingDiagnosticLog(string? diagnosticsDirectory = null)
     {
-        directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WorkflowLooper",
-            "diagnostics");
+        directory = diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory;
         Directory.CreateDirectory(directory);
         writer = new StreamWriter(Path.Combine(directory, "last-fishing.csv"), false);
         writer.WriteLine("elapsed_ms,visible,tension_percent,progress_percent,caught,failed,confidence_percent,lmb,event,pulse_ms");
@@ -640,28 +1209,100 @@ internal sealed class FishingDiagnosticLog : IDisposable
             pulseMilliseconds.ToString(CultureInfo.InvariantCulture)));
     }
 
-    internal void CaptureFirstLoss(IFrameSource frameSource, WindowTargetSettings target)
+    internal string CaptureEvidence(
+        string eventName,
+        Bitmap exactFrame,
+        FishingMeterFrameAnalysis analysis)
     {
-        if (!WindowTargetService.TryResolve(target, out var resolved, out var detail))
+        var safeEventName = eventName.Equals("meter-lock", StringComparison.OrdinalIgnoreCase)
+            ? "meter-lock"
+            : "meter-loss";
+        var imageName = $"{safeEventName}-latest.png";
+        var metadataName = $"{safeEventName}-latest.json";
+        var imagePath = Path.Combine(directory, imageName);
+        var metadataPath = Path.Combine(directory, metadataName);
+        using var annotated = new Bitmap(exactFrame);
+        using (var graphics = Graphics.FromImage(annotated))
         {
-            FishingLoopDiagnosticLog.Write("meter_loss_capture_failed", detail);
-            return;
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            if (analysis.PrimaryCandidate is { } candidate)
+            {
+                var region = candidate.Region;
+                var shortest = Math.Min(region.Width, region.Height);
+                var meterRadius = shortest * 0.20;
+                var expectedCenterX = region.Width >= region.Height * 1.15
+                    ? region.Width * 0.40
+                    : region.Width / 2d;
+                var centerX = region.Left + expectedCenterX + candidate.Evidence.CenterOffsetX * meterRadius;
+                var centerY = region.Top + region.Height / 2d + candidate.Evidence.CenterOffsetY * meterRadius;
+                var accent = analysis.Observation.IsVisible
+                    ? Color.FromArgb(232, 120, 231, 200)
+                    : Color.FromArgb(232, 244, 186, 92);
+                using var regionPen = new Pen(Color.FromArgb(190, accent), 2);
+                using var meterPen = new Pen(accent, 3);
+                graphics.DrawRectangle(regionPen, region);
+                graphics.DrawEllipse(
+                    meterPen,
+                    (float)(centerX - meterRadius),
+                    (float)(centerY - meterRadius),
+                    (float)(meterRadius * 2),
+                    (float)(meterRadius * 2));
+                graphics.DrawLine(meterPen, (float)centerX - 8, (float)centerY, (float)centerX + 8, (float)centerY);
+                graphics.DrawLine(meterPen, (float)centerX, (float)centerY - 8, (float)centerX, (float)centerY + 8);
+
+                var label = string.Create(CultureInfo.InvariantCulture,
+                    $"{safeEventName}  dark {candidate.Evidence.DarkDisk:P0}  contrast {candidate.Evidence.DiskContrast:P0}  ring {candidate.Evidence.RingStrength:P0}  LMB {candidate.Evidence.LmbPromptStrength:P0}  progress {candidate.Evidence.ProgressStrength:P0}");
+                using var font = new Font(FontFamily.GenericSansSerif, 10, FontStyle.Bold, GraphicsUnit.Point);
+                var labelSize = graphics.MeasureString(label, font);
+                var labelX = Math.Clamp(region.Left, 8, Math.Max(8, annotated.Width - (int)labelSize.Width - 20));
+                var labelY = Math.Max(8, region.Top - (int)labelSize.Height - 12);
+                using var labelBackground = new SolidBrush(Color.FromArgb(220, 10, 22, 24));
+                using var labelBrush = new SolidBrush(Color.FromArgb(245, 224, 239, 235));
+                graphics.FillRectangle(labelBackground, labelX - 6, labelY - 4, labelSize.Width + 12, labelSize.Height + 8);
+                graphics.DrawString(label, font, labelBrush, labelX, labelY);
+            }
         }
 
-        var region = new Rectangle(Point.Empty, resolved.Bounds.Size);
-        if (!frameSource.TryCapture(target, region, out var frame, out var status) || frame is null)
+        annotated.Save(imagePath, ImageFormat.Png);
+        var primary = analysis.PrimaryCandidate;
+        var metadata = new
         {
-            FishingLoopDiagnosticLog.Write("meter_loss_capture_failed", status.Detail);
-            return;
-        }
-
-        using (frame)
-        {
-            var fileName = $"meter-loss-{DateTimeOffset.Now:yyyyMMdd-HHmmssfff}.png";
-            var path = Path.Combine(directory, fileName);
-            frame.Bitmap.Save(path, ImageFormat.Png);
-            FishingLoopDiagnosticLog.Write("meter_loss_capture", $"file={fileName};capture_ms={status.CaptureMilliseconds:F1}");
-        }
+            eventName = safeEventName,
+            capturedAt = DateTimeOffset.Now,
+            visible = analysis.Observation.IsVisible,
+            tension = analysis.Observation.TensionRatio,
+            progress = analysis.Observation.ProgressRatio,
+            confidence = analysis.Observation.Confidence,
+            caught = analysis.Observation.IsCaught,
+            failed = analysis.Observation.IsFailed,
+            tracked = analysis.UsedTrackedRegion,
+            candidateCount = analysis.CandidateCount,
+            region = primary is null ? null : new
+            {
+                x = primary.Value.Region.X,
+                y = primary.Value.Region.Y,
+                width = primary.Value.Region.Width,
+                height = primary.Value.Region.Height,
+                scale = primary.Value.Scale,
+            },
+            evidence = primary is null ? null : new
+            {
+                darkDisk = primary.Value.Evidence.DarkDisk,
+                diskContrast = primary.Value.Evidence.DiskContrast,
+                ringStrength = primary.Value.Evidence.RingStrength,
+                ringRadius = primary.Value.Evidence.RingRadiusRatio,
+                lmbPrompt = primary.Value.Evidence.LmbPromptStrength,
+                progressStrength = primary.Value.Evidence.ProgressStrength,
+                caughtStrength = primary.Value.Evidence.CaughtStrength,
+                failureStrength = primary.Value.Evidence.FailureStrength,
+                candidateConfidence = primary.Value.Evidence.CandidateConfidence,
+            },
+        };
+        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+        FishingLoopDiagnosticLog.Write(
+            $"{safeEventName.Replace('-', '_')}_capture",
+            $"file={imageName};tracked={analysis.UsedTrackedRegion};candidates={analysis.CandidateCount}");
+        return imagePath;
     }
 
     public void Dispose() => writer.Dispose();
@@ -673,10 +1314,7 @@ internal static class FishingLoopDiagnosticLog
 
     internal static void Write(string eventName, string detail = "")
     {
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WorkflowLooper",
-            "diagnostics");
+        var directory = AppPaths.DiagnosticsDirectory;
         Directory.CreateDirectory(directory);
         var line = string.Join(',',
             DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),

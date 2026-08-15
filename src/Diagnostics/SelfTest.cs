@@ -1,4 +1,7 @@
-namespace WorkflowLooper;
+using System.Drawing;
+using System.Text.Json;
+
+namespace CuePilot;
 
 internal static class SelfTest
 {
@@ -6,48 +9,61 @@ internal static class SelfTest
     {
         try
         {
-            if (NativeMethods.InputSize != 40) throw new InvalidOperationException($"Unexpected x64 INPUT size: {NativeMethods.InputSize}.");
+            if (NativeMethods.InputSize != 40)
+                throw new InvalidOperationException($"Unexpected x64 INPUT size: {NativeMethods.InputSize}.");
+
             var defaults = AppSettings.Defaults();
-            if (!SettingsStore.IsValid(defaults) || defaults.EmergencyStop.DisplayText != "PAUSE / BREAK")
-                throw new InvalidOperationException("Emergency shortcut defaults are invalid.");
+            if (!SettingsStore.IsValid(defaults)
+                || defaults.StartStop.DisplayText != "F10"
+                || defaults.LockpickingStartStop.DisplayText != "F9"
+                || defaults.EmergencyStop.DisplayText != "PAUSE / BREAK")
+                throw new InvalidOperationException("Global shortcut defaults are invalid.");
 
             var restored = SettingsStore.RoundTripForTest(defaults);
-            if (restored.FormatVersion != 7 || restored.SelectedProfile != "fishing")
-                throw new InvalidOperationException("Settings v7 did not survive serialization.");
+            if (restored.FormatVersion != 9 || restored.SelectedProfile != "fishing")
+                throw new InvalidOperationException("Settings v8 did not survive serialization.");
 
-            using var form = new MainForm(false, defaults)
+            var keyDown = InputSender.CreateScanCodeInput(InputKey.E, false);
+            var keyUp = InputSender.CreateScanCodeInput(InputKey.E, true);
+            if (keyDown.Data.Keyboard.ScanCode == 0
+                || (keyUp.Data.Keyboard.Flags & NativeMethods.KeyeventfKeyup) == 0)
+                throw new InvalidOperationException("Backend-neutral E key input is invalid.");
+
+            defaults.Routine.TargetWindow = new WindowTargetSettings
             {
-                StartPosition = FormStartPosition.Manual,
-                Location = new Point(-10_000, -10_000),
-                ShowInTaskbar = false,
+                ProcessId = 3258,
+                ProcessName = "FiveM_b3258_GTAProcess",
+                WindowTitle = "FiveM",
             };
-            form.Show();
-            Application.DoEvents();
-            form.PrepareReadyForPreview();
-            Application.DoEvents();
-            if (form.DashboardStateForTest != "READY TO START" || form.AdvancedVisibleForTest)
-                throw new InvalidOperationException("Dashboard ready state is invalid.");
-            if (form.ActiveCycleStepForTest != -1 || form.RuntimeValueForTest != "—")
-                throw new InvalidOperationException("Dashboard idle signals are not truthful.");
-            var fixedClientSize = form.ClientSizeForTest;
+            using var input = new StringReader("{\"id\":\"self-test\",\"command\":\"snapshot\"}");
+            using var output = new StringWriter();
+            UiBridge.Run(
+                input,
+                output,
+                () => defaults,
+                _ => throw new InvalidOperationException("Snapshot self-test attempted to save settings."),
+                () =>
+                [
+                    new WindowTargetService.FiveMWindowTarget(
+                        3258,
+                        "FiveM_b3258_GTAProcess",
+                        "FiveM",
+                        new Rectangle(0, 0, 1280, 720),
+                        false,
+                        false),
+                ]);
 
-            form.PrepareForPreview();
-            Application.DoEvents();
-            if (form.DashboardStateForTest != "WATCHING FOR MINIGAME")
-                throw new InvalidOperationException("Dashboard running state is invalid.");
+            var response = output.ToString()
+                .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => JsonDocument.Parse(line).RootElement.Clone())
+                .Single(message => message.GetProperty("type").GetString() == "response");
+            var result = response.GetProperty("result");
+            if (!response.GetProperty("ok").GetBoolean()
+                || result.GetProperty("protocolVersion").GetInt32() != UiBridge.ProtocolVersion
+                || !result.GetProperty("targetValid").GetBoolean())
+                throw new InvalidOperationException("The local UI bridge snapshot contract is invalid.");
 
-            form.ShowAdvancedForPreview();
-            Application.DoEvents();
-            if (!form.AdvancedVisibleForTest || !form.DrawerEmergencyEnabledForTest)
-                throw new InvalidOperationException("Dashboard advanced state is invalid.");
-            if (form.ClientSizeForTest != fixedClientSize)
-                throw new InvalidOperationException("Advanced tuning changed the fixed dashboard footprint.");
-            var drawerBounds = form.AdvancedBoundsForPreview;
-            if (drawerBounds.Left <= fixedClientSize.Width / 2 || drawerBounds.Width <= 0)
-                throw new InvalidOperationException($"Advanced drawer bounds are invalid: {drawerBounds}.");
-            form.Hide();
-
-            Console.WriteLine("SELF_TEST_OK serialization=v7 dashboard=ready-running-advanced-fixed idle=truthful focus=drawer targeting=application capture=desktop input=target-aware fishing-feedback=validated emergency-stop=drawer-visible");
+            Console.WriteLine("SELF_TEST_OK serialization=v9 bridge=protocol-1 target=fivem input=backend-neutral global-shortcuts=tauri-owned fishing-feedback=validated");
             return 0;
         }
         catch (Exception exception)

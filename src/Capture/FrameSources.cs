@@ -1,7 +1,8 @@
 using System.Diagnostics;
+using System.Drawing;
 using System.Drawing.Imaging;
 
-namespace WorkflowLooper;
+namespace CuePilot;
 
 internal enum FrameSourceState
 {
@@ -16,20 +17,21 @@ internal sealed record FrameSourceStatus(
     string Backend,
     string Detail,
     TimeSpan FrameAge,
-    double CaptureMilliseconds);
+    double CaptureMilliseconds,
+    uint AccumulatedFrames = 1);
 
 internal sealed class FrameLease : IDisposable
 {
-    internal FrameLease(Bitmap bitmap, Rectangle targetBounds, FrameSourceStatus status)
+    internal FrameLease(Bitmap bitmap, FrameSourceStatus status)
     {
         Bitmap = bitmap;
-        TargetBounds = targetBounds;
         Status = status;
     }
 
     internal Bitmap Bitmap { get; }
-    internal Rectangle TargetBounds { get; }
-    internal FrameSourceStatus Status { get; }
+    internal FrameSourceStatus Status { get; private set; }
+
+    internal void UpdateStatus(FrameSourceStatus status) => Status = status;
 
     public void Dispose() => Bitmap.Dispose();
 }
@@ -42,7 +44,51 @@ internal interface IFrameSource : IDisposable
 
 internal static class FrameSourceFactory
 {
-    internal static IFrameSource Create() => new GdiFrameSource();
+    internal static IFrameSource Create() => new FallbackFrameSource(
+        new DxgiFrameSource(),
+        new GdiFrameSource());
+}
+
+internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fallback) : IFrameSource
+{
+    public string Name => primary.Name;
+
+    public bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status)
+    {
+        if (primary.TryCapture(target, relativeRegion, out frame, out status))
+        {
+            return true;
+        }
+
+        if (status.State is FrameSourceState.TargetUnavailable or FrameSourceState.TargetMinimized
+            || status.Detail.Contains("no longer foreground", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var primaryFailure = status;
+        if (fallback.TryCapture(target, relativeRegion, out frame, out status))
+        {
+            status = status with
+            {
+                Detail = $"Fallback active after {primaryFailure.Backend} failed: {primaryFailure.Detail}",
+            };
+            frame!.UpdateStatus(status);
+            return true;
+        }
+
+        status = status with
+        {
+            Detail = $"{primaryFailure.Backend}: {primaryFailure.Detail} Fallback {status.Backend}: {status.Detail}",
+        };
+        return false;
+    }
+
+    public void Dispose()
+    {
+        primary.Dispose();
+        fallback.Dispose();
+    }
 }
 
 internal sealed class GdiFrameSource : IFrameSource
@@ -85,7 +131,7 @@ internal sealed class GdiFrameSource : IFrameSource
             graphics.CopyFromScreen(region.Location, Point.Empty, region.Size, CopyPixelOperation.SourceCopy);
             status = new FrameSourceStatus(FrameSourceState.Ready, Name, "Desktop frame ready.",
                 TimeSpan.Zero, clock.Elapsed.TotalMilliseconds);
-            frame = new FrameLease(bitmap, resolved.Bounds, status);
+            frame = new FrameLease(bitmap, status);
             return true;
         }
         catch (Exception exception)
