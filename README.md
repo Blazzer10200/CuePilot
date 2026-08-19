@@ -13,22 +13,22 @@ CuePilot is a Svelte/Tauri desktop app backed by a local, headless .NET engine. 
 ## Install on Windows
 
 1. Open the [latest CuePilot release](https://github.com/Blazzer10200/CuePilot/releases/latest).
-2. Download `CuePilot-5.1.0-Windows-x64-Setup.exe` and run it. The installer is per-user, so it does not require administrator access.
+2. Download `CuePilot-5.1.3-Windows-x64-Setup.exe` and run it. The installer is per-user, so it does not require administrator access.
 3. Launch **CuePilot** from the Start menu, open an activity, and select the running FiveM window once.
-4. Use `F10` for Fishing, `F9` for Lockpicking Class C, and `Pause / Break` for an immediate emergency stop. Both activity shortcuts can be changed in Settings.
+4. Use `F10` for Fishing and `Pause / Break` for an immediate emergency stop. `F9` remains reserved but cannot start automatic lockpicking while Class C calibration stays gated. Both activity shortcuts can be changed in Settings.
 
 CuePilot supports Windows 10/11 x64 and bundles its self-contained .NET engine. The installer checks WebView2 automatically, so users do not need Node.js, Rust, the .NET SDK, or repository files. A matching SHA-256 checksum is attached to every GitHub release. Because this community build is not code-signed, Windows SmartScreen may require **More info → Run anyway** on first installation.
 
 ## Activities
 
 - **Fishing — Ready:** the current deterministic prompt and tension-meter controller.
-- **Vehicle Lockpicking — Class C live calibration:** input-free observation plus an explicitly armed Class C controller backed by recorded READY and SPIN calibration. Other vehicle classes remain gated until their own evidence is captured.
+- **Vehicle Lockpicking — live calibration:** input-free observation while concurrent Class C target-label evidence is validated. All automated lockpicking input remains gated.
 
 The app opens on the activity library. Returning there stops any running activity and releases held input before changing workspaces. See [Activity architecture](docs/activities.md) for the module boundary and Lockpicking evidence checklist.
 
 ## Fishing profile
 
-1. Select **Select FiveM target**, switch to FiveM, and wait for the console to return.
+1. Select **Select FiveM target**, then use **Verify setup**. It performs a read-only target, capture, and input-backend check; it never sends a key or mouse event.
 2. Leave input delivery on **Automatic — focus FiveM** for verified physical scan-code input.
 3. Open **Settings** to choose a global Start / Stop shortcut (default `F10`). From FiveM, press it once to start and again to stop.
 4. Preflight resolves FiveM, verifies capture, activates the target, and checks input.
@@ -42,7 +42,7 @@ Every LMB hold is independently capped at 35–90 ms by the feedback controller.
 - Current automation state, detector confidence, and processed samples are shown live.
 - Controller settings and local detection evidence are available in focused secondary panels.
 - The Fishing Start / Stop shortcut is configurable from `F6` through `F12` and works while FiveM remains focused.
-- The Lockpicking Class C Start / Stop shortcut defaults to `F9` and is independently configurable from `F6` through `F12`.
+- The reserved Lockpicking shortcut defaults to `F9` and is independently configurable from `F6` through `F12`; it cannot enable Class C input until the evidence gate passes.
 - `Pause / Break` is the global emergency stop and releases held input.
 - Fishing stops if FiveM stops being the active visible window.
 
@@ -69,6 +69,7 @@ dotnet run --project .\CuePilot.csproj -c Release -- --self-test
 dotnet run --project .\CuePilot.csproj -c Release -- --target-probe FiveM_b3258_GTAProcess
 dotnet run --project .\CuePilot.csproj -c Release -- --capture-probe FiveM_b3258_GTAProcess
 dotnet run --project .\CuePilot.csproj -c Release -- --input-probe FiveM_b3258_GTAProcess
+dotnet run --project .\CuePilot.csproj -c Release -- --replay-fishing .\tests\CuePilot.Tests\Fixtures\Fishing
 ```
 
 ## Development

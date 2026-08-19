@@ -12,11 +12,41 @@ internal enum FishingPromptKind
     Collect,
 }
 
+// HUD state is deliberately separate from the actionable prompt kind.  The
+// routine may only press E for Cast/Collect; the remaining states make the
+// detector's reading explainable without adding a second input controller.
+internal enum FishingHudState
+{
+    None,
+    Ready,
+    Casting,
+    Waiting,
+    Result,
+    Decision,
+}
+
+internal enum FishingHudSignal
+{
+    None,
+    Cast,
+    Stop,
+    Release,
+    Keep,
+    CatchKeep,
+}
+
 internal readonly record struct FishingPromptObservation(
     FishingPromptKind Kind,
     double Confidence,
     double CastConfidence = 0,
-    double CollectConfidence = 0);
+    double CollectConfidence = 0,
+    FishingHudState State = FishingHudState.None,
+    double StateConfidence = 0);
+
+internal readonly record struct FishingHudObservation(
+    FishingHudState State,
+    double Confidence,
+    FishingPromptObservation Prompt);
 
 internal readonly record struct FishingPromptMatchEvidence(
     FishingPromptKind Kind,
@@ -29,12 +59,19 @@ internal readonly record struct FishingPromptMatchEvidence(
     double GlyphScore,
     double TextScore,
     double ContrastScore,
-    double BackgroundScore);
+    double BackgroundScore,
+    FishingHudSignal Signal = FishingHudSignal.None);
 
 internal readonly record struct FishingPromptEvidence(
     FishingPromptMatchEvidence Cast,
     FishingPromptMatchEvidence Collect,
-    string DecisionReason);
+    string DecisionReason,
+    FishingHudState State = FishingHudState.None,
+    double StateConfidence = 0,
+    double StopScore = 0,
+    double ReleaseScore = 0,
+    double KeepScore = 0,
+    double CatchKeepScore = 0);
 
 internal sealed class FishingPromptStabilityGate(
     FishingPromptKind expected,
@@ -76,7 +113,11 @@ internal static class FishingPromptArbitration
     internal static bool ShouldSuppress(
         FishingPromptObservation prompt,
         FishingMeterObservation meter) =>
-        prompt.Kind != FishingPromptKind.None && meter.IsVisible;
+        // A live tension meter means an old Cast prompt must not trigger another E press.
+        // The result/decision panel also uses E, however, and can legitimately appear while
+        // a meter remains on screen (or while the meter detector is still locked to its old
+        // geometry).  Blocking a verified Collect prompt there strands the fishing loop.
+        prompt.Kind == FishingPromptKind.Cast && meter.IsVisible;
 }
 
 internal sealed class FishingPromptClearGate(FishingPromptKind pressed, int requiredMissingSamples = 3)
@@ -104,6 +145,8 @@ internal sealed class FishingPromptClearGate(FishingPromptKind pressed, int requ
 internal static class FishingPromptDetector
 {
     private const double MinimumGlyphScore = 0.95;
+    private const double ActionGate = 0.65;
+    private const double StateGate = 0.70;
     private static readonly Lazy<PromptTemplate[]> Templates = new(LoadTemplates);
 
     internal static FishingPromptObservation Analyze(Bitmap bitmap) => Analyze(bitmap, out _);
@@ -132,45 +175,85 @@ internal static class FishingPromptDetector
         // the templates are fixed and ordered by kind, so a direct pass preserves
         // MaxBy's first-match tie behavior without constructing LINQ iterators.
         var castIndex = -1;
-        var collectIndex = -1;
+        var keepIndex = -1;
+        var catchKeepIndex = -1;
+        var stopIndex = -1;
+        var releaseIndex = -1;
         for (var index = 0; index < templates.Length; index++)
         {
-            if (templates[index].Kind == FishingPromptKind.Cast)
+            switch (templates[index].Signal)
             {
-                if (castIndex < 0 || matches[index].Score.Total > matches[castIndex].Score.Total)
-                {
+                case FishingHudSignal.Cast when castIndex < 0 || matches[index].Score.Total > matches[castIndex].Score.Total:
                     castIndex = index;
-                }
-            }
-            else if (templates[index].Kind == FishingPromptKind.Collect
-                && (collectIndex < 0 || matches[index].Score.Total > matches[collectIndex].Score.Total))
-            {
-                collectIndex = index;
+                    break;
+                case FishingHudSignal.Keep when keepIndex < 0 || matches[index].Score.Total > matches[keepIndex].Score.Total:
+                    keepIndex = index;
+                    break;
+                case FishingHudSignal.CatchKeep when catchKeepIndex < 0 || matches[index].Score.Total > matches[catchKeepIndex].Score.Total:
+                    catchKeepIndex = index;
+                    break;
+                case FishingHudSignal.Stop when stopIndex < 0 || matches[index].Score.Total > matches[stopIndex].Score.Total:
+                    stopIndex = index;
+                    break;
+                case FishingHudSignal.Release when releaseIndex < 0 || matches[index].Score.Total > matches[releaseIndex].Score.Total:
+                    releaseIndex = index;
+                    break;
             }
         }
 
-        if (castIndex < 0 || collectIndex < 0)
+        if (castIndex < 0 || keepIndex < 0 || catchKeepIndex < 0 || stopIndex < 0 || releaseIndex < 0)
         {
-            throw new InvalidOperationException("Fishing prompt templates must include cast and collect variants.");
+            throw new InvalidOperationException("Fishing prompt templates must include all expected HUD signals.");
         }
 
         var castScore = matches[castIndex].Score.Total;
-        var collectScore = matches[collectIndex].Score.Total;
+        var keepScore = matches[keepIndex].Score.Total;
+        var catchKeepScore = matches[catchKeepIndex].Score.Total;
+        var collectIndex = keepScore >= catchKeepScore ? keepIndex : catchKeepIndex;
+        var collectScore = Math.Max(keepScore, catchKeepScore);
+        var stopScore = matches[stopIndex].Score.Total;
+        var releaseScore = matches[releaseIndex].Score.Total;
         var kind = castScore >= collectScore ? FishingPromptKind.Cast : FishingPromptKind.Collect;
         var best = Math.Max(castScore, collectScore);
         var other = Math.Min(castScore, collectScore);
-        var decisionReason = best < 0.65
-            ? $"Best prompt score {best:P0} is below the 65% gate"
+        var (hudState, hudConfidence) = ClassifyHudState(
+            pixels,
+            matches[castIndex], matches[stopIndex], matches[releaseIndex], matches[keepIndex], matches[catchKeepIndex]);
+        var catchDividerScore = MeasureCatchCardDivider(pixels, matches[catchKeepIndex]);
+        var decisionReason = best < ActionGate
+            ? $"Best prompt score {best:P0} is below the {ActionGate:P0} gate"
             : best - other < 0.012
                 ? $"Cast and collect scores are separated by only {best - other:P1}"
-                : $"Accepted {kind} at {best:P0}";
+                : $"Accepted {kind} at {best:P0}; HUD {hudState} {hudConfidence:P0}; catch-divider {catchDividerScore:P0}";
         evidence = new FishingPromptEvidence(
             ToEvidence(templates[castIndex], matches[castIndex]),
             ToEvidence(templates[collectIndex], matches[collectIndex]),
-            decisionReason);
-        if (best < 0.65 || best - other < 0.012)
-            return new FishingPromptObservation(FishingPromptKind.None, best, castScore, collectScore);
-        return new FishingPromptObservation(kind, best, castScore, collectScore);
+            decisionReason,
+            hudState,
+            hudConfidence,
+            stopScore,
+            releaseScore,
+            keepScore,
+            catchKeepScore);
+        if (best < ActionGate || best - other < 0.012)
+            return new FishingPromptObservation(FishingPromptKind.None, best, castScore, collectScore, hudState, hudConfidence);
+        return new FishingPromptObservation(kind, best, castScore, collectScore, hudState, hudConfidence);
+    }
+
+    // This is a diagnostic/state surface only.  It deliberately reuses the
+    // production meter detector for the LMB-backed casting state instead of
+    // introducing a second, less strict LMB matcher here.
+    internal static FishingHudObservation AnalyzeHudState(Bitmap bitmap, out FishingPromptEvidence evidence)
+    {
+        var prompt = Analyze(bitmap, out evidence);
+        if (prompt.State != FishingHudState.None)
+            return new FishingHudObservation(prompt.State, prompt.StateConfidence, prompt);
+
+        var meter = FishingMeterService.AnalyzeFrameDetailed(bitmap);
+        if (meter.Observation.IsVisible)
+            return new FishingHudObservation(FishingHudState.Casting, meter.Observation.Confidence, prompt);
+
+        return new FishingHudObservation(FishingHudState.None, Math.Max(prompt.Confidence, meter.Observation.Confidence), prompt);
     }
 
     internal static FishingPromptObservation Observe(
@@ -239,7 +322,7 @@ internal static class FishingPromptDetector
             // allowing the full glyph/text mask to make the final decision.
             if (misses > 5) continue;
             var score = ScoreAt(source, template, x, y);
-            if (score.Total > best.Score.Total) best = new PromptMatch(x, y, score);
+            if (score.Total > best.Score.Total) best = new PromptMatch(x, y, score, template.Width, template.Height);
             if (best.Score.Total >= 0.985) return best;
         }
 
@@ -330,15 +413,93 @@ internal static class FishingPromptDetector
         match.Score.Glyph,
         match.Score.Text,
         match.Score.Contrast,
-        match.Score.Background);
+        match.Score.Background,
+        template.Signal);
+
+    private static (FishingHudState State, double Confidence) ClassifyHudState(
+        PixelBuffer pixels,
+        PromptMatch cast,
+        PromptMatch stop,
+        PromptMatch release,
+        PromptMatch keep,
+        PromptMatch catchKeep)
+    {
+        var ready = CombineSignals(cast, stop, expectedRightSignal: true);
+        var decision = CombineSignals(release, keep, expectedRightSignal: true);
+        var catchDividerScore = MeasureCatchCardDivider(pixels, catchKeep);
+        var result = CombineSignals(release, catchKeep, expectedRightSignal: true);
+
+        // The catch-card Keep prompt is an independent, lower-left ROI.  When
+        // it lines up with Release Fish, that is stronger evidence of a result
+        // card than a bare decision row and does not depend on fish species,
+        // weight, or the world pixels behind the translucent card.
+        if (result >= StateGate && catchDividerScore >= 0.27)
+            return (FishingHudState.Result, result);
+        if (decision >= StateGate)
+            return (FishingHudState.Decision, decision);
+        if (ready >= StateGate)
+            return (FishingHudState.Ready, ready);
+
+        // Waiting is only meaningful when the stop prompt is independently
+        // strong and Cast Fishing Line is absent; otherwise Ready wins.
+        if (stop.Score.Total >= ActionGate && cast.Score.Total < 0.45)
+            return (FishingHudState.Waiting, stop.Score.Total);
+        return (FishingHudState.None, Math.Max(Math.Max(ready, decision), result));
+    }
+
+    private static double MeasureCatchCardDivider(PixelBuffer pixels, PromptMatch catchKeep)
+    {
+        // The fish name/weight varies, but a thin neutral divider directly
+        // above the Release/Keep row is fixed across catch cards.  Sampling
+        // that edge avoids a brittle fish-card screenshot template and keeps
+        // a bare decision row from being reported as a result panel.
+        if (catchKeep.Width <= 0 || catchKeep.Height <= 0
+            || catchKeep.Y < catchKeep.Height * 0.55)
+            return 0;
+
+        var dividerY = catchKeep.Y - Math.Max(3, (int)Math.Round(catchKeep.Height * 0.18));
+        var left = Math.Max(0, catchKeep.X - (int)Math.Round(catchKeep.Width * 1.45));
+        var right = Math.Min(pixels.Width - 1, catchKeep.X + (int)Math.Round(catchKeep.Width * 1.45));
+        if (dividerY < 0 || left >= right) return 0;
+
+        var matches = 0;
+        var samples = 0;
+        for (var x = left; x <= right; x += Math.Max(1, catchKeep.Width / 60))
+        {
+            samples++;
+            var divider = pixels.LuminanceAt(x, dividerY);
+            var above = pixels.LuminanceAt(x, Math.Max(0, dividerY - 3));
+            var below = pixels.LuminanceAt(x, Math.Min(pixels.Height - 1, dividerY + 3));
+            if (pixels.IsNeutralAt(x, dividerY, 90, 75)
+                && divider - (above + below) / 2 >= 30)
+            {
+                matches++;
+            }
+        }
+
+        return samples == 0 ? 0 : matches / (double)samples;
+    }
+
+    private static double CombineSignals(PromptMatch left, PromptMatch right, bool expectedRightSignal)
+    {
+        if (left.Score.Total <= 0 || right.Score.Total <= 0)
+            return 0;
+
+        var sameRow = Math.Abs(left.Y - right.Y) <= Math.Max(left.Height, right.Height) * 0.55;
+        var expectedOrder = !expectedRightSignal || right.X > left.X + left.Width * 0.20;
+        var layoutScore = sameRow && expectedOrder ? 1d : 0d;
+        return left.Score.Total * 0.45 + right.Score.Total * 0.45 + layoutScore * 0.10;
+    }
 
     private static PromptTemplate[] LoadTemplates()
     {
         var references = new[]
         {
-            LoadTemplate("CuePilot.Vision.CastReady.png", FishingPromptKind.Cast, new Rectangle(37, 39, 210, 44)),
-            LoadTemplate("CuePilot.Vision.CollectReady.png", FishingPromptKind.Collect, new Rectangle(240, 12, 146, 44)),
-            LoadTemplate("CuePilot.Vision.CatchCard.png", FishingPromptKind.Collect, new Rectangle(354, 126, 150, 44)),
+            LoadTemplate("CuePilot.Vision.CastReady.png", FishingPromptKind.Cast, FishingHudSignal.Cast, new Rectangle(37, 39, 210, 44)),
+            LoadTemplate("CuePilot.Vision.CastReady.png", FishingPromptKind.None, FishingHudSignal.Stop, new Rectangle(270, 39, 170, 44)),
+            LoadTemplate("CuePilot.Vision.CollectReady.png", FishingPromptKind.None, FishingHudSignal.Release, new Rectangle(25, 12, 175, 44)),
+            LoadTemplate("CuePilot.Vision.CollectReady.png", FishingPromptKind.Collect, FishingHudSignal.Keep, new Rectangle(240, 12, 146, 44)),
+            LoadTemplate("CuePilot.Vision.CatchCard.png", FishingPromptKind.Collect, FishingHudSignal.CatchKeep, new Rectangle(354, 126, 150, 44)),
         };
 
         // FiveM's NUI can render at very different effective sizes after a
@@ -348,8 +509,8 @@ internal static class FishingPromptDetector
         // Point-sampled prompt glyphs are sensitive to even a two-pixel size
         // change. Probe a dense small/normal UI pyramid, then retain a few
         // bounded large-layout levels for the supplied catch-card variants.
-        var scales = Enumerable.Range(0, 16)
-            .Select(index => 0.75 + index * 0.05)
+        var scales = Enumerable.Range(0, 18)
+            .Select(index => 0.65 + index * 0.05)
             .Concat(new[] { 1.75, 2.0, 2.5, 3.0, 3.5, 4.0 })
             .ToArray();
         return references.SelectMany(reference => scales.Select(scale => Scale(reference, scale))).ToArray();
@@ -370,6 +531,7 @@ internal static class FishingPromptDetector
 
         return new PromptTemplate(
             source.Kind,
+            source.Signal,
             (int)Math.Round(source.Width * scale),
             (int)Math.Round(source.Height * scale),
             ScalePoints(source.KeyForeground),
@@ -382,7 +544,11 @@ internal static class FishingPromptDetector
             ScalePoint(source.SearchAnchor));
     }
 
-    private static PromptTemplate LoadTemplate(string resourceName, FishingPromptKind kind, Rectangle crop)
+    private static PromptTemplate LoadTemplate(
+        string resourceName,
+        FishingPromptKind kind,
+        FishingHudSignal signal,
+        Rectangle crop)
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Missing fishing prompt reference {resourceName}.");
@@ -424,6 +590,7 @@ internal static class FishingPromptDetector
         var searchAnchor = strongGlyph[strongGlyph.Count / 2];
         return new PromptTemplate(
             kind,
+            signal,
             crop.Width,
             crop.Height,
             keyForeground.ToArray(),
@@ -487,6 +654,7 @@ internal static class FishingPromptDetector
 
     private sealed record PromptTemplate(
         FishingPromptKind Kind,
+        FishingHudSignal Signal,
         int Width,
         int Height,
         Point[] KeyForeground,
@@ -508,7 +676,7 @@ internal static class FishingPromptDetector
 
     private readonly record struct TextContrastPair(Point Foreground, Point Background);
 
-    private readonly record struct PromptMatch(int X, int Y, PromptScore Score);
+    private readonly record struct PromptMatch(int X, int Y, PromptScore Score, int Width = 0, int Height = 0);
 
     private sealed class PixelBuffer : IDisposable
     {

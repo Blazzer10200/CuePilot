@@ -24,6 +24,7 @@ function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     targets: null,
     diagnosticsDirectory: "C:\\diagnostics",
     debug: null,
+    setupVerification: null,
     lockpicking: {
       observing: false,
       state: "Stopped",

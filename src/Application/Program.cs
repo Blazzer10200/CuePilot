@@ -57,6 +57,9 @@ internal static class Program
         var benchmark = ArgumentValue(args, "--benchmark-meter");
         if (benchmark is not null) return RunMeterBenchmark(benchmark);
 
+        var fishingReplay = ArgumentValue(args, "--replay-fishing");
+        if (fishingReplay is not null) return ReplayFishing(fishingReplay);
+
         var lockpicking = ArgumentValue(args, "--analyze-lockpicking");
         if (lockpicking is not null)
         {
@@ -65,7 +68,10 @@ internal static class Program
             var observation = LockpickingDetector.Analyze(bitmap);
             clock.Stop();
             var approachRatio = observation.Target?.ApproachRatio ?? 0;
-            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
+            var labels = observation.Targets is null
+                ? "-"
+                : string.Join(',', observation.Targets.Select(target => target.Number?.ToString() ?? "?"));
+            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} labels=[{labels}] target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) number={observation.Target?.Number?.ToString() ?? "-"} literal={observation.Target?.HasLiteralNumber ?? false} approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
             var evidence = LockpickingDetector.Inspect(bitmap);
             Console.WriteLine($"hud={evidence.HudConfidence:F3} open={evidence.OpenRingCoverage:F3} spin={evidence.SpinRingCoverage:F3} label={evidence.BottomLabelSignal:F3} arcs=[{string.Join(',', evidence.ArcProfile.Select(value => value.ToString("F3")))}]");
             Console.WriteLine(observation.Reason);
@@ -148,6 +154,40 @@ internal static class Program
 
         var detectorMeanMilliseconds = detectorTicks * 1000d / System.Diagnostics.Stopwatch.Frequency / files.Length;
         Console.WriteLine($"frames={files.Length} fps={framesPerSecond:F2} detector_mean_ms={detectorMeanMilliseconds:F2} summary=[{string.Join(',', counts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}]");
+        return 0;
+    }
+
+    private static int ReplayFishing(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            Console.Error.WriteLine($"FISHING_REPLAY_FAILED missing={directory}");
+            return 2;
+        }
+
+        var files = Directory.EnumerateFiles(directory)
+            .Where(path => Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (files.Length == 0)
+        {
+            Console.Error.WriteLine("FISHING_REPLAY_FAILED no image frames found.");
+            return 2;
+        }
+
+        var report = FishingReplayService.Replay(files);
+        foreach (var transition in report.Transitions)
+        {
+            Console.WriteLine(
+                $"frame={transition.FrameIndex} state={transition.State} prompt={transition.Prompt} " +
+                $"meter={transition.MeterVisible} caught={transition.Caught} failed={transition.Failed} confidence={transition.Confidence:P1}");
+        }
+
+        Console.WriteLine(
+            $"frames={report.FrameCount} meter_frames={report.MeterFrames} prompt_frames={report.PromptFrames} " +
+            $"caught_frames={report.CaughtFrames} detector_mean_ms={report.MeanDetectorMilliseconds:F2} transitions={report.Transitions.Count}");
         return 0;
     }
 

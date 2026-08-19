@@ -33,7 +33,12 @@ internal static class GameViewportGeometry
             return default;
         }
 
-        var width = Math.Min(bounds.Width, bounds.Height * ReferenceAspectRatio);
+        // GTA/FiveM anchors HUD elements to a height-scaled 16:9 canvas. On a
+        // wide display that canvas is pillarboxed inside the captured frame;
+        // on a narrower display it extends past the left and right edges and is
+        // effectively center-cropped. Keeping the virtual width in both cases
+        // makes the same normalized HUD coordinates valid for 5:4 through 32:9.
+        var width = bounds.Height * ReferenceAspectRatio;
         return new GameSafeViewport(
             bounds.Left + (bounds.Width - width) / 2d,
             bounds.Top,

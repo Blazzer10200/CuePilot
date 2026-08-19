@@ -31,7 +31,8 @@ internal sealed record LockpickingTargetObservation(
     double ApproachRatio = 0,
     double RadialVelocity = 0,
     double? TimeToReadyMilliseconds = null,
-    double FillDensity = 0);
+    double FillDensity = 0,
+    bool HasLiteralNumber = false);
 
 internal sealed record LockpickingObservation(
     LockpickingVisualState State,
@@ -42,7 +43,8 @@ internal sealed record LockpickingObservation(
     LockpickingTargetObservation? Target,
     int VisibleTargetCount,
     string PredictedAction,
-    string Reason)
+    string Reason,
+    IReadOnlyList<LockpickingTargetObservation>? Targets = null)
 {
     internal static LockpickingObservation Hidden(string reason = "Lockpicking HUD not found.") => new(
         LockpickingVisualState.Hidden, 0, 0, 0, 0, null, 0, "WAIT", reason);
@@ -54,6 +56,20 @@ internal sealed record LockpickingDetectorEvidence(
     double SpinRingCoverage,
     double BottomLabelSignal,
     IReadOnlyList<double> ArcProfile);
+
+internal sealed record LockpickingCandidateTrace(
+    double CenterX,
+    double CenterY,
+    double ApproachRatio,
+    double ApproachCoverage,
+    double FillDensity,
+    bool Bright,
+    double Score,
+    int? Number = null);
+
+internal sealed record LockpickingTargetTrace(
+    double HudConfidence,
+    IReadOnlyList<LockpickingCandidateTrace> Candidates);
 
 internal static class LockpickingDetector
 {
@@ -105,14 +121,16 @@ internal static class LockpickingDetector
             var target = targets.Active;
             return Create(hud, LockpickingVisualState.Numbered,
                 Math.Min(1, hud.Score * 0.45 + target.Confidence * 0.55), target, targets.VisibleCount, "WAIT",
-                "Numbered target acquired. Temporal verification is required before READY can be reported.");
+                "Numbered target acquired. Temporal verification is required before READY can be reported.",
+                targets.Candidates);
         }
 
         if (targets.VisibleCount > 0)
         {
             return Create(hud, LockpickingVisualState.Numbered,
                 Math.Min(1, hud.Score * 0.78 + Math.Min(0.22, targets.VisibleCount * 0.035)), null, targets.VisibleCount,
-                "WAIT", "Numbered targets are visible; waiting for a distinct shrinking approach ring.");
+                "WAIT", "Numbered targets are visible; waiting for a distinct shrinking approach ring.",
+                targets.Candidates);
         }
 
         var centerSignal = RingCoverage(pixels, hud.X, hud.Y, hud.Radius * 0.16, hud.Radius * 0.02);
@@ -153,6 +171,21 @@ internal static class LockpickingDetector
                 .ToArray());
     }
 
+    // Observe-mode diagnostic seam: retain every visible candidate so a live
+    // sequence can be replayed without relying on inferred target order.
+    internal static LockpickingTargetTrace TraceTargets(Bitmap frame)
+    {
+        using var pixels = new LockpickingPixels(frame);
+        var hud = LocateHud(pixels, null);
+        if (hud.Score < 0.30)
+        {
+            return new LockpickingTargetTrace(hud.Score, []);
+        }
+
+        var targets = FindTargets(pixels, hud, null);
+        return new LockpickingTargetTrace(hud.Score, targets.Candidates);
+    }
+
     private static LockpickingObservation Create(
         HudCandidate hud,
         LockpickingVisualState state,
@@ -160,7 +193,8 @@ internal static class LockpickingDetector
         LockpickingTargetObservation? target,
         int targetCount,
         string predictedAction,
-        string reason) => new(
+        string reason,
+        IReadOnlyList<LockpickingCandidateTrace>? targets = null) => new(
             state,
             confidence,
             hud.X / hud.Width,
@@ -174,7 +208,17 @@ internal static class LockpickingDetector
             },
             targetCount,
             predictedAction,
-            reason);
+            reason,
+            targets?.Select(candidate => new LockpickingTargetObservation(
+                candidate.CenterX,
+                candidate.CenterY,
+                candidate.ApproachRatio,
+                LockpickingTargetPhase.Approaching,
+                candidate.Score,
+                Number: candidate.Number,
+                ApproachRatio: candidate.ApproachRatio,
+                FillDensity: candidate.FillDensity,
+                HasLiteralNumber: candidate.Number.HasValue)).ToArray());
 
     private static HudCandidate LocateHud(LockpickingPixels pixels, LockpickingObservation? previous)
     {
@@ -363,7 +407,9 @@ internal static class LockpickingDetector
                 var score = targetRing * 0.55 + Math.Min(1, fill * 1.6) * 0.13 + bestApproach * 0.32;
                 if (score >= 0.20)
                 {
-                    candidates.Add(new TargetCandidate(x, y, bestApproachRadius, bestApproach, fill, bright, coincident, score));
+                    candidates.Add(new TargetCandidate(
+                        x, y, bestApproachRadius, bestApproach, fill, bright, coincident, score,
+                        RecognizeTargetNumber(pixels, x, y, targetRadius)));
                 }
             }
         }
@@ -415,9 +461,20 @@ internal static class LockpickingDetector
                 active.ApproachRadius,
                 LockpickingTargetPhase.Approaching,
                 Math.Clamp(active.Score, 0, 1),
+                Number: active.Number,
                 ApproachRatio: active.ApproachRadius / targetRadius,
-                FillDensity: active.FillDensity),
-            clustered.Count);
+                FillDensity: active.FillDensity,
+                HasLiteralNumber: active.Number.HasValue),
+            clustered.Count,
+            clustered.Select(candidate => new LockpickingCandidateTrace(
+                candidate.X / pixels.Width,
+                candidate.Y / pixels.Height,
+                candidate.ApproachRadius / targetRadius,
+                candidate.ApproachCoverage,
+                candidate.FillDensity,
+                candidate.Bright,
+                candidate.Score,
+                candidate.Number)).ToArray());
     }
 
     private static double RingCoverage(
@@ -443,6 +500,55 @@ internal static class LockpickingDetector
             strong += Math.Min(1, best * 1.45);
         }
         return strong / samples;
+    }
+
+    private static int? RecognizeTargetNumber(LockpickingPixels pixels, double centerX, double centerY, double radius)
+    {
+        // The numeral stays inside the target outline while its approach ring
+        // shrinks. Use only the central glyph canvas so the surrounding rings
+        // cannot decide the label.
+        double Ink(double x, double y)
+        {
+            var total = 0d;
+            const int span = 2;
+            for (var dy = -span; dy <= span; dy++)
+            {
+                for (var dx = -span; dx <= span; dx++)
+                {
+                    total += pixels.GreenStrength(
+                        (int)Math.Round(centerX + x * radius + dx),
+                        (int)Math.Round(centerY + y * radius + dy));
+                }
+            }
+            return total / ((span * 2 + 1) * (span * 2 + 1));
+        }
+
+        var top = Ink(0, -0.30);
+        var middle = Ink(0, 0);
+        var bottom = Ink(0, 0.30);
+        var upperLeft = Ink(-0.22, -0.16);
+        var upperRight = Ink(0.22, -0.16);
+        var lowerLeft = Ink(-0.22, 0.16);
+        var lowerRight = Ink(0.22, 0.16);
+        var center = Ink(0, 0.16);
+
+        if (center > 0.20 && top < 0.12 && middle < 0.15 && bottom < 0.12)
+        {
+            return 1;
+        }
+        if (top > 0.13 && upperRight > 0.13 && middle > 0.13 && lowerLeft > 0.13 && bottom > 0.13)
+        {
+            return 2;
+        }
+        if (top > 0.13 && upperRight > 0.13 && middle > 0.13 && lowerRight > 0.13 && bottom > 0.13)
+        {
+            return 3;
+        }
+        if (upperLeft > 0.13 && upperRight > 0.13 && middle > 0.13 && lowerRight > 0.13)
+        {
+            return 4;
+        }
+        return null;
     }
 
     private static double DiskGreenDensity(LockpickingPixels pixels, double centerX, double centerY, double radius)
@@ -517,8 +623,12 @@ internal static class LockpickingDetector
         double FillDensity,
         bool Bright,
         bool Coincident,
-        double Score);
-    private sealed record TargetDetectionResult(LockpickingTargetObservation? Active, int VisibleCount);
+        double Score,
+        int? Number);
+    private sealed record TargetDetectionResult(
+        LockpickingTargetObservation? Active,
+        int VisibleCount,
+        IReadOnlyList<LockpickingCandidateTrace> Candidates);
 
     private sealed class LockpickingPixels : IDisposable
     {

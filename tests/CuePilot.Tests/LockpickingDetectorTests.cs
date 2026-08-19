@@ -93,19 +93,23 @@ public sealed class LockpickingDetectorTests
     }
 
     [Fact]
-    public void TemporalTrackerRequiresOuterRingAndInwardMotionBeforeReady()
+    public void TemporalTrackerRequiresBrightReadyCueBeforeClick()
     {
         var tracker = new LockpickingObservationTracker();
 
         var first = tracker.Track(Numbered(0.70, 0.50, 1.50), AtMilliseconds(1000), TimeSpan.Zero, 20);
         var second = tracker.Track(Numbered(0.70, 0.50, 1.40), AtMilliseconds(1033), TimeSpan.Zero, 20);
-        var ready = tracker.Track(Numbered(0.70, 0.50, 1.24), AtMilliseconds(1066), TimeSpan.Zero, 20);
+        var approaching = tracker.Track(Numbered(0.70, 0.50, 1.24), AtMilliseconds(1066), TimeSpan.Zero, 20);
+        var firstBright = tracker.Track(Numbered(0.70, 0.50, 1.24, fillDensity: 0.34), AtMilliseconds(1099), TimeSpan.Zero, 20);
+        var ready = tracker.Track(Numbered(0.70, 0.50, 1.24, fillDensity: 0.34), AtMilliseconds(1182), TimeSpan.Zero, 20);
 
         Assert.Equal("VERIFY", first.PredictedAction);
         Assert.Equal("WAIT", second.PredictedAction);
+        Assert.Equal(LockpickingTargetPhase.Approaching, approaching.Target?.Phase);
+        Assert.Equal("WAIT", approaching.PredictedAction);
+        Assert.Equal("WAIT", firstBright.PredictedAction);
         Assert.Equal(LockpickingTargetPhase.Ready, ready.Target?.Phase);
         Assert.Equal("CLICK (OBSERVE ONLY)", ready.PredictedAction);
-        Assert.True(ready.Target?.RadialVelocity < 0);
     }
 
     [Fact]
@@ -119,7 +123,20 @@ public sealed class LockpickingDetectorTests
 
         Assert.Equal(LockpickingTargetPhase.Approaching, result.Target?.Phase);
         Assert.Equal("WAIT", result.PredictedAction);
-        Assert.Contains("distinct outer", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("bright-green", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ShrinkingTargetWithoutBrightReadyCueIsNotReady()
+    {
+        var tracker = new LockpickingObservationTracker();
+
+        tracker.Track(Numbered(0.70, 0.50, 1.50), AtMilliseconds(1000), TimeSpan.Zero, 20);
+        tracker.Track(Numbered(0.70, 0.50, 1.24), AtMilliseconds(1033), TimeSpan.Zero, 20);
+        var result = tracker.Track(Numbered(0.70, 0.50, 1.26), AtMilliseconds(1066), TimeSpan.Zero, 20);
+
+        Assert.Equal(LockpickingTargetPhase.Approaching, result.Target?.Phase);
+        Assert.Equal("WAIT", result.PredictedAction);
     }
 
     [Fact]
@@ -136,15 +153,21 @@ public sealed class LockpickingDetectorTests
     }
 
     [Fact]
-    public void NormalHighRefreshFrameBatchDoesNotWithholdFreshReadyPrediction()
+    public void NormalHighRefreshFrameBatchDoesNotWithholdBrightReadyPrediction()
     {
         var tracker = new LockpickingObservationTracker();
 
         tracker.Track(Numbered(0.70, 0.50, 1.50), AtMilliseconds(1000), TimeSpan.Zero, 20);
         tracker.Track(Numbered(0.70, 0.50, 1.40), AtMilliseconds(1033), TimeSpan.Zero, 20);
-        var result = tracker.Track(
-            Numbered(0.70, 0.50, 1.22),
+        tracker.Track(
+            Numbered(0.70, 0.50, 1.22, fillDensity: 0.34),
             AtMilliseconds(1066),
+            TimeSpan.Zero,
+            20,
+            accumulatedFrames: 12);
+        var result = tracker.Track(
+            Numbered(0.70, 0.50, 1.22, fillDensity: 0.34),
+            AtMilliseconds(1149),
             TimeSpan.Zero,
             20,
             accumulatedFrames: 12);
@@ -177,7 +200,8 @@ public sealed class LockpickingDetectorTests
         tracker.Track(Numbered(0.70, 0.50, 1.22), AtMilliseconds(1000), TimeSpan.Zero, 20);
         tracker.Track(Numbered(0.70, 0.50, 1.22), AtMilliseconds(1033), TimeSpan.Zero, 20);
 
-        var result = tracker.Track(Numbered(0.70, 0.50, 1.22, fillDensity: 0.34), AtMilliseconds(1066), TimeSpan.Zero, 20);
+        tracker.Track(Numbered(0.70, 0.50, 1.22, fillDensity: 0.34), AtMilliseconds(1066), TimeSpan.Zero, 20);
+        var result = tracker.Track(Numbered(0.70, 0.50, 1.22, fillDensity: 0.34), AtMilliseconds(1149), TimeSpan.Zero, 20);
 
         Assert.Equal(LockpickingTargetPhase.Ready, result.Target?.Phase);
         Assert.Equal("CLICK (OBSERVE ONLY)", result.PredictedAction);
@@ -185,18 +209,70 @@ public sealed class LockpickingDetectorTests
     }
 
     [Fact]
-    public void SequenceNumberRequiresTwoMatchingFramesAtNewCenter()
+    public void TrackerNeverInfersSequenceNumbersForUnlabeledTargets()
     {
         var tracker = new LockpickingObservationTracker();
         tracker.Track(Numbered(0.70, 0.50, 1.50), AtMilliseconds(1000), TimeSpan.Zero, 20);
         var firstCommitted = tracker.Track(Numbered(0.70, 0.50, 1.40), AtMilliseconds(1033), TimeSpan.Zero, 20);
 
-        var candidate = tracker.Track(Numbered(0.62, 0.44, 1.50), AtMilliseconds(1066), TimeSpan.Zero, 20);
-        var secondCommitted = tracker.Track(Numbered(0.62, 0.44, 1.40), AtMilliseconds(1099), TimeSpan.Zero, 20);
+        var unlabeled = Numbered(0.62, 0.44, 1.40) with
+        {
+            Target = Numbered(0.62, 0.44, 1.40).Target! with { Number = null, HasLiteralNumber = false },
+        };
+        var candidate = tracker.Track(unlabeled, AtMilliseconds(1066), TimeSpan.Zero, 20);
+        var secondCommitted = tracker.Track(unlabeled, AtMilliseconds(1099), TimeSpan.Zero, 20);
 
         Assert.Equal(1, firstCommitted.Target?.Number);
         Assert.Equal("VERIFY", candidate.PredictedAction);
-        Assert.Equal(2, secondCommitted.Target?.Number);
+        Assert.Null(secondCommitted.Target?.Number);
+        Assert.False(secondCommitted.Target?.HasLiteralNumber);
+    }
+
+    [Fact]
+    public async Task ConcurrentTargetsRequireTheExpectedTargetsOwnLiteralBrightDwell()
+    {
+        var tracker = new LockpickingObservationTracker();
+
+        tracker.Track(ConcurrentNumbered(Target(1, 0.70, 0.50, 1.35), Target(2, 0.56, 0.44, 1.45)), AtMilliseconds(1000), TimeSpan.Zero, 20);
+        tracker.Track(ConcurrentNumbered(Target(1, 0.70, 0.50, 1.25), Target(2, 0.56, 0.44, 1.30)), AtMilliseconds(1033), TimeSpan.Zero, 20);
+        var firstBright = tracker.Track(ConcurrentNumbered(Target(1, 0.70, 0.50, 1.22, 0.34), Target(2, 0.56, 0.44, 1.24)), AtMilliseconds(1066), TimeSpan.Zero, 20);
+        var readyOne = tracker.Track(ConcurrentNumbered(Target(1, 0.70, 0.50, 1.22, 0.34), Target(2, 0.56, 0.44, 1.22)), AtMilliseconds(1149), TimeSpan.Zero, 20);
+
+        Assert.Equal("WAIT", firstBright.PredictedAction);
+        Assert.Equal("CLICK (OBSERVE ONLY)", readyOne.PredictedAction);
+        Assert.Equal(1, readyOne.Target?.Number);
+        Assert.Equal(LockpickingTargetPhase.Ready, readyOne.Target?.Phase);
+        Assert.Contains(readyOne.Targets!, item => item.Number == 2 && item.Phase == LockpickingTargetPhase.Approaching);
+
+        var input = new RecordingLockpickingInputDriver();
+        using var controller = new LockpickingClassController(
+            new WindowTargetSettings { ProcessName = "FiveM" },
+            LockpickingClassProfiles.ClassC,
+            input);
+        var update = await controller.HandleAsync(readyOne, new Rectangle(0, 0, 1000, 1000), CancellationToken.None);
+
+        Assert.Equal("CLICKED TARGET 1", update.PredictedAction);
+        Assert.Equal([new Point(700, 500)], input.Moves);
+    }
+
+    [Fact]
+    public void StableTrackPreservesALiteralLabelButRejectsAConflictingOne()
+    {
+        var tracker = new LockpickingObservationTracker();
+        tracker.Track(Numbered(0.70, 0.50, 1.30), AtMilliseconds(1000), TimeSpan.Zero, 20);
+        var preserved = tracker.Track(Numbered(0.70, 0.50, 1.24) with
+        {
+            Target = Numbered(0.70, 0.50, 1.24).Target! with { Number = null, HasLiteralNumber = false },
+        }, AtMilliseconds(1033), TimeSpan.Zero, 20);
+        var conflicted = tracker.Track(Numbered(0.70, 0.50, 1.22) with
+        {
+            Target = Numbered(0.70, 0.50, 1.22).Target! with { Number = 2, HasLiteralNumber = true },
+        }, AtMilliseconds(1066), TimeSpan.Zero, 20);
+
+        Assert.Equal(1, preserved.Target?.Number);
+        Assert.True(preserved.Target?.HasLiteralNumber);
+        Assert.Null(conflicted.Target?.Number);
+        Assert.False(conflicted.Target?.HasLiteralNumber);
     }
 
     [Fact]
@@ -296,6 +372,25 @@ public sealed class LockpickingDetectorTests
         Assert.Equal(1, duplicate.ActionCount);
         Assert.Equal([new Point(800, 600)], input.Moves);
         Assert.Equal([false, true], input.ButtonUps);
+    }
+
+    [Fact]
+    public async Task ClassCControllerRejectsInferredTargetNumber()
+    {
+        var input = new RecordingLockpickingInputDriver();
+        using var controller = new LockpickingClassController(
+            new WindowTargetSettings { ProcessName = "FiveM" },
+            LockpickingClassProfiles.ClassC,
+            input);
+        var inferredReady = ReadyTarget(1, 0.7, 0.5) with
+        {
+            Target = ReadyTarget(1, 0.7, 0.5).Target! with { HasLiteralNumber = false },
+        };
+
+        var result = await controller.HandleAsync(inferredReady, new Rectangle(0, 0, 1920, 1080), CancellationToken.None);
+
+        Assert.Equal(0, result.ActionCount);
+        Assert.Empty(input.Moves);
     }
 
     [Fact]
@@ -432,11 +527,36 @@ public sealed class LockpickingDetectorTests
             0.21 * 0.13 * approachRatio,
             LockpickingTargetPhase.Approaching,
             0.85,
+            Number: 1,
             ApproachRatio: approachRatio,
-            FillDensity: fillDensity),
+            FillDensity: fillDensity,
+            HasLiteralNumber: true),
         4,
         "WAIT",
         "Raw detector observation.");
+
+    private static LockpickingObservation ConcurrentNumbered(params LockpickingTargetObservation[] targets) => new(
+        LockpickingVisualState.Numbered,
+        0.9,
+        0.7,
+        0.5,
+        0.21,
+        targets[0],
+        targets.Length,
+        "WAIT",
+        "Raw concurrent detector observation.",
+        targets);
+
+    private static LockpickingTargetObservation Target(int number, double x, double y, double approachRatio, double fillDensity = 0) => new(
+        x,
+        y,
+        0.21 * 0.13 * approachRatio,
+        LockpickingTargetPhase.Approaching,
+        0.85,
+        number,
+        ApproachRatio: approachRatio,
+        FillDensity: fillDensity,
+        HasLiteralNumber: true);
 
     private static LockpickingObservation SpinObservation() => new(
         LockpickingVisualState.Spin,
@@ -463,7 +583,8 @@ public sealed class LockpickingDetectorTests
             0.95,
             number,
             ApproachRatio: 1.2,
-            FillDensity: 0.35),
+            FillDensity: 0.35,
+            HasLiteralNumber: true),
         4,
         "CLICK (OBSERVE ONLY)",
         "Verified temporal READY state.");

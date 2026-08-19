@@ -1,68 +1,48 @@
-# Handoff — CuePilot — 2026-08-14 23:35 CDT
+# Handoff — CuePilot — 2026-08-19 CDT
 
-## Current Objective
+## Current state
 
-- Release CuePilot 5.1.0 as a complete Fishing and Vehicle Lockpicking desktop product with resolution-independent detection and an easy Windows installer.
+- CuePilot 5.1.3 is built and verified. The user-facing installer is
+  `outputs/CuePilot_5.1.3_x64-setup.exe` with SHA-256
+  `79807C9585E177F6D234936B3A32E80D0678E5FD19F38EC7A2A0DC57C2E5C94E`.
+- Fishing uses one ROI/keycap/text/luminance-based detector for Ready, Casting,
+  Waiting, Result, and Decision states. The action contract remains Cast/Keep
+  only; no parallel recognizer or full-frame background template was added.
+- Daylight/bush-video fixtures are under `tests/CuePilot.Tests/Fixtures/`.
+  The supplied six-frame daylight sequence is covered by the production meter
+  tracker and the new safe fishing replay regression.
+- CuePilot Dev and release both attempt normal Windows F10/F9/Pause shortcut
+  registration. A conflict is reported instead of silently making F10 a no-op.
+- The target card now has **Verify setup**. It is read-only: target resolution,
+  input capability, capture health/latency, and window dimensions are checked;
+  no mouse or keyboard input is emitted. The Fishing routine reuses this check
+  before it can begin.
+- Detection Review now embeds at most 12 MB of decisive frames per snapshot
+  (6 MB per frame). Omitted frames are still available through its local folder.
+- Lockpicking Class C remains fail-closed and observation-only. Concurrent
+  literal-label evidence is not yet sufficient to enable automated input.
 
-## Current State
+## Completed verification
 
-- CuePilot is now a Svelte/Tauri desktop UI with a packaged headless .NET engine sidecar; the prior WinForms presentation layer and WorkflowLooper project names are being replaced.
-- Fishing is the ready activity. Prompt and meter discovery now share a centered 16:9 safe viewport so the recorded behavior is preserved on standard displays and translated correctly on ultrawide and super-ultrawide displays.
-- Fishing requires FiveM to be foreground. The unsuccessful experimental covered-window/background-input path and compatibility UI were removed; saved `Application` mode settings migrate to `Automatic` without losing the selected target.
-- Vehicle Lockpicking has an input-free Observe mode and an explicitly armed `Run Class C` mode. Classes A, B, and D remain unavailable.
-- Class C uses live session `20260814-133216`: one click per verified READY target, two matching SPIN frames, then a clockwise 1,140°/s orbit at 0.61× HUD radius for at most 2.8 seconds.
-- Class C has an independent configurable Start / Stop shortcut defaulting to `F9`; Fishing remains `F10` and Pause / Break remains the emergency stop.
-- Class C HUD discovery now preserves the recorded 16:9 fast path and adds a centered, height-scaled safe-viewport search for 16:10, 5:4/windowed-style, 21:9, and 32:9 layouts. Cursor delivery remains normalized to the resolved FiveM window and virtual desktop.
-- The headless engine is explicitly Per-Monitor-V2 DPI aware so capture bounds and physical cursor coordinates remain in the same coordinate space across Windows display scaling and mixed-monitor layouts.
-- Version fields agree at `5.1.0` in the .NET, npm, Cargo, and Tauri manifests.
-- The NSIS installer is per-user, needs no administrator rights, bundles the self-contained engine, and was installation-smoke-tested locally at version 5.1.0.
-- Git is on `codex/cuepilot-5.1.0`; the complete migration is awaiting final verification and publication.
+1. `pwsh -NoProfile -File scripts/verify.ps1 -All` — passed: 202 .NET tests,
+   14 UI tests, 0 Svelte warnings, 8 Rust tests, and engine self-test.
+2. `npm --prefix ui run tauri:build` — passed; NSIS installer created.
+3. The staged release engine self-test passed and the copied installer hash
+   matches the generated artifact.
 
-## Recent Relevant Changes
+## Useful commands
 
-- Added the activity library and separate Fishing and Lockpicking workspaces.
-- Added lockpicking detection, temporal tracking, bounded evidence capture/replay, Class C control, and safety stops.
-- Added transformed-frame and cursor-mapping regressions covering standard, ultrawide, super-ultrawide, narrow/windowed, offset, and negative-coordinate monitor layouts.
-- Added shared safe-viewport geometry and Fishing prompt/meter regressions for 3440x1440 and 5120x1440 displays.
-- Added DXGI capture support, instrumented Fishing sessions, bridge contract tests, frontend tests, and Rust bridge tests.
-- Added development/production identity separation, CDP-based UI inspection, brand tooling, desktop shortcut tooling, and task-oriented project documentation.
-- Renamed product/project/test assets from WorkflowLooper to CuePilot and removed the legacy WinForms UI source.
+- Fishing replay (no capture or input):
+  `dotnet run --project CuePilot.csproj -c Release -- --replay-fishing tests/CuePilot.Tests/Fixtures/Fishing`
+- Full local validation:
+  `pwsh -NoProfile -File scripts/verify.ps1 -All`
+- Development UI (do not use it as a live-control smoke test):
+  `npm --prefix ui run cdp:dev`
 
-## Known Problems
+## Boundaries
 
-- Class C still needs the complete live evidence/smoke-test bundle: a successful Observe attempt, a failed/retry attempt, all distinct stages, varied backgrounds/occlusion, and confirmed input/timing behavior.
-- The new viewport and DPI compatibility is covered synthetically but still needs one live Class C attempt on the buddy's wider monitor before that hardware configuration can be called field-validated.
-- Classes A, B, and D have no calibrated automatic-input path.
-- The buddy's wider monitor still needs live Fishing and Class C field validation; automated geometry and detector regressions cover the expected mappings.
-
-## Next Actions
-
-1. Run a complete Class C Observe session in live gameplay and inspect the bounded evidence under `%LOCALAPPDATA%\CuePilot\diagnostics\lockpicking`.
-2. Run the explicitly armed Class C controller through success and failure/retry cases; confirm READY clicks, SPIN direction/speed, terminal OPEN behavior, focus-loss stop, and Pause / Break release.
-3. Add only representative, privacy-reviewed evidence as regression fixtures and adjust detector/controller calibration from measured results.
-4. Run `scripts/verify.ps1 -All`, publish 5.1.0, and verify the GitHub release assets.
-
-## Relevant Files
-
-- `docs/activities.md`, `docs/development.md`, `docs/code-map.md`
-- `src/Automation/LockpickingDetector.cs`, `LockpickingObservationTracker.cs`, `LockpickingObserverEngine.cs`
-- `src/Automation/LockpickingClassProfiles.cs`, `LockpickingClassController.cs`, `LockpickingSpinTracker.cs`
-- `src/Application/UiBridge.cs`, `ui/src/lib/engine.svelte.ts`, `ui/src-tauri/src/engine_bridge.rs`
-- `ui/src/lib/activities.ts`, `ui/src/lib/activities/LockpickingWorkspace.svelte`
-- `tests/CuePilot.Tests/LockpickingDetectorTests.cs`
-
-## Canonical Commands
-
-- Full gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
-- Run app: `npm --prefix ui run tauri:dev`
-- UI inspection: `npm --prefix ui run cdp:dev`, then `bash ui/scripts/cdp/c.sh inspect`
-- Analyze frame: `dotnet run --project CuePilot.csproj -- --analyze-lockpicking C:\path\to\frame.jpg`
-- Replay sequence: `dotnet run --project CuePilot.csproj -- --replay-lockpicking C:\path\to\frames --fps 30`
-- Cleanup preview: `pwsh -NoProfile -File scripts/clean-workspace.ps1`
-
-## Important Decisions
-
-- Only .NET may capture the game, make automation decisions, or send input; Svelte/Tauri communicates through the versioned local stdin/stdout bridge.
-- Observe mode sends no input. Only explicitly armed Class C may automate lockpicking, and it must stop rather than guess when evidence or safety conditions fail.
-- Do not reuse Class C timing for other vehicle classes or infer an unobserved OPEN action.
-- Do not replace a known-good installed build solely because compilation succeeds; require the full gate plus activity-specific live validation.
+- Keep capture, detector decisions, and all input in the .NET engine.
+- Do not enable Class C merely because its UI command exists; literal-label
+  replay evidence is the gate.
+- Preserve the 35–90 ms Fishing LMB envelope and `Pause / Break` emergency
+  release behavior.

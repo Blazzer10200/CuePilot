@@ -107,15 +107,18 @@ The newest five sessions are retained within an approximate 250 MB ceiling. Revi
 
 ```powershell
 dotnet run --project .\CuePilot.csproj -- --replay-session "$env:LOCALAPPDATA\CuePilot\diagnostics\sessions\<session-id>"
+dotnet run --project .\CuePilot.csproj -- --replay-fishing .\tests\CuePilot.Tests\Fixtures\Fishing
 ```
 
 Replay reports each frame's current decision and named gate. A confirmed frame that the current detector rejects returns a nonzero exit code, providing a deterministic regression loop without reopening FiveM.
 
-### Vehicle Lockpicking observation and Class C run mode
+`--replay-fishing` accepts an ordered directory of PNG/JPEG frames and reuses the live prompt-state and meter tracker without creating a routine or input router. It prints only state changes plus a summary, making it appropriate for daylight/video regression checks.
 
-Start Lockpicking from its workspace. `Observe only` reuses the selected FiveM window and shared capture backend without sending input. `Run Class C` explicitly arms the Class C controller: each numbered click requires a stable target and a one-shot temporal READY prediction; SPIN requires two matching frames and uses the live-recorded 1,140°/s clockwise cadence at 0.61× HUD radius for no more than 2.8 seconds. The workspace reports the HUD boundary, target/ring evidence, confidence, predicted or executed action, capture timing, action count, and SPIN state.
+### Vehicle Lockpicking observation and Class C evidence gate
 
-Starting Observe arms a waiting state and resumes capture when FiveM is foreground. Starting Class C arms normal physical mouse input only after the selected FiveM window is foreground. Pause / Break, focus loss, capture failure, HUD disappearance after input, repeated unexpected states, OPEN confirmation, or the SPIN time limit stops input rather than guessing. Class C is the only automatic lockpicking class; do not map its timing to A, B, or D.
+Start Lockpicking from its workspace. `Observe only` reuses the selected FiveM window and shared capture backend without sending input. Class C input is intentionally unavailable while saved concurrent-target evidence cannot prove every literal label. The workspace reports the HUD boundary, target/ring evidence, confidence, predicted action, capture timing, and observation state.
+
+Starting Observe arms a waiting state and resumes capture when FiveM is foreground. Pause / Break, focus loss, capture failure, HUD disappearance, and uncertain states stop observation rather than guessing. Do not map the saved Class C timing evidence to A, B, or D.
 
 Evidence is bounded to 72 frames per session under `%LOCALAPPDATA%\CuePilot\diagnostics\lockpicking\<session-id>`. Normal state transitions retain their full-frame context. SPIN additionally retains at most 30 HUD crops at approximately 12 Hz; each JSONL entry includes the source frame and crop bounds, capture timing, frame age/batch, and cursor-derived spin telemetry. Replay any saved or fixture frame through the same production detector:
 

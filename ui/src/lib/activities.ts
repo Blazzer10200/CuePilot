@@ -34,11 +34,11 @@ export const activities: readonly ActivityDefinition[] = [
     id: "vehicle-lockpicking",
     name: "Vehicle lockpicking",
     shortName: "Lockpicking",
-    eyebrow: "Class C calibrated",
-    description: "A dedicated visual reader and bounded input controller for the vehicle lockpicking minigame.",
+    eyebrow: "Observe-only calibration",
+    description: "A dedicated visual reader for the vehicle lockpicking minigame. Automated input remains unavailable while label calibration is verified.",
     availability: "calibration",
-    statusLabel: "Class C test",
-    capabilities: ["HUD tracking", "Class C control", "Safe observation"],
+    statusLabel: "Observe only",
+    capabilities: ["HUD tracking", "Local calibration", "Safe observation"],
     preparation: [
       {
         label: "Stage states",

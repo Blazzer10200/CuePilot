@@ -55,6 +55,24 @@ export interface Snapshot {
   diagnosticsDirectory: string;
   debug: FishingDebugSnapshot | null;
   lockpicking: LockpickingObserveStatus;
+  setupVerification: FishingSetupVerification | null;
+}
+
+export interface FishingSetupCheck {
+  passed: boolean;
+  detail: string;
+}
+
+export interface FishingSetupVerification {
+  target: FishingSetupCheck;
+  input: FishingSetupCheck;
+  capture: FishingSetupCheck;
+  captureBackend: string;
+  captureMilliseconds: number;
+  windowWidth: number;
+  windowHeight: number;
+  ready: boolean;
+  detail: string;
 }
 
 export type LockpickingVisualState = "Hidden" | "Numbered" | "Intermediate" | "Spin" | "Open" | "Unexpected";
@@ -225,6 +243,18 @@ export class EngineClient {
       const snapshot = await invoke<Snapshot>("engine_command", { command: "select_target", targetProcessId: processId });
       this.applySnapshot(snapshot);
       return snapshot;
+    } catch (error) {
+      this.error = String(error);
+      throw error;
+    }
+  }
+
+  async verifySetup() {
+    this.error = null;
+    try {
+      const snapshot = await invoke<Snapshot>("engine_command", { command: "verify_setup" });
+      this.applySnapshot(snapshot);
+      return snapshot.setupVerification;
     } catch (error) {
       this.error = String(error);
       throw error;

@@ -7,6 +7,12 @@ mod engine_bridge;
 
 use engine_bridge::EngineBridge;
 
+// Keep a diagnostics refresh responsive even when an instrumented session has
+// many full-resolution screenshots. The source files remain local and are
+// always available through the Diagnostics folder.
+const MAX_DEBUG_IMAGE_BYTES: usize = 12 * 1024 * 1024;
+const MAX_SINGLE_DEBUG_IMAGE_BYTES: usize = 6 * 1024 * 1024;
+
 #[tauri::command]
 fn engine_command(
     app: AppHandle,
@@ -23,6 +29,7 @@ fn engine_command(
         | "start_lockpicking_class_c"
         | "toggle_lockpicking_class_c"
         | "stop_lockpicking_observe"
+        | "verify_setup"
         | "list_targets" => bridge.command(&app, &command, None, None),
         "select_target" if target_process_id.is_some() => {
             bridge.command(&app, &command, target_process_id, None)
@@ -127,6 +134,7 @@ fn latest_debug_session(diagnostics: &std::path::Path) -> Option<serde_json::Val
         .rev()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .collect::<Vec<_>>();
+    let mut included_image_bytes = 0usize;
     let frames = manifest
         .get("frames")
         .and_then(serde_json::Value::as_array)
@@ -143,18 +151,27 @@ fn latest_debug_session(diagnostics: &std::path::Path) -> Option<serde_json::Val
                 return None;
             }
             let image_bytes = fs::read(directory.join(image_name)).ok()?;
-            if image_bytes.len() > 8 * 1024 * 1024 {
-                return None;
-            }
             let metadata = fs::read_to_string(directory.join(metadata_name))
                 .ok()
                 .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
+            let can_embed = image_bytes.len() <= MAX_SINGLE_DEBUG_IMAGE_BYTES
+                && included_image_bytes.saturating_add(image_bytes.len()) <= MAX_DEBUG_IMAGE_BYTES;
+            let image_data = if can_embed {
+                included_image_bytes += image_bytes.len();
+                Some(format!(
+                    "data:image/png;base64,{}",
+                    BASE64.encode(image_bytes)
+                ))
+            } else {
+                None
+            };
             Some(serde_json::json!({
                 "label": frame.get("label"),
                 "score": frame.get("score"),
                 "elapsedMilliseconds": frame.get("elapsedMilliseconds"),
                 "imageName": image_name,
-                "imageData": format!("data:image/png;base64,{}", BASE64.encode(image_bytes)),
+                "imageData": image_data,
+                "imageAvailable": can_embed,
                 "metadata": metadata,
             }))
         })
@@ -235,7 +252,12 @@ pub fn run() {
 }
 
 fn shortcut_profile_owns_hotkeys(identifier: &str) -> bool {
-    !identifier.eq_ignore_ascii_case("com.blazzer.cuepilot.dev")
+    // Dev must exercise the same F10/F9/Pause path as the packaged product.
+    // Registration itself is the safe arbiter: Windows refuses an already-held
+    // shortcut and EngineBridge publishes the conflict as an in-app fault
+    // instead of silently making the development build inert.
+    let _ = identifier;
+    true
 }
 
 #[cfg(test)]
@@ -244,9 +266,9 @@ mod diagnostics_tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn official_profile_owns_hotkeys_while_development_profile_stays_passive() {
+    fn all_profiles_attempt_to_register_global_shortcuts() {
         assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot"));
-        assert!(!shortcut_profile_owns_hotkeys("com.blazzer.cuepilot.dev"));
+        assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot.dev"));
     }
 
     #[test]

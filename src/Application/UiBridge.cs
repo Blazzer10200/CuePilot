@@ -65,6 +65,26 @@ internal static class UiBridge
                         case "snapshot":
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
                             break;
+                        case "verify_setup":
+                            EnsureStopped(routine.State, "Setup verification");
+                            EnsureLockpickingStopped(lockpicking, "Setup verification");
+                            using (var setupCapture = FrameSourceFactory.Create())
+                            {
+                                var verification = FishingSetupVerifier.VerifyAsync(
+                                    settings.Routine,
+                                    setupCapture,
+                                    new TargetInputRouter(settings.Routine.InputMode),
+                                    activateTarget: false,
+                                    CancellationToken.None).GetAwaiter().GetResult();
+                                Respond(output, id, true, Snapshot(
+                                    settings,
+                                    ReadStatus(),
+                                    findFiveMTargets(),
+                                    debug: routine.DebugSnapshot,
+                                    lockpicking: lockpicking.Status,
+                                    setupVerification: verification));
+                            }
+                            break;
                         case "start":
                             lockpicking.Stop("Fishing started; lockpicking observation stopped.");
                             var startTargets = findFiveMTargets();
@@ -88,20 +108,7 @@ internal static class UiBridge
                             }
                             break;
                         case "toggle_lockpicking_class_c":
-                            if (lockpicking.IsObserving)
-                            {
-                                lockpicking.Stop("Stopped from the Lockpicking Start / Stop shortcut.");
-                                Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
-                            }
-                            else
-                            {
-                                EnsureStopped(routine.State, "Class C lockpicking");
-                                var shortcutTargets = findFiveMTargets();
-                                EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, shortcutTargets);
-                                lockpicking.Start(settings.Routine.TargetWindow, LockpickingClassProfiles.ClassC);
-                                Respond(output, id, true, Snapshot(settings, ReadStatus(), shortcutTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
-                            }
-                            break;
+                            throw new InvalidOperationException("Class C automation is unavailable in this release while concurrent-target label calibration is verified. Observe-only lockpicking remains available.");
                         case "stop":
                             routine.Stop("Stopped from the Tauri dashboard.");
                             lockpicking.Stop("Emergency stop released lockpicking input.");
@@ -115,12 +122,7 @@ internal static class UiBridge
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), observeTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
                             break;
                         case "start_lockpicking_class_c":
-                            EnsureStopped(routine.State, "Class C lockpicking");
-                            var classCTargets = findFiveMTargets();
-                            EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, classCTargets);
-                            lockpicking.Start(settings.Routine.TargetWindow, LockpickingClassProfiles.ClassC);
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), classCTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
-                            break;
+                            throw new InvalidOperationException("Class C automation is unavailable in this release while concurrent-target label calibration is verified. Observe-only lockpicking remains available.");
                         case "stop_lockpicking_observe":
                             lockpicking.Stop();
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
@@ -227,7 +229,8 @@ internal static class UiBridge
         IReadOnlyList<WindowTargetService.FiveMWindowTarget> availableTargets,
         bool includeTargets = false,
         FishingDebugSnapshot? debug = null,
-        LockpickingObserveStatus? lockpicking = null)
+        LockpickingObserveStatus? lockpicking = null,
+        FishingSetupVerification? setupVerification = null)
     {
         var targetValid = TargetAvailable(settings.Routine.TargetWindow, availableTargets);
         var targetValidation = targetValid
@@ -261,6 +264,7 @@ internal static class UiBridge
             diagnosticsDirectory = AppPaths.DiagnosticsDirectory,
             debug,
             lockpicking = lockpicking ?? LockpickingObserveStatus.Stopped(),
+            setupVerification,
         };
     }
 

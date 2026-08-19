@@ -65,6 +65,24 @@ public sealed class FishingMeterTests
     }
 
     [Fact]
+    public void DaylightVideoReplayKeepsTheMeterVisibleAcrossChangingBackgrounds()
+    {
+        var fixtureDirectory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fishing");
+        var files = new[]
+        {
+            "meter-video-day-00s.jpg", "meter-video-day-10s.jpg", "meter-video-day-20s.jpg",
+            "meter-video-day-30s.jpg", "meter-video-day-40s.jpg", "meter-video-day-50s.jpg",
+        }.Select(name => Path.Combine(fixtureDirectory, name));
+
+        var report = FishingReplayService.Replay(files);
+
+        Assert.Equal(6, report.FrameCount);
+        Assert.Equal(6, report.MeterFrames);
+        Assert.NotEmpty(report.Transitions);
+        Assert.All(report.Transitions, transition => Assert.True(transition.Confidence > 0));
+    }
+
+    [Fact]
     public void InitialMeterFrameIsVisibleBeforeProgressArcDevelops()
     {
         var initial = AnalyzeFixture("initial.png");
@@ -162,6 +180,24 @@ public sealed class FishingMeterTests
         Assert.True(observation.IsVisible,
             $"{observation}{Environment.NewLine}{string.Join(Environment.NewLine, FishingMeterService.InspectFrame(frame))}");
         Assert.False(observation.IsFailed, observation.ToString());
+    }
+
+    [Theory]
+    [InlineData("meter-video-day-00s.jpg")]
+    [InlineData("meter-video-day-10s.jpg")]
+    [InlineData("meter-video-day-20s.jpg")]
+    [InlineData("meter-video-day-30s.jpg")]
+    [InlineData("meter-video-day-40s.jpg")]
+    [InlineData("meter-video-day-50s.jpg")]
+    public void SuppliedDaytimeVideoMetersAreFoundAcrossChangingBackgrounds(string name)
+    {
+        using var frame = LoadFixture(name);
+
+        var analysis = FishingMeterService.AnalyzeFrameDetailed(frame);
+
+        Assert.True(analysis.Observation.IsVisible,
+            $"{analysis}{Environment.NewLine}{string.Join(Environment.NewLine, FishingMeterService.InspectFrame(frame))}");
+        Assert.False(analysis.Observation.IsFailed, analysis.ToString());
     }
 
     [Theory]
@@ -554,6 +590,37 @@ public sealed class FishingMeterTests
             Assert.Equal(standard[index].Y, ultrawide[index].Y);
             Assert.Equal(standard[index].Size, ultrawide[index].Size);
         }
+    }
+
+    [Theory]
+    [InlineData(2560, 1440, 0, 2560)]
+    [InlineData(3440, 1440, 440, 2560)]
+    [InlineData(5120, 1440, 1280, 2560)]
+    [InlineData(1920, 1200, -106.6667, 2133.3333)]
+    [InlineData(1280, 1024, -270.2222, 1820.4444)]
+    public void SafeViewportUsesOneHeightScaledCanvasAcrossAspectRatios(
+        int width,
+        int height,
+        double expectedLeft,
+        double expectedWidth)
+    {
+        var viewport = GameViewportGeometry.CenteredSafeViewport(new Rectangle(0, 0, width, height));
+
+        Assert.Equal(expectedLeft, viewport.Left, 3);
+        Assert.Equal(expectedWidth, viewport.Width, 3);
+        Assert.Equal(0, viewport.Top);
+        Assert.Equal(height, viewport.Height);
+    }
+
+    [Theory]
+    [InlineData(1920, 1200)]
+    [InlineData(1280, 1024)]
+    public void NarrowFramesProbeVirtualAndFrameRelativeMeterLayouts(int width, int height)
+    {
+        var regions = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, width, height));
+
+        Assert.True(regions.Count > 8);
+        Assert.Equal(regions.Count, regions.Distinct().Count());
     }
 
     [Theory]
