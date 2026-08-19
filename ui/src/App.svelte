@@ -8,7 +8,7 @@
     Gauge, GripHorizontal, Maximize2, Minus, Monitor, Radio, RefreshCw, ScanEye, Settings2,
     ShieldCheck, Terminal, Waves, X,
   } from "@lucide/svelte";
-  import { EngineClient, type FishingDebugSnapshot, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
+  import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
   import { getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
   import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
@@ -47,7 +47,8 @@
         score: number;
         elapsedMilliseconds: number;
         imageName: string;
-        imageData: string;
+        imageData: string | null;
+        imageAvailable: boolean;
       }>;
     } | null;
   }
@@ -98,6 +99,8 @@
   let targetPickerOpen = $state(false);
   let targetCandidates = $state<TargetCandidate[]>([]);
   let targetDiscoveryError = $state<string | null>(null);
+  let setupVerification = $state<FishingSetupVerification | null>(null);
+  let verifyingSetup = $state(false);
   let targetButton = $state<HTMLButtonElement | null>(null);
   let targetPickerElement = $state<HTMLDivElement | null>(null);
   let targetOptionNodes = $state<HTMLButtonElement[]>([]);
@@ -422,6 +425,7 @@
     engine.error = null;
     try {
       await engine.selectTarget(candidate.processId);
+      setupVerification = null;
       targetPickerOpen = false;
       announce(candidate.isSelected ? "FiveM target confirmed" : "FiveM target locked");
       await tick();
@@ -431,6 +435,20 @@
       engine.error = null;
     } finally {
       selectingTarget = false;
+    }
+  }
+
+  async function verifySetup() {
+    if (verifyingSetup || active || !engine.connected) return;
+    verifyingSetup = true;
+    engine.error = null;
+    try {
+      setupVerification = await engine.verifySetup();
+      announce(setupVerification?.ready ? "Setup verified without sending input" : "Setup needs attention", setupVerification?.ready ? "success" : "info");
+    } catch (error) {
+      engine.error = String(error);
+    } finally {
+      verifyingSetup = false;
     }
   }
 
@@ -687,21 +705,31 @@
     <article class="target-card">
       <header class="target-card__header">
         <div class="card-kicker"><Crosshair size={14} strokeWidth={1.9} /> Game target</div>
-        <button
-          class:loading={selectingTarget}
-          class="target-button"
-          bind:this={targetButton}
-          aria-expanded={targetPickerOpen}
-          aria-controls="target-picker"
-          onclick={findTarget}
-          disabled={active || selectingTarget || !!runPending || !engine.connected}
-        >
-          {#if selectingTarget}
-            <RefreshCw size={15} strokeWidth={1.9} class="spin" /> Scanning…
-          {:else}
-            <Crosshair size={15} strokeWidth={1.9} /> Select FiveM target
-          {/if}
-        </button>
+        <div class="target-card__actions">
+          <button
+            class:loading={verifyingSetup}
+            class="target-button target-button--verify"
+            onclick={verifySetup}
+            disabled={active || verifyingSetup || selectingTarget || !!runPending || !engine.connected}
+          >
+            {#if verifyingSetup}<RefreshCw size={14} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={14} strokeWidth={1.9} /> Verify setup{/if}
+          </button>
+          <button
+            class:loading={selectingTarget}
+            class="target-button"
+            bind:this={targetButton}
+            aria-expanded={targetPickerOpen}
+            aria-controls="target-picker"
+            onclick={findTarget}
+            disabled={active || selectingTarget || verifyingSetup || !!runPending || !engine.connected}
+          >
+            {#if selectingTarget}
+              <RefreshCw size={15} strokeWidth={1.9} class="spin" /> Scanning…
+            {:else}
+              <Crosshair size={15} strokeWidth={1.9} /> Select FiveM target
+            {/if}
+          </button>
+        </div>
       </header>
       {#if targetPickerOpen}
         <div
@@ -767,6 +795,13 @@
         <strong>{target?.processName || "No target selected"}</strong>
         <span class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
       </div>
+      {#if setupVerification}
+        <div class:ready={setupVerification.ready} class="setup-check" aria-live="polite">
+          <strong>{setupVerification.ready ? "Setup verified" : "Setup needs attention"}</strong>
+          <span>{setupVerification.detail}</span>
+          <small>Target {setupVerification.target.passed ? "ready" : "blocked"} · Input {setupVerification.input.passed ? "ready" : "blocked"} · Capture {setupVerification.capture.passed ? "ready" : "blocked"}</small>
+        </div>
+      {/if}
     </article>
     <aside class="telemetry" aria-label="Compact telemetry">
       <div class="metric">
@@ -990,7 +1025,11 @@
             <div class="debug-frames">
               {#each diagnostics.debugSession.frames as frame}
                 <figure>
-                  <img src={frame.imageData} alt={frame.label.replaceAll("-", " ")} />
+                  {#if frame.imageData}
+                    <img src={frame.imageData} alt={frame.label.replaceAll("-", " ")} />
+                  {:else}
+                    <div class="debug-frame-unavailable">Frame kept in the local diagnostics folder.</div>
+                  {/if}
                   <figcaption><span>{frame.label.replaceAll("-", " ")}</span><strong>{evidencePercent(frame.score)}</strong></figcaption>
                 </figure>
               {/each}

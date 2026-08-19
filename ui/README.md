@@ -9,7 +9,7 @@ network listener is opened.
 The root shell opens on an activity picker. Activity metadata lives in
 `src/lib/activities.ts`, and dedicated workspaces live in
 `src/lib/activities/`. Fishing is release-ready. Vehicle Lockpicking exposes an
-input-free observer and a separately armed Class C live-calibration controller;
+input-free observer while Class C live-calibration input remains gated;
 classes A, B, and D remain unavailable until evidence-backed profiles are added.
 
 ## Development

@@ -65,6 +65,26 @@ internal static class UiBridge
                         case "snapshot":
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
                             break;
+                        case "verify_setup":
+                            EnsureStopped(routine.State, "Setup verification");
+                            EnsureLockpickingStopped(lockpicking, "Setup verification");
+                            using (var setupCapture = FrameSourceFactory.Create())
+                            {
+                                var verification = FishingSetupVerifier.VerifyAsync(
+                                    settings.Routine,
+                                    setupCapture,
+                                    new TargetInputRouter(settings.Routine.InputMode),
+                                    activateTarget: false,
+                                    CancellationToken.None).GetAwaiter().GetResult();
+                                Respond(output, id, true, Snapshot(
+                                    settings,
+                                    ReadStatus(),
+                                    findFiveMTargets(),
+                                    debug: routine.DebugSnapshot,
+                                    lockpicking: lockpicking.Status,
+                                    setupVerification: verification));
+                            }
+                            break;
                         case "start":
                             lockpicking.Stop("Fishing started; lockpicking observation stopped.");
                             var startTargets = findFiveMTargets();
@@ -209,7 +229,8 @@ internal static class UiBridge
         IReadOnlyList<WindowTargetService.FiveMWindowTarget> availableTargets,
         bool includeTargets = false,
         FishingDebugSnapshot? debug = null,
-        LockpickingObserveStatus? lockpicking = null)
+        LockpickingObserveStatus? lockpicking = null,
+        FishingSetupVerification? setupVerification = null)
     {
         var targetValid = TargetAvailable(settings.Routine.TargetWindow, availableTargets);
         var targetValidation = targetValid
@@ -243,6 +264,7 @@ internal static class UiBridge
             diagnosticsDirectory = AppPaths.DiagnosticsDirectory,
             debug,
             lockpicking = lockpicking ?? LockpickingObserveStatus.Stopped(),
+            setupVerification,
         };
     }
 

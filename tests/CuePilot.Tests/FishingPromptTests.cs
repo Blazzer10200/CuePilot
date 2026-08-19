@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace CuePilot.Tests;
 
@@ -49,6 +50,95 @@ public sealed class FishingPromptTests
 
         Assert.Equal(FishingPromptKind.Cast, observation.Kind);
         Assert.Contains("Accepted Cast", evidence.DecisionReason);
+    }
+
+    [Fact]
+    public void ReadyStateNeedsBothCastAndStopSignals()
+    {
+        using var bitmap = LoadFixture("cast-ready.png");
+
+        var state = FishingPromptDetector.AnalyzeHudState(bitmap, out var evidence);
+
+        Assert.Equal(FishingHudState.Ready, state.State);
+        Assert.True(state.Confidence >= 0.70, $"{state}{Environment.NewLine}{evidence}");
+        Assert.Equal(FishingPromptKind.Cast, state.Prompt.Kind);
+        Assert.True(evidence.StopScore >= 0.65, evidence.ToString());
+    }
+
+    [Fact]
+    public void WaitingStateRecognizesStopWithoutCast()
+    {
+        using var source = LoadFixture("cast-ready.png");
+        using var prompt = new Bitmap(220, 68);
+        using (var graphics = Graphics.FromImage(prompt))
+        {
+            graphics.Clear(Color.FromArgb(15, 20, 23));
+            graphics.DrawImage(source, new Rectangle(0, 0, 170, 44), new Rectangle(270, 39, 170, 44), GraphicsUnit.Pixel);
+        }
+
+        var state = FishingPromptDetector.AnalyzeHudState(prompt, out var evidence);
+
+        Assert.Equal(FishingHudState.Waiting, state.State);
+        Assert.True(state.Confidence >= 0.65, $"{state}{Environment.NewLine}{evidence}");
+        Assert.Equal(FishingPromptKind.None, state.Prompt.Kind);
+    }
+
+    [Fact]
+    public void DecisionStateNeedsReleaseAndKeepSignals()
+    {
+        using var bitmap = LoadFixture("collect-ready.png");
+
+        var state = FishingPromptDetector.AnalyzeHudState(bitmap, out var evidence);
+
+        Assert.Equal(FishingHudState.Decision, state.State);
+        Assert.True(state.Confidence >= 0.70, $"{state}{Environment.NewLine}{evidence}");
+        Assert.Equal(FishingPromptKind.Collect, state.Prompt.Kind);
+        Assert.True(evidence.ReleaseScore >= 0.65, evidence.ToString());
+        Assert.True(evidence.KeepScore >= 0.65, evidence.ToString());
+    }
+
+    [Fact]
+    public void ResultStateUsesCatchCardDecisionSignalsWithoutMatchingFishDetails()
+    {
+        using var bitmap = LoadFixture("catch-card.png");
+
+        var state = FishingPromptDetector.AnalyzeHudState(bitmap, out var evidence);
+
+        Assert.Equal(FishingHudState.Result, state.State);
+        Assert.True(state.Confidence >= 0.70, $"{state}{Environment.NewLine}{evidence}");
+        Assert.Equal(FishingPromptKind.Collect, state.Prompt.Kind);
+        Assert.True(evidence.ReleaseScore >= 0.65, evidence.ToString());
+        Assert.True(evidence.CatchKeepScore >= 0.65, evidence.ToString());
+    }
+
+    [Fact]
+    public void CastingStateReusesTheVerifiedLmbMeterPath()
+    {
+        using var bitmap = LoadFishingFixture("active.png");
+
+        var state = FishingPromptDetector.AnalyzeHudState(bitmap, out var evidence);
+
+        Assert.Equal(FishingHudState.Casting, state.State);
+        Assert.True(state.Confidence >= 0.65, $"{state}{Environment.NewLine}{evidence}");
+        Assert.Equal(FishingPromptKind.None, state.Prompt.Kind);
+    }
+
+    [Theory]
+    [InlineData("cast-ready.png", "Cast", "Ready")]
+    [InlineData("collect-ready.png", "Collect", "Decision")]
+    public void PromptStatesSurviveBusyFoliageBackgrounds(
+        string name,
+        string expectedPrompt,
+        string expectedState)
+    {
+        using var prompt = LoadFixture(name);
+        using var frame = CreateFoliageFrame(prompt);
+
+        var state = FishingPromptDetector.AnalyzeHudState(frame, out var evidence);
+
+        Assert.Equal(expectedPrompt, state.Prompt.Kind.ToString());
+        Assert.True(expectedState == state.State.ToString(), $"Expected {expectedState}; actual {state.State}{Environment.NewLine}{evidence}");
+        Assert.True(state.Prompt.Confidence >= 0.65, $"{state}{Environment.NewLine}{evidence}");
     }
 
     [Theory]
@@ -121,6 +211,17 @@ public sealed class FishingPromptTests
 
         Assert.True(FishingPromptArbitration.ShouldSuppress(prompt, meter));
         Assert.False(FishingPromptArbitration.ShouldSuppress(prompt, FishingMeterObservation.Missing));
+    }
+
+    [Fact]
+    public void VisibleMeterDoesNotSuppressAConfirmedCollectPrompt()
+    {
+        // The completed minigame can leave a meter-looking region behind the result panel,
+        // particularly over bright reflective daytime water.  E Keep Fish must still win.
+        var prompt = new FishingPromptObservation(FishingPromptKind.Collect, 0.99);
+        var meter = new FishingMeterObservation(true, 0.55, 1.00, true, 0.94);
+
+        Assert.False(FishingPromptArbitration.ShouldSuppress(prompt, meter));
     }
 
     [Fact]
@@ -213,6 +314,20 @@ public sealed class FishingPromptTests
         Assert.True(evidence.Cast.BackgroundScore < 0.05, evidence.ToString());
         Assert.True(evidence.Cast.ContrastScore >= 0.65, evidence.ToString());
         Assert.True(evidence.Cast.Score >= evidence.Collect.Score + 0.08, evidence.ToString());
+    }
+
+    [Fact]
+    public void BrightBushAndReflectiveWaterReadyFrameIsRecognized()
+    {
+        using var bitmap = LoadFixture("bush-bright-reflection-ready.png");
+
+        var observation = FishingPromptDetector.Analyze(bitmap, out var evidence);
+
+        Assert.Equal(FishingPromptKind.Cast, observation.Kind);
+        Assert.Equal(FishingHudState.Ready, observation.State);
+        Assert.True(observation.Confidence >= 0.80, $"{observation}{Environment.NewLine}{evidence}");
+        Assert.True(evidence.StopScore >= 0.80, evidence.ToString());
+        Assert.True(evidence.Cast.ContrastScore >= 0.80, evidence.ToString());
     }
 
     [Theory]
@@ -354,4 +469,33 @@ public sealed class FishingPromptTests
 
     private static Bitmap LoadFishingFixture(string name) =>
         new(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fishing", name));
+
+    // Deterministic high-detail green/brown luminance noise mimics foliage
+    // crossing a translucent GTA HUD.  It exercises the real prompt detector
+    // without binding correctness to one copied full-frame background.
+    private static Bitmap CreateFoliageFrame(Bitmap prompt)
+    {
+        var frame = new Bitmap(1280, 720);
+        var random = new Random(913);
+        using var graphics = Graphics.FromImage(frame);
+        graphics.Clear(Color.FromArgb(22, 36, 22));
+        for (var index = 0; index < 2_400; index++)
+        {
+            var green = random.Next(50, 180);
+            var color = index % 11 == 0
+                ? Color.FromArgb(random.Next(150, 235), random.Next(130, 210), random.Next(85, 150))
+                : Color.FromArgb(random.Next(20, 85), green, random.Next(15, 75));
+            using var brush = new SolidBrush(color);
+            var width = random.Next(2, 12);
+            var height = random.Next(2, 18);
+            graphics.FillEllipse(brush, random.Next(frame.Width), random.Next(frame.Height), width, height);
+        }
+
+        using var attributes = new ImageAttributes();
+        attributes.SetColorMatrix(new ColorMatrix { Matrix33 = 0.84f });
+        var x = (frame.Width - prompt.Width) / 2;
+        graphics.DrawImage(prompt, new Rectangle(x, 572, prompt.Width, prompt.Height), 0, 0,
+            prompt.Width, prompt.Height, GraphicsUnit.Pixel, attributes);
+        return frame;
+    }
 }

@@ -134,50 +134,18 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
 
     private async Task PreflightAsync(CancellationToken token, FishingDebugSession debugSession)
     {
-        if (!WindowTargetService.TryResolve(settings.TargetWindow, out var target, out var targetDetail))
-        {
-            throw new InvalidOperationException($"Target preflight failed: {targetDetail}");
-        }
-        debugSession.Record("preflight", "target_resolved", new
-        {
-            target.ProcessId,
-            target.Bounds,
-            target.IsForeground,
-            target.IsMinimized,
-            detail = targetDetail,
-        });
-
-        if (target.IsMinimized)
-        {
-            throw new InvalidOperationException("Target preflight failed: restore FiveM before arming.");
-        }
-
-        SetState(RoutineState.Casting, $"Preflight: {targetDetail} Verifying input delivery.");
-        var capability = await input.PrepareAsync(settings.TargetWindow, token);
-        debugSession.Record("preflight", "input_probe", new
-        {
-            capability.Ready,
-            capability.Backend,
-            capability.SupportsCoveredWindow,
-            capability.Detail,
-        });
-        if (!capability.Ready)
-        {
-            throw new InvalidOperationException($"Input preflight failed: {capability.Detail}");
-        }
-
-        SetState(RoutineState.Casting, "Preflight: input verified. Testing live desktop capture.");
         var source = frameSource ?? throw new InvalidOperationException("No frame source is configured.");
-        _ = FishingMeterService.Observe(source, settings.TargetWindow, out var captureStatus);
-        debugSession.RecordCapture("preflight", captureStatus);
-        if (captureStatus.State != FrameSourceState.Ready)
+        SetState(RoutineState.Casting, "Preflight: checking target, input, and live desktop capture.");
+        var verification = await FishingSetupVerifier.VerifyAsync(settings, source, input, activateTarget: true, token: token);
+        debugSession.Record("preflight", "setup_verified", verification);
+        if (!verification.Ready)
         {
-            throw new InvalidOperationException($"Capture preflight failed: {captureStatus.Detail}");
+            throw new InvalidOperationException($"Setup preflight failed: {verification.Detail}");
         }
 
         SetState(RoutineState.Casting,
-            $"Preflight ready · {captureStatus.Backend} {captureStatus.CaptureMilliseconds:0.0} ms · {capability.Backend}.");
-        debugSession.Record("preflight", "ready", new { captureStatus.Backend, captureStatus.CaptureMilliseconds, input = capability.Backend });
+            verification.Detail);
+        debugSession.Record("preflight", "ready", verification);
         await Task.Delay(150, token);
     }
 

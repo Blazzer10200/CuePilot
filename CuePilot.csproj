@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>CuePilot</AssemblyName>
     <RootNamespace>CuePilot</RootNamespace>
-    <Version>5.1.1</Version>
+    <Version>5.1.3</Version>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\branding\cuepilot.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>

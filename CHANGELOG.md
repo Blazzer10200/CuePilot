@@ -1,5 +1,18 @@
 # Changelog
 
+## 5.1.3 - 2026-08-19 - Verified fishing setup and replay
+
+- Added a read-only **Verify setup** check beside target selection. It reports the selected FiveM target, physical-input readiness, capture backend and latency, and detected window size before a Fishing start; the same checks are now reused by routine preflight.
+- Added an offline `--replay-fishing <ordered-frame-directory>` command and a daylight-video regression that replays the production HUD/meter detectors without constructing an input path.
+- Bounded the Detection Review screenshot payload to 12 MB total (6 MB per frame) so a large local session cannot stall the drawer; frames beyond that budget remain available in the local diagnostics folder.
+- Removed unused external Google Fonts allowances from the desktop content policy. CuePilot remains local-only.
+
+## 5.1.2 - 2026-08-19 - Daytime fishing reliability
+
+- Fixed meter-versus-prompt arbitration so a confirmed Keep Fish action cannot be blocked by a stale or reflective daytime meter reading.
+- Added 1920x1080 regression frames from the supplied multi-location daytime fishing video, covering foliage, rock, shore, and reflective-water backgrounds.
+- Restored CuePilot Dev global shortcut registration so F10 is no longer intentionally disabled in the development build.
+
 ## 5.1.1 - 2026-08-15 - Fishing release
 
 - Ships the verified Fishing automation, local evidence review, and CuePilot desktop installer for general use.

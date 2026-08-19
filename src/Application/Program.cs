@@ -57,6 +57,9 @@ internal static class Program
         var benchmark = ArgumentValue(args, "--benchmark-meter");
         if (benchmark is not null) return RunMeterBenchmark(benchmark);
 
+        var fishingReplay = ArgumentValue(args, "--replay-fishing");
+        if (fishingReplay is not null) return ReplayFishing(fishingReplay);
+
         var lockpicking = ArgumentValue(args, "--analyze-lockpicking");
         if (lockpicking is not null)
         {
@@ -151,6 +154,40 @@ internal static class Program
 
         var detectorMeanMilliseconds = detectorTicks * 1000d / System.Diagnostics.Stopwatch.Frequency / files.Length;
         Console.WriteLine($"frames={files.Length} fps={framesPerSecond:F2} detector_mean_ms={detectorMeanMilliseconds:F2} summary=[{string.Join(',', counts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}]");
+        return 0;
+    }
+
+    private static int ReplayFishing(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            Console.Error.WriteLine($"FISHING_REPLAY_FAILED missing={directory}");
+            return 2;
+        }
+
+        var files = Directory.EnumerateFiles(directory)
+            .Where(path => Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (files.Length == 0)
+        {
+            Console.Error.WriteLine("FISHING_REPLAY_FAILED no image frames found.");
+            return 2;
+        }
+
+        var report = FishingReplayService.Replay(files);
+        foreach (var transition in report.Transitions)
+        {
+            Console.WriteLine(
+                $"frame={transition.FrameIndex} state={transition.State} prompt={transition.Prompt} " +
+                $"meter={transition.MeterVisible} caught={transition.Caught} failed={transition.Failed} confidence={transition.Confidence:P1}");
+        }
+
+        Console.WriteLine(
+            $"frames={report.FrameCount} meter_frames={report.MeterFrames} prompt_frames={report.PromptFrames} " +
+            $"caught_frames={report.CaughtFrames} detector_mean_ms={report.MeanDetectorMilliseconds:F2} transitions={report.Transitions.Count}");
         return 0;
     }
 
