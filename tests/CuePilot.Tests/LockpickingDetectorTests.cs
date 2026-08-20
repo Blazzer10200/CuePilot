@@ -49,6 +49,9 @@ public sealed class LockpickingDetectorTests
         yield return [1920, 1200, new Rectangle(-107, 0, 2133, 1200)];
         yield return [3440, 1440, new Rectangle(440, 0, 2560, 1440)];
         yield return [5120, 1440, new Rectangle(1280, 0, 2560, 1440)];
+        yield return [3840, 1440, new Rectangle(640, 0, 2560, 1440)];
+        yield return [3840, 1600, new Rectangle(498, 0, 2844, 1600)];
+        yield return [3840, 1080, new Rectangle(960, 0, 1920, 1080)];
         yield return [1280, 1024, new Rectangle(-270, 0, 1820, 1024)];
     }
 

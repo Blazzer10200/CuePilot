@@ -918,10 +918,11 @@ internal sealed class FishingMeterTracker
     internal Rectangle? GetRegion(Rectangle bounds, double scale = 1)
     {
         if (centerXRatio is null || centerYRatio is null) return null;
+        var heightScale = GameViewportGeometry.ReferenceHeightScale(bounds);
         var height = Math.Clamp(
             (int)Math.Round(bounds.Height * regionHeightRatio * scale),
-            Math.Min(180, bounds.Height),
-            Math.Min(440, bounds.Height));
+            Math.Min((int)Math.Round(180 * heightScale), bounds.Height),
+            Math.Min((int)Math.Round(440 * heightScale), bounds.Height));
         var width = Math.Min(bounds.Width, (int)Math.Round(height * 1.30));
         var centerX = bounds.Left + (int)Math.Round(bounds.Width * centerXRatio.Value);
         var centerY = bounds.Top + (int)Math.Round(bounds.Height * centerYRatio.Value);
@@ -1129,7 +1130,13 @@ internal static class FishingMeterService
         // two fifths of the crop, which matches the ring sampler's radius range.
         // The measured 46% fallback handles the alternate UI scale without
         // replacing the faster primary path.
-        var height = Math.Clamp((int)Math.Round(bounds.Height * heightRatio), 240, 400);
+        var heightScale = GameViewportGeometry.ReferenceHeightScale(bounds);
+        var minimumHeight = Math.Max(1, (int)Math.Round(240 * heightScale));
+        var maximumHeight = Math.Max(minimumHeight, (int)Math.Round(400 * heightScale));
+        var height = Math.Clamp(
+            (int)Math.Round(bounds.Height * heightRatio),
+            Math.Min(minimumHeight, bounds.Height),
+            Math.Min(maximumHeight, bounds.Height));
         height = Math.Min(height, Math.Min(bounds.Width, bounds.Height));
         var width = Math.Min(bounds.Width, (int)Math.Round(height * 1.30));
         var centerX = (int)Math.Round(safeViewport.MapX(horizontal));
