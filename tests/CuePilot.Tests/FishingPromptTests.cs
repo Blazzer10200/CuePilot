@@ -447,23 +447,52 @@ public sealed class FishingPromptTests
     }
 
     [Theory]
-    [InlineData(3440, 440)]
-    [InlineData(5120, 1280)]
-    public void CastPromptIsFoundInsideCenteredUltrawideSafeViewport(int frameWidth, int safeLeft)
+    [InlineData(3440, 1440, 440)]
+    [InlineData(5120, 1440, 1280)]
+    [InlineData(3840, 1440, 640)]
+    [InlineData(3840, 1600, 498)]
+    [InlineData(3840, 1080, 960)]
+    public void CastPromptIsFoundInsideCenteredUltrawideSafeViewport(int frameWidth, int frameHeight, int safeLeft)
     {
         using var prompt = LoadFixture("cast-ready.png");
-        using var frame = new Bitmap(frameWidth, 1440);
+        var promptTop = frameHeight * 2 / 3;
+        using var frame = new Bitmap(frameWidth, frameHeight);
         using (var graphics = Graphics.FromImage(frame))
         {
             graphics.Clear(Color.FromArgb(9, 14, 16));
-            graphics.DrawImageUnscaled(prompt, safeLeft + 720, 960);
+            graphics.DrawImageUnscaled(prompt, safeLeft + 720, promptTop);
         }
 
         var observation = FishingPromptDetector.Analyze(frame, out var evidence);
 
         Assert.True(observation.Kind == FishingPromptKind.Cast,
-            $"{frameWidth}x1440: {observation}{Environment.NewLine}{evidence}");
+            $"{frameWidth}x{frameHeight}: {observation}{Environment.NewLine}{evidence}");
         Assert.True(observation.Confidence >= 0.65, observation.ToString());
+    }
+
+    [Theory]
+    [InlineData(3840, 1440, 940, 960)]
+    [InlineData(3840, 1600, 1040, 1060)]
+    [InlineData(3840, 1080, 1000, 700)]
+    public void CastPromptIsFoundInFullWidthHudLayoutsAcrossLongDisplays(
+        int frameWidth,
+        int frameHeight,
+        int promptLeft,
+        int promptTop)
+    {
+        using var prompt = LoadFixture("cast-ready.png");
+        using var frame = new Bitmap(frameWidth, frameHeight);
+        using (var graphics = Graphics.FromImage(frame))
+        {
+            graphics.Clear(Color.FromArgb(9, 14, 16));
+            graphics.DrawImageUnscaled(prompt, promptLeft, promptTop);
+        }
+
+        var observation = FishingPromptDetector.Analyze(frame, out var evidence);
+
+        Assert.Equal(FishingPromptKind.Cast, observation.Kind);
+        Assert.True(observation.Confidence >= 0.65,
+            $"{frameWidth}x{frameHeight}: {observation}{Environment.NewLine}{evidence}");
     }
 
     [Fact]

@@ -25,6 +25,23 @@ internal readonly record struct GameSafeViewport(double Left, double Top, double
 internal static class GameViewportGeometry
 {
     private const double ReferenceAspectRatio = 16d / 9d;
+    private const double ReferenceHeight = 1080d;
+
+    internal static double ReferenceHeightScale(Rectangle bounds)
+    {
+        if (bounds.Width < 640 || bounds.Height < 360)
+        {
+            // Small frames are normally tightly cropped regression captures,
+            // not complete game windows. Keep their established crop sizing.
+            return 1;
+        }
+
+        // HUDs in FiveM commonly scale from a 1080p reference canvas. Keep
+        // the established crop floor for 1080p and smaller targets, while
+        // allowing 1440p and 2160p windows to grow beyond the old 240-400px
+        // cap.
+        return Math.Clamp(bounds.Height / ReferenceHeight, 1d, 3d);
+    }
 
     internal static GameSafeViewport CenteredSafeViewport(Rectangle bounds)
     {

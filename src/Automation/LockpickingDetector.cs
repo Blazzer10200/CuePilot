@@ -281,18 +281,31 @@ internal static class LockpickingDetector
         // grid and a wider scale range for ultrawide and windowed layouts.
         var safeViewport = GameViewportGeometry.CenteredSafeViewport(
             new Rectangle(0, 0, pixels.Width, pixels.Height));
-        for (var yRatio = 0.28; yRatio <= 0.72; yRatio += 0.04)
+        void SearchSafeViewport(double yStep, double xStep)
         {
-            for (var safeXRatio = 0.50; safeXRatio <= 0.90; safeXRatio += 0.0125)
+            for (var yRatio = 0.28; yRatio <= 0.72; yRatio += yStep)
             {
-                foreach (var radiusRatio in CompatibleHudRadiusRatios)
+                for (var safeXRatio = 0.50; safeXRatio <= 0.90; safeXRatio += xStep)
                 {
-                    var x = safeViewport.MapX(safeXRatio);
-                    var y = safeViewport.MapY(yRatio);
-                    var radius = radiusRatio * minimum;
-                    ConsiderHudCandidate(pixels, x, y, radius, ref best);
+                    foreach (var radiusRatio in CompatibleHudRadiusRatios)
+                    {
+                        var x = safeViewport.MapX(safeXRatio);
+                        var y = safeViewport.MapY(yRatio);
+                        var radius = radiusRatio * minimum;
+                        ConsiderHudCandidate(pixels, x, y, radius, ref best);
+                    }
                 }
             }
+        }
+
+        SearchSafeViewport(0.04, 0.0125);
+        if (best.Score < 0.30
+            && Math.Abs(safeViewport.Width - pixels.Width) >= 1)
+        {
+            // A HUD can land between coarse samples at specific monitor widths
+            // (notably 3840x1440). Pay the extra search cost only after the fast
+            // pass fails to produce a candidate strong enough to refine.
+            SearchSafeViewport(0.02, 0.00625);
         }
 
         if (best.Score <= 0)

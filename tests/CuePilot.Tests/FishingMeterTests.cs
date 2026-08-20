@@ -577,6 +577,7 @@ public sealed class FishingMeterTests
 
     [Theory]
     [InlineData(3440, 440)]
+    [InlineData(3840, 640)]
     [InlineData(5120, 1280)]
     public void MeterSearchRegionsTranslateIntoCenteredUltrawideSafeViewport(int frameWidth, int safeLeft)
     {
@@ -617,12 +618,51 @@ public sealed class FishingMeterTests
         Assert.True(analysis.PrimaryCandidate.Value.Region.Right <= 3000, analysis.PrimaryCandidate.Value.ToString());
     }
 
+    [Theory]
+    [InlineData(3840, 1440, 640, 2560, 1440)]
+    [InlineData(3840, 1600, 498, 2844, 1600)]
+    public void RealMeterAcquiresAcross3840ClassCenteredSafeViewports(
+        int frameWidth,
+        int frameHeight,
+        int contentLeft,
+        int contentWidth,
+        int contentHeight)
+    {
+        using var source = LoadFixture("live-2560-real-meter-lock.png");
+        using var frame = new Bitmap(frameWidth, frameHeight);
+        using (var graphics = Graphics.FromImage(frame))
+        {
+            graphics.Clear(Color.Black);
+            graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+            graphics.DrawImage(
+                source,
+                new Rectangle(contentLeft, 0, contentWidth, contentHeight),
+                new Rectangle(0, 0, source.Width, source.Height),
+                GraphicsUnit.Pixel);
+        }
+
+        var analysis = FishingMeterService.AnalyzeFrameDetailed(frame, new FishingMeterTracker());
+
+        Assert.True(analysis.Observation.IsVisible,
+            $"{frameWidth}x{frameHeight}: {analysis}");
+    }
+
     [Fact]
     public void UltrawideMeterSearchIncludesAFullWidthHudFallback()
     {
         var regions = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, 3440, 1440));
 
         Assert.Contains(new Rectangle(1664, 465, 450, 346), regions);
+    }
+
+    [Theory]
+    [InlineData(1280, 720, 331)]
+    [InlineData(3840, 2160, 800)]
+    public void MeterSearchWindowScalesWithTargetHeight(int width, int height, int expectedLargestHeight)
+    {
+        var regions = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, width, height));
+
+        Assert.Equal(expectedLargestHeight, regions.Max(region => region.Height));
     }
 
     [Fact]
