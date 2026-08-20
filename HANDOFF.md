@@ -1,8 +1,8 @@
-# Handoff — CuePilot — 2026-08-20 00:28 CDT
+# Handoff — CuePilot — 2026-08-20 00:43 CDT
 
 ## Current Objective
 
-- Publish the fully verified CuePilot 5.1.5 fishing reliability and ultrawide/fullscreen compatibility release.
+- Maintain the published CuePilot 5.1.5 fishing reliability and ultrawide/fullscreen compatibility release.
 
 ## Current State
 
@@ -10,7 +10,10 @@
 - The final 5.1.5 installer is installed at `%LOCALAPPDATA%\CuePilot`; UI, engine, and uninstall registry all report 5.1.5.
 - Installer: `C:\cargo-targets\release\bundle\nsis\CuePilot_5.1.5_x64-setup.exe`.
 - Installer SHA-256: `A9178CA86E0F63555C5227C9AC7BC62FDBC0C08FAD9C2597430B4D6A6CC5D443`.
-- Branch `codex/post-release` is aligned with `origin/main`; the release batch is ready to commit, push, and tag.
+- Commit `4c7471f8b9e2dfca874d4139808a25612de98420` is on `main`, `codex/post-release`, and tag `v5.1.5`.
+- GitHub release `v5.1.5` is public, latest, non-draft, and non-prerelease: `https://github.com/Blazzer10200/CuePilot/releases/tag/v5.1.5`.
+- GitHub Release workflow `32335879197` and main Build workflow `32335868134` both completed successfully.
+- Published installer SHA-256: `9c42f7c8eec1785481a7be419ae93291af9711df306c83231b5eb095df30e385`; the downloaded asset matches its attached checksum.
 
 ## Recent Relevant Changes
 
@@ -29,10 +32,9 @@
 
 ## Next Actions
 
-1. Commit and push the 5.1.5 batch to `codex/post-release` and fast-forward `main` without force.
-2. Tag `v5.1.5`, push the tag, and wait for the Release workflow.
-3. Verify the GitHub release installer/checksum assets and latest-release link.
-4. Refresh this handoff with the published release URL and workflow result.
+1. Let the user continue live-testing the installed 5.1.5 build, including 3440×1440 and exclusive fullscreen where supported by the active graphics stack.
+2. If a capture stall occurs, preserve the newest `%LOCALAPPDATA%\CuePilot\diagnostics\sessions\<session-id>` and `diagnostics\fishing-loop.csv` before changing thresholds.
+3. Treat any future LMB cadence change as a separate evidence-backed patch; do not mix it into detector identity tuning.
 
 ## Relevant Files
 
