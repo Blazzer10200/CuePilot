@@ -583,12 +583,88 @@ public sealed class FishingMeterTests
         var standard = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, 2560, 1440));
         var ultrawide = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, frameWidth, 1440));
 
-        Assert.Equal(standard.Count, ultrawide.Count);
+        Assert.True(ultrawide.Count > standard.Count);
         for (var index = 0; index < standard.Count; index++)
         {
             Assert.Equal(standard[index].X + safeLeft, ultrawide[index].X);
             Assert.Equal(standard[index].Y, ultrawide[index].Y);
             Assert.Equal(standard[index].Size, ultrawide[index].Size);
+        }
+    }
+
+    [Fact]
+    public void RealMeterAcquiresInsideA3440By1440CenteredSafeViewport()
+    {
+        using var source = LoadFixture("live-2560-real-meter-lock.png");
+        using var ultrawide = new Bitmap(3440, 1440);
+        using (var graphics = Graphics.FromImage(ultrawide))
+        {
+            graphics.Clear(Color.Black);
+            graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+            graphics.DrawImage(
+                source,
+                new Rectangle(440, 0, source.Width, source.Height),
+                new Rectangle(0, 0, source.Width, source.Height),
+                GraphicsUnit.Pixel);
+        }
+        var tracker = new FishingMeterTracker();
+
+        var analysis = FishingMeterService.AnalyzeFrameDetailed(ultrawide, tracker);
+
+        Assert.True(analysis.Observation.IsVisible, analysis.ToString());
+        Assert.NotNull(analysis.PrimaryCandidate);
+        Assert.True(analysis.PrimaryCandidate.Value.Region.Left >= 440, analysis.PrimaryCandidate.Value.ToString());
+        Assert.True(analysis.PrimaryCandidate.Value.Region.Right <= 3000, analysis.PrimaryCandidate.Value.ToString());
+    }
+
+    [Fact]
+    public void UltrawideMeterSearchIncludesAFullWidthHudFallback()
+    {
+        var regions = FishingMeterService.GetCaptureRegions(new Rectangle(0, 0, 3440, 1440));
+
+        Assert.Contains(new Rectangle(1664, 465, 450, 346), regions);
+    }
+
+    [Fact]
+    public void NearlyBlackExclusiveFullscreenFramesAreRejected()
+    {
+        using var capture = new FallbackFrameSource(
+            new SolidFrameSource("DXGI test", Color.Black),
+            new SolidFrameSource("GDI test", Color.Black));
+
+        var captured = capture.TryCapture(
+            new WindowTargetSettings(),
+            new Rectangle(0, 0, 640, 360),
+            out var frame,
+            out var status);
+
+        frame?.Dispose();
+        Assert.False(captured);
+        Assert.Equal(FrameSourceState.CaptureFailed, status.State);
+        Assert.Contains("black frame", status.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Borderless Windowed", status.Detail, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void VisibleFallbackFrameIsUsedAfterExclusivePrimaryReturnsBlack()
+    {
+        using var capture = new FallbackFrameSource(
+            new SolidFrameSource("DXGI test", Color.Black),
+            new SolidFrameSource("GDI test", Color.FromArgb(16, 18, 20)));
+
+        var captured = capture.TryCapture(
+            new WindowTargetSettings(),
+            new Rectangle(0, 0, 640, 360),
+            out var frame,
+            out var status);
+
+        using (frame)
+        {
+            Assert.True(captured, status.Detail);
+            Assert.NotNull(frame);
+            Assert.Equal("GDI test", status.Backend);
+            Assert.Contains("Fallback active", status.Detail, StringComparison.Ordinal);
+            Assert.Contains("black frame", status.Detail, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -738,4 +814,26 @@ public sealed class FishingMeterTests
 
     private static Bitmap LoadVisionFixture(string name) =>
         new(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Prompts", name));
+
+    private sealed class SolidFrameSource(string name, Color color) : IFrameSource
+    {
+        public string Name => name;
+
+        public bool TryCapture(
+            WindowTargetSettings target,
+            Rectangle relativeRegion,
+            out FrameLease? frame,
+            out FrameSourceStatus status)
+        {
+            var bitmap = new Bitmap(relativeRegion.Width, relativeRegion.Height);
+            using (var graphics = Graphics.FromImage(bitmap)) graphics.Clear(color);
+            status = new FrameSourceStatus(FrameSourceState.Ready, name, "Test frame ready.", TimeSpan.Zero, 1);
+            frame = new FrameLease(bitmap, status);
+            return true;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 }

@@ -1,6 +1,6 @@
 # CuePilot product backlog
 
-This is a ranked later-work list based on the current shipping 5.1.3 code,
+This is a ranked later-work list based on the current shipping 5.1.5 code,
 the local Fishing diagnostics, and a read-only inspection of the running UI.
 It is intentionally not an authorization to enable unverified automation.
 

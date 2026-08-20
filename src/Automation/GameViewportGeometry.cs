@@ -45,4 +45,33 @@ internal static class GameViewportGeometry
             width,
             bounds.Height);
     }
+
+    internal static Rectangle AdaptiveHudSearchRegion(
+        Rectangle bounds,
+        double leftRatio,
+        double topRatio,
+        double rightRatio,
+        double bottomRatio)
+    {
+        var safeViewport = CenteredSafeViewport(bounds);
+        var region = safeViewport.SearchRegion(leftRatio, topRatio, rightRatio, bottomRatio, bounds);
+        if (Math.Abs(safeViewport.Left - bounds.Left) < 1
+            && Math.Abs(safeViewport.Width - bounds.Width) < 1)
+        {
+            return region;
+        }
+
+        // FiveM normally anchors NUI to a centered 16:9 safe canvas, but some
+        // resources and UI-scale combinations anchor to the full visible frame.
+        // Search the union on non-16:9 layouts so both conventions work without
+        // changing any prompt identity or input threshold.
+        var fullFrameViewport = new GameSafeViewport(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+        var fullFrameRegion = fullFrameViewport.SearchRegion(
+            leftRatio,
+            topRatio,
+            rightRatio,
+            bottomRatio,
+            bounds);
+        return Rectangle.Intersect(bounds, Rectangle.Union(region, fullFrameRegion));
+    }
 }

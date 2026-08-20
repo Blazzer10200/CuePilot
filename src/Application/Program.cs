@@ -182,12 +182,14 @@ internal static class Program
         {
             Console.WriteLine(
                 $"frame={transition.FrameIndex} state={transition.State} prompt={transition.Prompt} " +
-                $"meter={transition.MeterVisible} caught={transition.Caught} failed={transition.Failed} confidence={transition.Confidence:P1}");
+                $"suppressed={transition.PromptSuppressed} meter={transition.MeterVisible} " +
+                $"caught={transition.Caught} failed={transition.Failed} confidence={transition.Confidence:P1}");
         }
 
         Console.WriteLine(
             $"frames={report.FrameCount} meter_frames={report.MeterFrames} prompt_frames={report.PromptFrames} " +
-            $"caught_frames={report.CaughtFrames} detector_mean_ms={report.MeanDetectorMilliseconds:F2} transitions={report.Transitions.Count}");
+            $"suppressed_prompt_frames={report.SuppressedPromptFrames} caught_frames={report.CaughtFrames} " +
+            $"detector_mean_ms={report.MeanDetectorMilliseconds:F2} transitions={report.Transitions.Count}");
         return 0;
     }
 

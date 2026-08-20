@@ -1,48 +1,58 @@
-# Handoff — CuePilot — 2026-08-19 CDT
+# Handoff — CuePilot — 2026-08-20 00:28 CDT
 
-## Current state
+## Current Objective
 
-- CuePilot 5.1.3 is built and verified. The user-facing installer is
-  `outputs/CuePilot_5.1.3_x64-setup.exe` with SHA-256
-  `79807C9585E177F6D234936B3A32E80D0678E5FD19F38EC7A2A0DC57C2E5C94E`.
-- Fishing uses one ROI/keycap/text/luminance-based detector for Ready, Casting,
-  Waiting, Result, and Decision states. The action contract remains Cast/Keep
-  only; no parallel recognizer or full-frame background template was added.
-- Daylight/bush-video fixtures are under `tests/CuePilot.Tests/Fixtures/`.
-  The supplied six-frame daylight sequence is covered by the production meter
-  tracker and the new safe fishing replay regression.
-- CuePilot Dev and release both attempt normal Windows F10/F9/Pause shortcut
-  registration. A conflict is reported instead of silently making F10 a no-op.
-- The target card now has **Verify setup**. It is read-only: target resolution,
-  input capability, capture health/latency, and window dimensions are checked;
-  no mouse or keyboard input is emitted. The Fishing routine reuses this check
-  before it can begin.
-- Detection Review now embeds at most 12 MB of decisive frames per snapshot
-  (6 MB per frame). Omitted frames are still available through its local folder.
-- Lockpicking Class C remains fail-closed and observation-only. Concurrent
-  literal-label evidence is not yet sufficient to enable automated input.
+- Publish the fully verified CuePilot 5.1.5 fishing reliability and ultrawide/fullscreen compatibility release.
 
-## Completed verification
+## Current State
 
-1. `pwsh -NoProfile -File scripts/verify.ps1 -All` — passed: 202 .NET tests,
-   14 UI tests, 0 Svelte warnings, 8 Rust tests, and engine self-test.
-2. `npm --prefix ui run tauri:build` — passed; NSIS installer created.
-3. The staged release engine self-test passed and the copied installer hash
-   matches the generated artifact.
+- User gameplay validation passed without hiccups before the final ultrawide/version-label additions.
+- The final 5.1.5 installer is installed at `%LOCALAPPDATA%\CuePilot`; UI, engine, and uninstall registry all report 5.1.5.
+- Installer: `C:\cargo-targets\release\bundle\nsis\CuePilot_5.1.5_x64-setup.exe`.
+- Installer SHA-256: `A9178CA86E0F63555C5227C9AC7BC62FDBC0C08FAD9C2597430B4D6A6CC5D443`.
+- Branch `codex/post-release` is aligned with `origin/main`; the release batch is ready to commit, push, and tag.
 
-## Useful commands
+## Recent Relevant Changes
 
-- Fishing replay (no capture or input):
-  `dotnet run --project CuePilot.csproj -c Release -- --replay-fishing tests/CuePilot.Tests/Fixtures/Fishing`
-- Full local validation:
-  `pwsh -NoProfile -File scripts/verify.ps1 -All`
-- Development UI (do not use it as a live-control smoke test):
-  `npm --prefix ui run cdp:dev`
+- Added bounded fishing stage recovery for stale meter tracks, manually advanced prompts, ignored casts, and no-state timeouts.
+- Reused one capture source across prompt and meter sampling and preserved decisive suppression evidence for replay/diagnostics.
+- Added adaptive centered-safe-canvas plus full-frame HUD searches for 3440×1440, 5120×1440, and other non-16:9 layouts.
+- Added conservative black-frame rejection with a precise Borderless Windowed fallback when exclusive fullscreen blocks capture.
+- Added captured/synthesized regressions for the supplied ultrawide view and post-collect Cast stall.
+- Added an always-visible `v5.1.5` titlebar badge sourced from Tauri release metadata and verified it in the live WebView.
+- Removed generated build/capture artifacts, one unused prompt wrapper, and one unused test calculation; dependencies and source fixtures were preserved.
 
-## Boundaries
+## Known Problems
 
-- Keep capture, detector decisions, and all input in the .NET engine.
-- Do not enable Class C merely because its UI command exists; literal-label
-  replay evidence is the gate.
-- Preserve the 35–90 ms Fishing LMB envelope and `Pause / Break` emergency
-  release behavior.
+- Some exclusive-fullscreen/driver combinations can deny desktop capture. CuePilot now detects the black frame and directs the user to Borderless Windowed instead of silently stalling.
+- LMB pulse cadence remains intentionally unchanged pending separate live timing evidence.
+
+## Next Actions
+
+1. Commit and push the 5.1.5 batch to `codex/post-release` and fast-forward `main` without force.
+2. Tag `v5.1.5`, push the tag, and wait for the Release workflow.
+3. Verify the GitHub release installer/checksum assets and latest-release link.
+4. Refresh this handoff with the published release URL and workflow result.
+
+## Relevant Files
+
+- `src/Automation/AdaptiveRoutineEngine.cs`
+- `src/Automation/FishingPromptDetector.cs`
+- `src/Automation/FishingMeterDetector.cs`
+- `src/Automation/GameViewportGeometry.cs`
+- `src/Capture/FrameSources.cs`
+- `tests/CuePilot.Tests/FishingPromptTests.cs`
+- `tests/CuePilot.Tests/FishingMeterTests.cs`
+- `ui/src/App.svelte`
+
+## Canonical Commands
+
+- Full gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
+- Installer: `npm --prefix ui run tauri:build`
+- Release workflow: `.github/workflows/release.yml`
+
+## Important Decisions
+
+- Keep detector identity thresholds strict; recover from verified visual state transitions instead of blind input.
+- Keep capture, detection, and input authoritative in the .NET engine.
+- Keep 35–90 ms LMB pulses and `Pause / Break` emergency release unchanged until new evidence justifies a timing patch.

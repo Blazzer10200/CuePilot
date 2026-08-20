@@ -1101,12 +1101,12 @@ internal static class FishingMeterService
                 GetCaptureRegion(bounds, viewport, position.Item1, position.Item2, 0.46)));
 
         var regions = RegionsFor(safeViewport);
-        if (safeViewport.Left < bounds.Left)
+        if (Math.Abs(safeViewport.Left - bounds.Left) >= 1
+            || Math.Abs(safeViewport.Width - bounds.Width) >= 1)
         {
-            // Some captured/windowed FiveM layouts position NUI relative to the
-            // visible frame rather than a center-cropped 16:9 canvas. Probe the
-            // previously supported frame-relative positions as a bounded narrow-
-            // aspect fallback so compatibility is additive rather than exclusive.
+            // Some FiveM resources position NUI relative to the full visible
+            // frame rather than the virtual 16:9 canvas. Probe both on every
+            // non-16:9 layout, including 3440x1440 and 5120x1440 ultrawide.
             regions = regions.Concat(RegionsFor(new GameSafeViewport(
                 bounds.Left,
                 bounds.Top,

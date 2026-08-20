@@ -9,6 +9,7 @@ internal sealed record FishingReplayTransition(
     int FrameIndex,
     FishingHudState State,
     FishingPromptKind Prompt,
+    bool PromptSuppressed,
     bool MeterVisible,
     bool Caught,
     bool Failed,
@@ -18,6 +19,7 @@ internal sealed record FishingReplayReport(
     int FrameCount,
     int MeterFrames,
     int PromptFrames,
+    int SuppressedPromptFrames,
     int CaughtFrames,
     double MeanDetectorMilliseconds,
     IReadOnlyList<FishingReplayTransition> Transitions);
@@ -33,6 +35,7 @@ internal static class FishingReplayService
         var frameCount = 0;
         var meterFrames = 0;
         var promptFrames = 0;
+        var suppressedPromptFrames = 0;
         var caughtFrames = 0;
         var elapsedTicks = 0L;
         string? previousKey = null;
@@ -47,6 +50,9 @@ internal static class FishingReplayService
 
             if (meter.IsVisible) meterFrames++;
             if (prompt.Kind != FishingPromptKind.None) promptFrames++;
+            var promptSuppressed = prompt.Kind != FishingPromptKind.None &&
+                FishingPromptArbitration.ShouldSuppress(prompt, meter);
+            if (promptSuppressed) suppressedPromptFrames++;
             if (meter.IsCaught) caughtFrames++;
 
             // A real HUD state outranks the inferred active-meter state. The
@@ -56,13 +62,14 @@ internal static class FishingReplayService
                 ? prompt.State
                 : meter.IsVisible ? FishingHudState.Casting : FishingHudState.None;
             var confidence = Math.Max(prompt.StateConfidence, meter.Confidence);
-            var key = $"{state}:{prompt.Kind}:{meter.IsVisible}:{meter.IsCaught}:{meter.IsFailed}";
+            var key = $"{state}:{prompt.Kind}:{promptSuppressed}:{meter.IsVisible}:{meter.IsCaught}:{meter.IsFailed}";
             if (!string.Equals(previousKey, key, StringComparison.Ordinal))
             {
                 transitions.Add(new FishingReplayTransition(
                     frameCount,
                     state,
                     prompt.Kind,
+                    promptSuppressed,
                     meter.IsVisible,
                     meter.IsCaught,
                     meter.IsFailed,
@@ -80,6 +87,7 @@ internal static class FishingReplayService
             frameCount,
             meterFrames,
             promptFrames,
+            suppressedPromptFrames,
             caughtFrames,
             meanMilliseconds,
             transitions);

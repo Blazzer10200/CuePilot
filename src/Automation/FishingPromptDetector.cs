@@ -110,14 +110,17 @@ internal sealed class FishingPromptStabilityGate(
 
 internal static class FishingPromptArbitration
 {
+    private const double ReadyStateOverrideGate = 0.90;
+
     internal static bool ShouldSuppress(
         FishingPromptObservation prompt,
         FishingMeterObservation meter) =>
-        // A live tension meter means an old Cast prompt must not trigger another E press.
-        // The result/decision panel also uses E, however, and can legitimately appear while
-        // a meter remains on screen (or while the meter detector is still locked to its old
-        // geometry).  Blocking a verified Collect prompt there strands the fishing loop.
-        prompt.Kind == FishingPromptKind.Cast && meter.IsVisible;
+        // An ambiguous Cast match must never interrupt a live tension meter. A strongly
+        // classified Ready HUD is different: it is direct evidence that the minigame has
+        // ended and it must outrank stale meter geometry retained from the previous fish.
+        prompt.Kind == FishingPromptKind.Cast &&
+        meter.IsVisible &&
+        (prompt.State != FishingHudState.Ready || prompt.StateConfidence < ReadyStateOverrideGate);
 }
 
 internal sealed class FishingPromptClearGate(FishingPromptKind pressed, int requiredMissingSamples = 3)
@@ -160,9 +163,8 @@ internal static class FishingPromptDetector
         using var pixels = new PixelBuffer(bitmap);
         var usePromptRegion = pixels.Width >= 640 && pixels.Height >= 360;
         var frameBounds = new Rectangle(0, 0, pixels.Width, pixels.Height);
-        var safeViewport = GameViewportGeometry.CenteredSafeViewport(frameBounds);
         var brightSearchRegion = usePromptRegion
-            ? safeViewport.SearchRegion(0.25, 0.55, 0.88, 1, frameBounds)
+            ? GameViewportGeometry.AdaptiveHudSearchRegion(frameBounds, 0.25, 0.55, 0.88, 1)
             : new Rectangle(0, 0, pixels.Width, pixels.Height);
         var brightPoints = pixels.FindNeutralPoints(200, 35, brightSearchRegion);
         var templates = Templates.Value;
@@ -256,15 +258,6 @@ internal static class FishingPromptDetector
         return new FishingHudObservation(FishingHudState.None, Math.Max(prompt.Confidence, meter.Observation.Confidence), prompt);
     }
 
-    internal static FishingPromptObservation Observe(
-        IFrameSource frameSource,
-        WindowTargetSettings target,
-        out FrameSourceStatus status)
-    {
-        using var sample = CaptureAndAnalyze(frameSource, target, out status);
-        return sample?.Observation ?? new FishingPromptObservation(FishingPromptKind.None, 0);
-    }
-
     internal static FishingPromptFrameSample? CaptureAndAnalyze(
         IFrameSource frameSource,
         WindowTargetSettings target,
@@ -296,9 +289,8 @@ internal static class FishingPromptDetector
         if (template.Width > source.Width || template.Height > source.Height) return default;
         var usePromptRegion = source.Width >= 640 && source.Height >= 360;
         var sourceBounds = new Rectangle(0, 0, source.Width, source.Height);
-        var safeViewport = GameViewportGeometry.CenteredSafeViewport(sourceBounds);
         var promptRegion = usePromptRegion
-            ? safeViewport.SearchRegion(0.25, 0.55, 0.88, 1, sourceBounds)
+            ? GameViewportGeometry.AdaptiveHudSearchRegion(sourceBounds, 0.25, 0.55, 0.88, 1)
             : sourceBounds;
         var minimumX = promptRegion.Left;
         var maximumX = promptRegion.Right;

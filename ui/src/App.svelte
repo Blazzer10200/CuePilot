@@ -649,7 +649,7 @@
   <div class="titlebar" role="group" aria-label="Window controls" onpointerdown={startDragging}>
     <div class="brand">
       <div class="mark" aria-hidden="true"><img src={brandIcon} alt="" /></div>
-      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}</span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
+      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<span class="app-version" aria-label={`Version ${__APP_VERSION__}`}>v{__APP_VERSION__}</span></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
     </div>
     <div class="drag-hint" aria-hidden="true"><GripHorizontal size={16} /> DRAG WINDOW</div>
     <div class="top-actions">

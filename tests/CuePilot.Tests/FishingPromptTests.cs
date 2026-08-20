@@ -225,6 +225,40 @@ public sealed class FishingPromptTests
     }
 
     [Fact]
+    public void ConfirmedReadyCastOutranksAStaleTrackedMeter()
+    {
+        using var meterFrame = LoadFishingFixture("live-2560-real-meter-lock.png");
+        using var castFrame = LoadFishingFixture("live-2560-ready-cast-after-collect.png");
+        var tracker = new FishingMeterTracker();
+
+        _ = FishingMeterService.AnalyzeFrameDetailed(meterFrame, tracker);
+        _ = FishingMeterService.AnalyzeFrameDetailed(meterFrame, tracker);
+        var staleMeter = FishingMeterService.AnalyzeFrameDetailed(castFrame, tracker).Observation;
+        var prompt = FishingPromptDetector.Analyze(castFrame);
+
+        Assert.True(staleMeter.IsVisible, "The captured regression frame must reproduce the stale meter lock.");
+        Assert.Equal(FishingPromptKind.Cast, prompt.Kind);
+        Assert.Equal(FishingHudState.Ready, prompt.State);
+        Assert.True(prompt.StateConfidence >= 0.90, prompt.ToString());
+        Assert.False(FishingPromptArbitration.ShouldSuppress(prompt, staleMeter));
+    }
+
+    [Fact]
+    public void ReplayReportsTheCapturedReadyCastAsActionableDespiteTheStaleMeter()
+    {
+        var fixtureDirectory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Fishing");
+        var meter = Path.Combine(fixtureDirectory, "live-2560-real-meter-lock.png");
+        var cast = Path.Combine(fixtureDirectory, "live-2560-ready-cast-after-collect.png");
+
+        var report = FishingReplayService.Replay(new[] { meter, meter, cast });
+        var castTransition = Assert.Single(report.Transitions, item => item.Prompt == FishingPromptKind.Cast);
+
+        Assert.True(castTransition.MeterVisible);
+        Assert.False(castTransition.PromptSuppressed);
+        Assert.Equal(0, report.SuppressedPromptFrames);
+    }
+
+    [Fact]
     public void PromptGateCanBeResetAfterCrossDetectorSuppression()
     {
         var gate = new FishingPromptStabilityGate(FishingPromptKind.Cast);
@@ -430,6 +464,47 @@ public sealed class FishingPromptTests
         Assert.True(observation.Kind == FishingPromptKind.Cast,
             $"{frameWidth}x1440: {observation}{Environment.NewLine}{evidence}");
         Assert.True(observation.Confidence >= 0.65, observation.ToString());
+    }
+
+    [Fact]
+    public void SuppliedUltrawidePreviewNeverBecomesAnActionablePrompt()
+    {
+        using var sharedPreview = LoadFishingFixture("live-ultrawide-waiting-preview.png");
+        using var frame = new Bitmap(3440, 1440);
+        using (var graphics = Graphics.FromImage(frame))
+        {
+            graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            graphics.DrawImage(
+                sharedPreview,
+                new Rectangle(0, 0, frame.Width, frame.Height),
+                new Rectangle(0, 0, sharedPreview.Width, sharedPreview.Height),
+                GraphicsUnit.Pixel);
+        }
+
+        var hud = FishingPromptDetector.AnalyzeHudState(frame, out _);
+
+        Assert.Equal(FishingPromptKind.None, hud.Prompt.Kind);
+    }
+
+    [Fact]
+    public void CastPromptIsFoundInAFullWidthUltrawideHudLayout()
+    {
+        using var prompt = LoadFixture("cast-ready.png");
+        using var frame = new Bitmap(3440, 1440);
+        using (var graphics = Graphics.FromImage(frame))
+        {
+            graphics.Clear(Color.FromArgb(9, 14, 16));
+            graphics.DrawImage(
+                prompt,
+                new Rectangle(900, 960, prompt.Width, prompt.Height),
+                new Rectangle(0, 0, prompt.Width, prompt.Height),
+                GraphicsUnit.Pixel);
+        }
+
+        var observation = FishingPromptDetector.Analyze(frame, out var evidence);
+
+        Assert.Equal(FishingPromptKind.Cast, observation.Kind);
+        Assert.True(observation.Confidence >= 0.65, evidence.ToString());
     }
 
     [Theory]

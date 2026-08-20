@@ -14,7 +14,6 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     private FishingRoutineSettings settings = new();
     private CancellationTokenSource? cancellation;
     private IFrameSource? frameSource;
-    private IFrameSource? promptFrameSource;
     private TargetInputRouter input = new(InputDeliveryMode.Automatic);
     private readonly FishingMeterTracker meterTracker = new();
     private FishingDebugSession? latestDebugSession;
@@ -44,8 +43,6 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             cancellation = new CancellationTokenSource();
             frameSource?.Dispose();
             frameSource = FrameSourceFactory.Create();
-            promptFrameSource?.Dispose();
-            promptFrameSource = FrameSourceFactory.Create();
             meterTracker.Reset();
             input = new TargetInputRouter(settings.InputMode);
             var debugSession = new FishingDebugSession(settings);
@@ -77,10 +74,19 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             {
                 SetState(RoutineState.Armed, "Line cast. Watching the target application for the fishing meter.");
                 debugSession.SetStage("Meter", "Watching for a stable tension meter.");
-                var detected = await WaitForMeterAsync(token, debugSession);
-                if (!detected)
+                var meterOutcome = await WaitForMeterAsync(token, debugSession);
+                if (meterOutcome == MeterWaitOutcome.CastPromptReady)
                 {
-                    FishingLoopDiagnosticLog.Write("cast_retry_requested", "Cast prompt remained visible while waiting for the meter.");
+                    FishingLoopDiagnosticLog.Write("cast_retry_requested", "Cast prompt remained visible while waiting for the meter; resynchronizing.");
+                    await WaitForPromptAndPressAsync(FishingPromptKind.Cast, token, debugSession);
+                    continue;
+                }
+
+                if (meterOutcome == MeterWaitOutcome.CollectPromptReady)
+                {
+                    FishingLoopDiagnosticLog.Write("collect_resync_requested", "Collect prompt appeared while waiting for the meter; resynchronizing.");
+                    meterTracker.Reset();
+                    await WaitForPromptAndPressAsync(FishingPromptKind.Collect, token, debugSession);
                     await WaitForPromptAndPressAsync(FishingPromptKind.Cast, token, debugSession);
                     continue;
                 }
@@ -91,6 +97,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 debugSession.SetStage("Regulating", "Meter locked; running bounded tension control.");
                 var result = await Task.Run(() => RegulateFishingMeter(token, debugSession), CancellationToken.None);
                 token.ThrowIfCancellationRequested();
+                meterTracker.Reset();
+                debugSession.Record("meter", "tracker_reset", new { reason = "regulation_ended", result.ShouldCollect });
                 FishingLoopDiagnosticLog.Write(result.ShouldCollect ? "meter_complete" : "meter_reacquire_failed", result.Detail);
 
                 if (!result.ShouldCollect)
@@ -149,15 +157,17 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         await Task.Delay(150, token);
     }
 
-    private async Task<bool> WaitForMeterAsync(CancellationToken token, FishingDebugSession debugSession)
+    private async Task<MeterWaitOutcome> WaitForMeterAsync(CancellationToken token, FishingDebugSession debugSession)
     {
         var meterGate = new FishingMeterStabilityGate();
         var castPromptGate = new FishingPromptStabilityGate(FishingPromptKind.Cast);
+        var collectPromptGate = new FishingPromptStabilityGate(FishingPromptKind.Collect);
         var unavailableTargetSamples = 0;
         var failedCaptureSamples = 0;
         var sampleCount = 0;
+        var clock = Stopwatch.StartNew();
         using var diagnostics = new FishingDiagnosticLog();
-        while (!token.IsCancellationRequested)
+        while (!token.IsCancellationRequested && clock.Elapsed < TimeSpan.FromSeconds(120))
         {
             using var sample = CaptureMeter(out var captureStatus);
             var observation = sample?.Observation ?? FishingMeterObservation.Missing;
@@ -198,17 +208,45 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             {
                 if (sample is not null)
                 {
+                    var prompt = FishingPromptDetector.Analyze(sample.Frame.Bitmap);
+                    if (prompt.Kind == FishingPromptKind.Cast &&
+                        prompt.State == FishingHudState.Ready &&
+                        prompt.StateConfidence >= 0.90)
+                    {
+                        debugSession.Record("meter", "ready_cast_overrode_meter_lock", new
+                        {
+                            sampleCount,
+                            prompt.Confidence,
+                            prompt.StateConfidence,
+                            meterConfidence = observation.Confidence,
+                        });
+                        meterTracker.Reset();
+                        return MeterWaitOutcome.CastPromptReady;
+                    }
+
+                    if (prompt.Kind == FishingPromptKind.Collect)
+                    {
+                        debugSession.Record("meter", "collect_overrode_meter_lock", new
+                        {
+                            sampleCount,
+                            prompt.Confidence,
+                            meterConfidence = observation.Confidence,
+                        });
+                        meterTracker.Reset();
+                        return MeterWaitOutcome.CollectPromptReady;
+                    }
+
                     diagnostics.CaptureEvidence("meter-lock", sample.Frame.Bitmap, sample.Analysis);
                     debugSession.Record("meter", "stability_gate_passed", new { sampleCount, observation.Confidence });
                 }
-                return true;
+                return MeterWaitOutcome.MeterLocked;
             }
 
             // If the cast press was ignored (or prompt clearing was a visual
             // false-negative), do not wait forever for a meter that cannot start.
             // Re-check the verified cast prompt at a low frequency and return to
             // the bounded prompt/input retry path when it persists.
-            if (sampleCount % 20 == 0)
+            if (sampleCount % 10 == 0)
             {
                 using var promptSample = CapturePrompt(out var promptStatus);
                 var prompt = promptSample?.Observation ?? new FishingPromptObservation(FishingPromptKind.None, 0);
@@ -217,21 +255,41 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 {
                     debugSession.RecordPrompt(FishingPromptKind.Cast, prompt, promptSample.Evidence, promptSample.Frame, sampleCount);
                 }
-                if (promptStatus.State == FrameSourceState.Ready && castPromptGate.Observe(prompt))
+                if (promptStatus.State == FrameSourceState.Ready)
                 {
-                    var sameFrameMeter = FishingMeterService.AnalyzeFrameDetailed(
-                        promptSample!.Frame.Bitmap,
-                        meterTracker);
-                    if (FishingPromptArbitration.ShouldSuppress(prompt, sameFrameMeter.Observation))
+                    var castReady = castPromptGate.Observe(prompt);
+                    var collectReady = collectPromptGate.Observe(prompt);
+                    if (collectReady)
                     {
-                        castPromptGate.Reset();
-                        FishingLoopDiagnosticLog.Write(
-                            "prompt_suppressed_meter_visible",
-                            $"prompt={prompt.Confidence:F3};meter={sameFrameMeter.Observation.Confidence:F3}");
-                        continue;
+                        meterTracker.Reset();
+                        debugSession.Record("meter", "collect_prompt_resync", new { sampleCount, prompt.Confidence });
+                        return MeterWaitOutcome.CollectPromptReady;
                     }
 
-                    return false;
+                    if (castReady)
+                    {
+                        var sameFrameMeter = FishingMeterService.AnalyzeFrameDetailed(
+                            promptSample!.Frame.Bitmap,
+                            meterTracker);
+                        if (FishingPromptArbitration.ShouldSuppress(prompt, sameFrameMeter.Observation))
+                        {
+                            castPromptGate.Reset();
+                            FishingLoopDiagnosticLog.Write(
+                                "prompt_suppressed_meter_visible",
+                                $"prompt={prompt.Confidence:F3};meter={sameFrameMeter.Observation.Confidence:F3}");
+                            debugSession.RecordPromptSuppression(
+                                FishingPromptKind.Cast,
+                                prompt,
+                                promptSample.Evidence,
+                                sameFrameMeter,
+                                promptSample.Frame,
+                                sampleCount);
+                            continue;
+                        }
+
+                        meterTracker.Reset();
+                        return MeterWaitOutcome.CastPromptReady;
+                    }
                 }
             }
 
@@ -244,7 +302,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             await Task.Delay(settings.FishingSampleMilliseconds, token);
         }
 
-        return false;
+        token.ThrowIfCancellationRequested();
+        throw new TimeoutException(
+            "No stable fishing meter or verified fishing action prompt appeared for 120 seconds. Automation stopped instead of leaving the loop stalled.");
     }
 
     private FishingMeterFrameSample? CaptureMeter(out FrameSourceStatus status)
@@ -258,6 +318,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         var label = expected == FishingPromptKind.Cast ? "Cast Fishing Line" : "Keep Fish";
         var promptState = expected == FishingPromptKind.Cast ? RoutineState.Casting : RoutineState.Collecting;
         var stabilityGate = new FishingPromptStabilityGate(expected);
+        var alternate = expected == FishingPromptKind.Cast ? FishingPromptKind.Collect : FishingPromptKind.Cast;
+        var alternateGate = new FishingPromptStabilityGate(alternate);
         var unavailableTargetSamples = 0;
         var failedCaptureSamples = 0;
         var sampleCount = 0;
@@ -293,7 +355,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             {
                 debugSession.RecordPrompt(expected, observation, promptSample.Evidence, promptSample.Frame, sampleCount);
             }
-            if (stabilityGate.Observe(observation))
+            var expectedStable = stabilityGate.Observe(observation);
+            var alternateStable = alternateGate.Observe(observation);
+            if (expectedStable)
             {
                 debugSession.Record("prompt", "stability_gate_passed", new { expected, sampleCount, observation.Confidence });
                 var sameFrameMeter = FishingMeterService.AnalyzeFrameDetailed(
@@ -305,12 +369,13 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                     FishingLoopDiagnosticLog.Write(
                         "prompt_suppressed_meter_visible",
                         $"kind={expected};prompt={observation.Confidence:F3};meter={sameFrameMeter.Observation.Confidence:F3}");
-                    debugSession.Record("prompt", "suppressed_by_meter", new
-                    {
+                    debugSession.RecordPromptSuppression(
                         expected,
-                        promptConfidence = observation.Confidence,
-                        meterConfidence = sameFrameMeter.Observation.Confidence,
-                    });
+                        observation,
+                        promptSample.Evidence,
+                        sameFrameMeter,
+                        promptSample.Frame,
+                        sampleCount);
                     SetState(promptState, "Meter remains visible; holding input while the detector reacquires its state.");
                     await Task.Delay(Math.Max(120, settings.FishingSampleMilliseconds), token);
                     continue;
@@ -328,13 +393,50 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                     FishingLoopDiagnosticLog.Write($"{eventPrefix}_e_end", $"attempt={attempt}");
                     if (await WaitForPromptToClearAsync(expected, token, debugSession))
                     {
-                        if (expected == FishingPromptKind.Cast) meterTracker.Reset();
+                        meterTracker.Reset();
+                        debugSession.Record("meter", "tracker_reset", new { reason = $"{expected}_prompt_cleared" });
                         return;
                     }
                 }
 
                 throw new InvalidOperationException(
                     $"The verified “{label}” prompt remained after {maximumAttempts} E press{(maximumAttempts == 1 ? string.Empty : "es")}; automation stopped to prevent input spam.");
+            }
+
+            if (alternateStable)
+            {
+                debugSession.Record("prompt", "stage_resynchronized", new
+                {
+                    expected,
+                    observed = alternate,
+                    sampleCount,
+                    observation.Confidence,
+                    observation.State,
+                    observation.StateConfidence,
+                });
+                FishingLoopDiagnosticLog.Write(
+                    "prompt_stage_resynchronized",
+                    $"expected={expected};observed={alternate};confidence={observation.Confidence:F3}");
+                meterTracker.Reset();
+
+                if (expected == FishingPromptKind.Collect)
+                {
+                    // A stable Cast prompt proves that Keep Fish was already handled (for
+                    // example by a manual E press). Let the caller continue at Cast instead
+                    // of spending the remainder of the timeout waiting for an obsolete state.
+                    return;
+                }
+
+                // If the routine was waiting for Cast but a result prompt is already on
+                // screen, collect it through the same verified bounded input path and then
+                // resume this Cast wait with fresh stability gates and timeout budget.
+                await WaitForPromptAndPressAsync(FishingPromptKind.Collect, token, debugSession);
+                stabilityGate.Reset();
+                alternateGate.Reset();
+                clock.Restart();
+                debugSession.SetStage("Cast", "Fishing stage recovered; waiting for the verified Cast Fishing Line prompt.");
+                SetState(RoutineState.Casting, "Fishing stage recovered. Waiting for the verified “Cast Fishing Line” prompt.");
+                continue;
             }
 
             if (sampleCount % 10 == 0)
@@ -374,15 +476,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         return false;
     }
 
-    private FishingPromptObservation ObservePrompt(out FrameSourceStatus status)
-    {
-        var source = promptFrameSource ?? throw new InvalidOperationException("No prompt frame source is configured.");
-        return FishingPromptDetector.Observe(source, settings.TargetWindow, out status);
-    }
-
     private FishingPromptFrameSample? CapturePrompt(out FrameSourceStatus status)
     {
-        var source = promptFrameSource ?? throw new InvalidOperationException("No prompt frame source is configured.");
+        var source = frameSource ?? throw new InvalidOperationException("No frame source is configured.");
         return FishingPromptDetector.CaptureAndAnalyze(source, settings.TargetWindow, out status);
     }
 
@@ -602,7 +698,13 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         Stop();
         cancellation?.Dispose();
         frameSource?.Dispose();
-        promptFrameSource?.Dispose();
+    }
+
+    private enum MeterWaitOutcome
+    {
+        MeterLocked,
+        CastPromptReady,
+        CollectPromptReady,
     }
 
     private sealed record CycleResult(bool ShouldCollect, string Detail);

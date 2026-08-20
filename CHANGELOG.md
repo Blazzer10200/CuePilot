@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.1.5 - 2026-08-20 - Ultrawide and fullscreen capture
+
+- Added dual-layout HUD searches for 3440×1440, 5120×1440, and other non-16:9 targets so prompts and meters can be anchored either to FiveM's centered 16:9 safe canvas or to the full visible frame.
+- Added captured and synthesized ultrawide regressions covering the supplied 3440×1440 view, centered meter acquisition, full-width Cast detection, and safe rejection of the degraded preview as an actionable prompt.
+- Kept DXGI Desktop Duplication as the authoritative fullscreen-capable capture path, retained automatic recreation after display-mode changes, and now rejects silent black frames with a precise Borderless Windowed fallback instead of stalling detection.
+- Added an always-visible titlebar version badge sourced from the packaged Tauri version, making the installed build immediately identifiable.
+
+## 5.1.4 - 2026-08-19 - Self-healing fishing detection
+
+- Fixed post-catch stalls where a stale meter track could overrule a strongly verified Cast Fishing Line prompt, including the captured 2560×1440 daytime failure.
+- Added bounded cross-stage recovery so the loop can collect a fish discovered during meter acquisition, recognize a manually handled collection, retry an ignored cast, and stop safely instead of waiting forever when no valid visual state appears.
+- Reused one authoritative desktop capture pipeline for prompts and the meter, avoiding duplicate DXGI sessions and unnecessary fallback capture churn.
+- Added exact-frame evidence for prompt-versus-meter suppressions and improved meter near-miss ranking so future Detection Review sessions preserve the frames that actually explain a stall.
+
 ## 5.1.3 - 2026-08-19 - Verified fishing setup and replay
 
 - Added a read-only **Verify setup** check beside target selection. It reports the selected FiveM target, physical-input readiness, capture backend and latency, and detected window size before a Fishing start; the same checks are now reused by routine preflight.

@@ -213,7 +213,7 @@ internal sealed class FishingDebugSession : IDisposable
             : candidate?.Evidence.DecisionReason ?? "No meter candidate in the calibrated regions";
         var confidence = observation.IsVisible
             ? observation.Confidence
-            : candidate?.Evidence.CandidateConfidence ?? 0;
+            : MeterAcquisitionProximity(candidate);
         var decision = new FishingDebugDecision(
             observation.IsFailed ? "Failed" : observation.IsCaught ? "Caught" : observation.IsVisible ? "Active" : "Missing",
             confidence,
@@ -231,6 +231,33 @@ internal sealed class FishingDebugSession : IDisposable
             var label = observation.IsVisible ? "meter-confirmed" : "meter-best-near-miss";
             SaveBestFrame(label, confidence, frame.Bitmap, new { observation, candidate, analysis.CandidateCount, sampleCount });
         }
+    }
+
+    internal void RecordPromptSuppression(
+        FishingPromptKind expected,
+        FishingPromptObservation observation,
+        FishingPromptEvidence evidence,
+        FishingMeterFrameAnalysis meterAnalysis,
+        FrameLease frame,
+        int sampleCount)
+    {
+        var detail = new
+        {
+            expected,
+            observation,
+            evidence,
+            meter = meterAnalysis.Observation,
+            meterCandidate = meterAnalysis.PrimaryCandidate,
+            meterAnalysis.CandidateCount,
+            meterAnalysis.UsedTrackedRegion,
+            sampleCount,
+        };
+        Record("prompt", "suppressed_by_meter", detail);
+        SaveBestFrame(
+            "prompt-suppressed-by-meter",
+            Math.Max(observation.Confidence, meterAnalysis.Observation.Confidence),
+            frame.Bitmap,
+            detail);
     }
 
     internal void Record(string category, string eventName, object? detail = null)
@@ -266,6 +293,22 @@ internal sealed class FishingDebugSession : IDisposable
 
     private void SaveBestFrame(string label, double score, Bitmap exactFrame, object metadata)
         => SaveFrame(label, score, exactFrame, metadata, onlyIfBetter: true);
+
+    private static double MeterAcquisitionProximity(FishingMeterCandidateEvidence? candidate)
+    {
+        if (candidate is null) return 0;
+        var evidence = candidate.Value.Evidence;
+        // CandidateConfidence can reach 100% for ordinary dark scenery before the
+        // active-meter identity gate rejects it. Weight the actual independent
+        // identity signals so the saved near-miss is useful for future diagnosis.
+        return Math.Clamp(
+            (evidence.LmbPromptStrength * 0.45) +
+            (evidence.RingStrength * 0.25) +
+            (evidence.DarkDisk * 0.15) +
+            (evidence.DiskContrast * 0.15),
+            0,
+            1);
+    }
 
     private void SavePromptRollFrame(
         Bitmap exactFrame,

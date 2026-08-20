@@ -57,7 +57,7 @@ internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fal
     {
         if (primary.TryCapture(target, relativeRegion, out frame, out status))
         {
-            return true;
+            if (AcceptVisibleFrame(ref frame, ref status)) return true;
         }
 
         if (status.State is FrameSourceState.TargetUnavailable or FrameSourceState.TargetMinimized
@@ -69,12 +69,15 @@ internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fal
         var primaryFailure = status;
         if (fallback.TryCapture(target, relativeRegion, out frame, out status))
         {
-            status = status with
+            if (AcceptVisibleFrame(ref frame, ref status))
             {
-                Detail = $"Fallback active after {primaryFailure.Backend} failed: {primaryFailure.Detail}",
-            };
-            frame!.UpdateStatus(status);
-            return true;
+                status = status with
+                {
+                    Detail = $"Fallback active after {primaryFailure.Backend} failed: {primaryFailure.Detail}",
+                };
+                frame!.UpdateStatus(status);
+                return true;
+            }
         }
 
         status = status with
@@ -84,10 +87,55 @@ internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fal
         return false;
     }
 
+    private static bool AcceptVisibleFrame(ref FrameLease? frame, ref FrameSourceStatus status)
+    {
+        if (frame is not null && !CapturedFrameHealth.IsNearlyUniformBlack(frame.Bitmap))
+        {
+            return true;
+        }
+
+        frame?.Dispose();
+        frame = null;
+        status = status with
+        {
+            State = FrameSourceState.CaptureFailed,
+            Detail = "Capture returned a nearly uniform black frame. Exclusive fullscreen may be blocking desktop capture; switch FiveM to Borderless Windowed and run Verify setup again.",
+        };
+        return false;
+    }
+
     public void Dispose()
     {
         primary.Dispose();
         fallback.Dispose();
+    }
+}
+
+internal static class CapturedFrameHealth
+{
+    internal static bool IsNearlyUniformBlack(Bitmap bitmap)
+    {
+        if (bitmap.Width <= 0 || bitmap.Height <= 0) return true;
+
+        var minimum = 255;
+        var maximum = 0;
+        const int columns = 17;
+        const int rows = 11;
+        for (var row = 0; row < rows; row++)
+        {
+            var y = Math.Min(bitmap.Height - 1, (row * 2 + 1) * bitmap.Height / (rows * 2));
+            for (var column = 0; column < columns; column++)
+            {
+                var x = Math.Min(bitmap.Width - 1, (column * 2 + 1) * bitmap.Width / (columns * 2));
+                var color = bitmap.GetPixel(x, y);
+                var brightness = Math.Max(color.R, Math.Max(color.G, color.B));
+                minimum = Math.Min(minimum, brightness);
+                maximum = Math.Max(maximum, brightness);
+                if (maximum > 8 || maximum - minimum > 4) return false;
+            }
+        }
+
+        return maximum <= 8 && maximum - minimum <= 4;
     }
 }
 
