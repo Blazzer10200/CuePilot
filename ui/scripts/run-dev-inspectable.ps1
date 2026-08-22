@@ -10,10 +10,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $uiRoot = Split-Path -Parent $PSScriptRoot
+$repoRoot = Split-Path -Parent $uiRoot
 $cdpPort = 9322
-$profilePath = Join-Path $env:LOCALAPPDATA 'CuePilot Dev\EBWebView-Inspect'
+$launchStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$profilePath = Join-Path $repoRoot "tmp\webview-dev-profile-$launchStamp"
+$cargoTargetPath = Join-Path $repoRoot 'tmp\cargo-dev'
 $batchPath = Join-Path $env:TEMP 'cuepilot-inspect-dev.bat'
 $taskName = 'CuePilotInspectDev'
+$stdoutPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.out.log"
+$stderrPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.err.log"
+$env:CARGO_TARGET_DIR = $cargoTargetPath
 
 function Test-Elevated {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -53,7 +59,13 @@ function Test-CuePilotDevExecutable {
 }
 
 function Stop-StaleCuePilotDev {
-    $processes = @(Get-CimInstance Win32_Process)
+    try {
+        $processes = @(Get-CimInstance Win32_Process -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning '[cdp:dev] Windows process inventory is unavailable; skipping stale-process cleanup.'
+        return
+    }
     $devApps = @($processes | Where-Object {
         $_.Name -eq 'cuepilot-ui.exe' -and (Test-CuePilotDevExecutable $_.ExecutablePath)
     })
@@ -115,9 +127,14 @@ function Stop-StaleCuePilotDev {
     }
 
     for ($attempt = 0; $attempt -lt 20; $attempt++) {
-        $remaining = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object {
-            $_.CommandLine -and $_.CommandLine.Contains($profilePath, [System.StringComparison]::OrdinalIgnoreCase)
-        }).Count
+        try {
+            $remaining = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" -ErrorAction Stop | Where-Object {
+                $_.CommandLine -and $_.CommandLine.Contains($profilePath, [System.StringComparison]::OrdinalIgnoreCase)
+            }).Count
+        }
+        catch {
+            break
+        }
         if ($remaining -eq 0) {
             break
         }
@@ -138,6 +155,8 @@ if (-not $NoKill) {
 
 $devCommand = @"
 @echo off
+set "CARGO_TARGET_DIR=$cargoTargetPath"
+set "CUEPILOT_OVERLAY_ENABLED=0"
 set "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=$cdpPort --remote-debugging-address=127.0.0.1 --remote-allow-origins=*"
 set "WEBVIEW2_USER_DATA_FOLDER=$profilePath"
 cd /d "$uiRoot"
@@ -167,8 +186,9 @@ if (Test-Elevated) {
     Write-Output '[cdp:dev] inspectable app launched; temporary scheduled task removed.'
 }
 else {
-    Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$batchPath`"" -WindowStyle Hidden
-    Write-Output '[cdp:dev] inspectable app launched in the background.'
+    Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$batchPath`"" -WindowStyle Hidden `
+        -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    Write-Output "[cdp:dev] inspectable app launched in the background; logs: $stdoutPath and $stderrPath"
 }
 
 if ($WaitForCdp) {
@@ -191,7 +211,7 @@ if ($WaitForCdp) {
     }
 
     if ($readyCount -lt 2) {
-        throw "WebView2 CDP did not bind within 120 seconds. Run 'npm run cdp:doctor' for the next check."
+        throw "WebView2 CDP did not bind within 120 seconds. Review $stdoutPath and $stderrPath, then run 'npm run cdp:doctor'."
     }
     Write-Output "[cdp:dev] WebView2 CDP is ready on 127.0.0.1:$cdpPort."
 }

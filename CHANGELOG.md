@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.1.7 - 2026-08-21 - Faster casts and clearer controls
+
+- Added a guarded one-click casting-bar accelerator that waits five seconds after casting by default, clicks only once, and skips itself when the circular meter or another actionable prompt appears first.
+- Added a prominent Fishing Start/Stop control, explicit five-stage progress, clearer status and safety messaging, Basic/Advanced settings guidance, and a persistent Detection Review action area.
+- Clarified Vehicle Lockpicking as observe-only calibration, with the unverified Class C control and technical telemetry kept out of the primary workflow.
+- Hardened capture construction, window/process validation, diagnostic isolation, culture-independent replay parsing, and native DLL lookup without changing CuePilot's local-only security boundary.
+- Kept the experimental game overlay disabled by default while its native visibility behavior remains under evaluation.
+
 ## 5.1.5 - 2026-08-20 - Ultrawide and fullscreen capture
 
 - Added dual-layout HUD searches for 3440×1440, 5120×1440, and other non-16:9 targets so prompts and meters can be anchored either to FiveM's centered 16:9 safe canvas or to the full visible frame.

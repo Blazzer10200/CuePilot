@@ -44,9 +44,25 @@ internal interface IFrameSource : IDisposable
 
 internal static class FrameSourceFactory
 {
-    internal static IFrameSource Create() => new FallbackFrameSource(
-        new DxgiFrameSource(),
-        new GdiFrameSource());
+    internal static IFrameSource Create()
+    {
+        IFrameSource? primary = null;
+        IFrameSource? fallback = null;
+        try
+        {
+            primary = new DxgiFrameSource();
+            fallback = new GdiFrameSource();
+            var combined = new FallbackFrameSource(primary, fallback);
+            primary = null;
+            fallback = null;
+            return combined;
+        }
+        finally
+        {
+            primary?.Dispose();
+            fallback?.Dispose();
+        }
+    }
 }
 
 internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fallback) : IFrameSource

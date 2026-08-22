@@ -5,8 +5,8 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
     Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
-    Gauge, GripHorizontal, Maximize2, Minus, Monitor, Radio, RefreshCw, ScanEye, Settings2,
-    ShieldCheck, Terminal, Waves, X,
+    Gauge, GripHorizontal, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
+    ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
   import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
   import { getActivity, type ActivityId } from "./lib/activities";
@@ -134,6 +134,17 @@
   const targetValid = $derived(engine.snapshot?.targetValid ?? false);
   const confidence = $derived(Math.round(engine.status.confidence * 100));
   const currentStep = $derived(cycleStep(engine.status.state));
+  const workspaceStatus = $derived(
+    !engine.connected
+      ? "Engine connecting"
+      : active
+        ? "Fishing active"
+        : engine.status.state === "Faulted"
+          ? "Paused safely"
+          : targetValid
+            ? "Ready to start"
+            : "Setup needed",
+  );
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -236,7 +247,7 @@
     return {
       context: "WELCOME BACK · TARGET RESTORED",
       title: "Ready to fish",
-      detail: "Your saved FiveM target is ready. Use your Start / Stop shortcut from the fishing activity.",
+      detail: "Your saved FiveM target is ready. Start here, or use your in-game shortcut while FiveM is focused.",
     };
   }
 
@@ -246,9 +257,17 @@
 
   function cycleStepState(index: number): "ready" | "pending" | "active" | "complete" | "fault" {
     if (engine.status.state === "Faulted") return index === currentStep ? "fault" : "pending";
-    if (!active) return index === 0 ? (targetValid ? "ready" : "active") : "pending";
+    if (!active) {
+      if (!targetValid) return index === 0 ? "active" : "pending";
+      if (index === 0) return "complete";
+      return index === 1 ? "ready" : "pending";
+    }
     if (index < currentStep) return "complete";
     return index === currentStep ? "active" : "pending";
+  }
+
+  function cycleStepLabel(state: ReturnType<typeof cycleStepState>) {
+    return ({ ready: "Next", pending: "Waiting", active: "Current", complete: "Done", fault: "Paused" } as const)[state];
   }
 
   function evidencePercent(value: number | undefined) {
@@ -365,6 +384,21 @@
     homeFocusActivity = activityId;
     selectedActivity = activityId;
     window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  }
+
+  async function toggleRun() {
+    if (runPending || (!active && (!engine.connected || !targetValid))) return;
+    const command = active ? "stop" : "start";
+    runPending = command;
+    try {
+      await engine.command(command);
+      setupVerification = null;
+      announce(command === "start" ? "Fishing started" : "Fishing stopped and input released", command === "start" ? "success" : "info");
+    } catch {
+      // EngineClient surfaces the actionable bridge error in the workspace.
+    } finally {
+      runPending = null;
+    }
   }
 
   async function returnToActivities() {
@@ -654,9 +688,9 @@
     <div class="drag-hint" aria-hidden="true"><GripHorizontal size={16} /> DRAG WINDOW</div>
     <div class="top-actions">
       <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
-      <button aria-label="Minimize" onclick={minimize}><Minus size={15} /></button>
-      <button aria-label="Maximize" onclick={maximize}><Maximize2 size={14} /></button>
-      <button class="close" aria-label="Close" onclick={close}><X size={15} /></button>
+      <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
+      <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
+      <button class="close" aria-label="Close" title="Close CuePilot" onclick={close}><X size={15} /></button>
     </div>
   </div>
 
@@ -667,7 +701,7 @@
       <button onclick={returnToActivities} disabled={!!runPending}><ArrowLeft size={14} strokeWidth={2} /> Activities</button>
       <ChevronRight size={12} aria-hidden="true" />
       <span><Waves size={13} strokeWidth={1.9} /> Fishing</span>
-      <em>Ready</em>
+      <em class:live={active} aria-live="polite">{workspaceStatus}</em>
     </nav>
 
   <section class="hero" aria-labelledby="state-heading">
@@ -746,7 +780,7 @@
               <span>FiveM windows</span>
               <strong>{targetCandidates.length === 0 ? "Nothing found" : `${targetCandidates.length} available`}</strong>
             </div>
-            <button aria-label="Close target picker" onclick={() => closeTargetPicker()}><X size={14} strokeWidth={2} /></button>
+            <button aria-label="Close target picker" title="Close target picker" onclick={() => closeTargetPicker()}><X size={14} strokeWidth={2} /></button>
           </header>
 
           {#if targetDiscoveryError}
@@ -819,7 +853,7 @@
   </section>
 
   <section class="cycle" aria-label="Routine cycle">
-    {#each ["TARGET", "CAST", "METER", "TENSION", "COLLECT"] as step, index}
+    {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
       {@const stepState = cycleStepState(index)}
       <div
         class:complete={stepState === "complete"}
@@ -833,25 +867,40 @@
       >
         <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
         <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{/if}</span>
-        <span class="step-label">{step}</span>
+        <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
       </div>
     {/each}
   </section>
 
   <section class="actions">
+    <button
+      class:stop={active}
+      class:loading={!!runPending}
+      class="primary-action run-action"
+      onclick={toggleRun}
+      disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
+      aria-describedby="run-action-hint"
+    >
+      {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
+      {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
+      {:else if active}<Square size={14} fill="currentColor" /> Stop Fishing
+      {:else}<Play size={16} fill="currentColor" /> Start Fishing{/if}
+      <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
+    </button>
     <button class="sub-action" bind:this={settingsButton} onclick={openSettings} disabled={active || !!runPending || !engine.snapshot}><Settings2 size={16} strokeWidth={1.8} /> Settings</button>
-    <button class="sub-action" bind:this={diagnosticsButton} onclick={inspectDiagnostics}><FolderOpen size={16} strokeWidth={1.8} /> Diagnostics</button>
+    <button class="sub-action" bind:this={diagnosticsButton} onclick={inspectDiagnostics}><FolderOpen size={16} strokeWidth={1.8} /> Detection review</button>
+    <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
   </section>
 
   <footer class="status-footer">
     <div class="safety-summary">
       <ShieldCheck size={15} strokeWidth={1.9} />
-      <p><strong>Safe control</strong><i></i><kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> toggles start / stop from FiveM<i></i><kbd>Pause / Break</kbd> emergency stop</p>
+      <p><strong>Safe control</strong><i></i><kbd>Pause / Break</kbd> always releases input<i></i>FiveM must remain foreground</p>
     </div>
     <div class="system-status" aria-label="System status">
       <span><i></i>Local only</span>
       <b aria-hidden="true"></b>
-      <span>FiveM foreground required</span>
+      <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
     </div>
   </footer>
   {:else}
@@ -871,11 +920,12 @@
   <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
     <header class="panel-header">
       <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : "Lockpicking profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Lockpicking controls"}</h2></div>
-      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
+      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
     </header>
-    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : "Choose the in-game toggle used to start or safely stop the calibrated Class C controller."}</p>
+    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : "Review the shortcut reserved for Class C. Automated lockpicking remains unavailable until calibration evidence passes its release gate."}</p>
     <p class:visible={settingsDirty} class="settings-change-note" aria-live="polite"><i></i>{settingsDirty ? "Unsaved changes" : "Profile is up to date"}</p>
 
+    <div class="settings-tier"><strong>Basic</strong><span>{fishingSelected ? "The controls most people need." : "The only available lockpicking preference."}</span></div>
     {#if fishingSelected}
       <section class="settings-group shortcut-setting" aria-labelledby="shortcut-heading">
         <header class="settings-group__header">
@@ -892,12 +942,12 @@
     {:else}
       <section class="settings-group shortcut-setting" aria-labelledby="lockpicking-shortcut-heading">
         <header class="settings-group__header">
-          <div><p>Global control</p><h3 id="lockpicking-shortcut-heading">Lockpicking Start / Stop shortcut</h3></div>
+          <div><p>Future control</p><h3 id="lockpicking-shortcut-heading">Reserved Class C shortcut</h3></div>
           <span>{hotkeyDisplay(lockpickingShortcutDraft)}</span>
         </header>
         <div class="shortcut-control">
-          <div><strong>Toggle Class C from FiveM</strong><small>Press once to arm Class C. Press again to stop and release input.</small></div>
-          <select aria-label="Lockpicking start and stop shortcut" bind:value={lockpickingShortcutDraft.key}>
+          <div><strong>Reserved Class C shortcut</strong><small>Class C input is unavailable until the evidence gate passes. This binding is saved for that future release.</small></div>
+          <select aria-label="Reserved Class C shortcut" bind:value={lockpickingShortcutDraft.key}>
             {#each shortcutOptions as key}<option value={key}>{key}</option>{/each}
           </select>
         </div>
@@ -911,11 +961,12 @@
         <span>{draft.fishingLowerTensionPercent}–{draft.fishingUpperTensionPercent}%</span>
       </header>
       <div class="form-grid form-grid--tension">
-        <label><span class="field-label">Pulse threshold</span><span class="field-control"><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>%</small></span></label>
-        <label><span class="field-label">Target tension</span><span class="field-control"><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>%</small></span></label>
+        <label><span class="field-label">Pulse threshold</span><span class="field-control"><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>%</small></span><small class="field-help">CuePilot begins adding tension below this level.</small></label>
+        <label><span class="field-label">Target tension</span><span class="field-control"><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>%</small></span><small class="field-help">The safe upper edge CuePilot aims to stay under.</small></label>
       </div>
     </section>
 
+    <div class="settings-tier settings-tier--advanced"><strong>Advanced</strong><span>Timing and delivery guardrails. Defaults are recommended unless detection evidence shows a problem.</span></div>
     <section class="settings-group" aria-labelledby="timing-heading">
       <header class="settings-group__header">
         <div><p>Timing guardrails</p><h3 id="timing-heading">Control cadence</h3></div>
@@ -925,6 +976,7 @@
         <label><span class="field-label">Sample interval</span><span class="field-control"><input aria-label="Sample interval milliseconds" bind:value={draft.fishingSampleMilliseconds} min="20" max="200" type="number" /><small>ms</small></span></label>
         <label><span class="field-label">Maximum pulse</span><span class="field-control"><input aria-label="Maximum pulse milliseconds" bind:value={draft.fishingMaximumPulseMilliseconds} min={draft.fishingMinimumPulseMilliseconds} max="120" type="number" /><small>ms</small></span></label>
         <label><span class="field-label">Minimum rest</span><span class="field-control"><input aria-label="Minimum rest milliseconds" bind:value={draft.fishingMinimumRestMilliseconds} min="20" max="250" type="number" /><small>ms</small></span></label>
+        <label><span class="field-label">Cast-bar click delay</span><span class="field-control"><input aria-label="Cast acceleration delay milliseconds" bind:value={draft.fishingCastAccelerationDelayMilliseconds} min="3000" max="10000" step="100" type="number" /><small>ms</small></span><small class="field-help">One safe click after the cast bar appears; no timing score is required.</small></label>
         <label><span class="field-label">Safety time</span><span class="field-control"><input aria-label="Safety time seconds" bind:value={draft.maximumDurationSeconds} min="5" max="3600" type="number" /><small>s</small></span></label>
       </div>
     </section>
@@ -981,8 +1033,9 @@
 {#if showDiagnostics}
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
   <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
-    <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
+    <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" title="Close detection review" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
     <p class="panel-copy" id="diagnostics-description">Every Start attempt records a bounded local session with detector decisions, rejection reasons, and decisive frames.</p>
+    <div class="diagnostics-scroll">
     {#if diagnosticsLoading && !diagnostics}
       <div class="empty-state diagnostics-empty"><RefreshCw size={16} class="spin" /> Loading diagnostics…</div>
     {:else if diagnosticsError && !diagnostics}
@@ -1103,7 +1156,8 @@
     {:else}
       <div class="empty-state diagnostics-empty">Diagnostics are unavailable.</div>
     {/if}
-    <div class="panel-actions panel-actions--compact">
+    </div>
+    <div class="panel-actions panel-actions--compact diagnostics-toolbar" aria-label="Detection review actions">
       <button class="sub-action sub-action--mini" onclick={openDiagnosticsFolder}><FolderOpen size={15} class="icon" /> Open folder</button>
       <button class:loading={diagnosticsLoading} class="sub-action sub-action--mini" onclick={inspectDiagnostics} disabled={diagnosticsLoading}>{#if diagnosticsLoading}<RefreshCw size={15} class="icon spin" /> Refreshing…{:else}<RefreshCw size={15} class="icon" /> Refresh{/if}</button>
     </div>

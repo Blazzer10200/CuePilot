@@ -10,6 +10,7 @@ export interface RoutineSettings {
   fishingMinimumPulseMilliseconds: number;
   fishingMaximumPulseMilliseconds: number;
   fishingMinimumRestMilliseconds: number;
+  fishingCastAccelerationDelayMilliseconds: number;
   maximumDurationSeconds: number;
   collectDelayMilliseconds: number;
   collectOnTimeout: boolean;

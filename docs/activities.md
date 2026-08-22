@@ -36,7 +36,7 @@ Fishing retains the existing .NET prompt detector, circular-meter tracker, feedb
 
 The .NET observer locates the right-side circular HUD relative to the selected FiveM frame, classifies numbered, transition, SPIN, OPEN, and disappearance states, and tracks the same active circle through its outlined, shrinking, and bright-green READY states. READY requires a verified target plus either measured inward ring motion or the observed bright fill and is reported once for that target. Stale presentation timestamps, slow analysis, and extreme capture stalls withhold the prediction; normal accumulated batches on a high-refresh display do not.
 
-Observe mode remains input-free. Automated Class C input is unavailable in the 5.1.1 release while concurrent target-label recognition is validated from saved evidence. Classes A, B, and D remain unavailable until their own live evidence is recorded.
+Observe mode remains input-free. Automated Class C input is unavailable in the current release while concurrent target-label recognition is validated from saved evidence. Classes A, B, and D remain unavailable until their own live evidence is recorded.
 
 Fishing defaults to `F10`; Pause / Break remains the unconditional emergency stop. Observe mode never sends input.
 

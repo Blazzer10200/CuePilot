@@ -30,6 +30,7 @@ internal sealed class FishingRoutineSettings
     public int FishingMinimumPulseMilliseconds { get; set; } = 35;
     public int FishingMaximumPulseMilliseconds { get; set; } = 90;
     public int FishingMinimumRestMilliseconds { get; set; } = 70;
+    public int FishingCastAccelerationDelayMilliseconds { get; set; } = 5_000;
     public int MaximumDurationSeconds { get; set; } = 210;
     public int CollectDelayMilliseconds { get; set; } = 250;
     public bool CollectOnTimeout { get; set; }
@@ -44,6 +45,7 @@ internal sealed class FishingRoutineSettings
         FishingMinimumPulseMilliseconds = FishingMinimumPulseMilliseconds,
         FishingMaximumPulseMilliseconds = FishingMaximumPulseMilliseconds,
         FishingMinimumRestMilliseconds = FishingMinimumRestMilliseconds,
+        FishingCastAccelerationDelayMilliseconds = FishingCastAccelerationDelayMilliseconds,
         MaximumDurationSeconds = MaximumDurationSeconds,
         CollectDelayMilliseconds = CollectDelayMilliseconds,
         CollectOnTimeout = CollectOnTimeout,
@@ -59,6 +61,7 @@ internal sealed class FishingRoutineSettings
         FishingMinimumPulseMilliseconds = Math.Clamp(FishingMinimumPulseMilliseconds, 20, 80);
         FishingMaximumPulseMilliseconds = Math.Clamp(FishingMaximumPulseMilliseconds, FishingMinimumPulseMilliseconds, 120);
         FishingMinimumRestMilliseconds = Math.Clamp(FishingMinimumRestMilliseconds, 20, 250);
+        FishingCastAccelerationDelayMilliseconds = Math.Clamp(FishingCastAccelerationDelayMilliseconds, 3_000, 10_000);
         MaximumDurationSeconds = Math.Clamp(MaximumDurationSeconds, 5, 3_600);
         CollectDelayMilliseconds = Math.Clamp(CollectDelayMilliseconds, 0, 10_000);
     }

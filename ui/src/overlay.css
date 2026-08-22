@@ -1,0 +1,73 @@
+:root {
+  --overlay-bg: rgba(7, 16, 22, 0.94);
+  --overlay-text: #ecf5f9;
+  --overlay-muted: #91a3af;
+  --overlay-accent: #8ef1e2;
+  --overlay-success: #86efcf;
+  --overlay-warning: #ffcf84;
+  --overlay-danger: #ec6a67;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Inter", "Segoe UI", sans-serif;
+  color: var(--overlay-text);
+}
+
+.overlay-card {
+  position: relative;
+  width: calc(100% - 8px);
+  min-height: 84px;
+  margin: 4px;
+  padding: 17px 22px 16px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 241, 226, 0.34);
+  border-radius: 14px;
+  background:
+    linear-gradient(110deg, rgba(142, 241, 226, 0.09), transparent 68%),
+    var(--overlay-bg);
+  box-shadow: 0 18px 42px rgba(0, 4, 8, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.025) inset;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.overlay-card__icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(142, 241, 226, 0.34);
+  border-radius: 10px;
+  color: #06201c;
+  background: var(--overlay-accent);
+  display: grid;
+  place-items: center;
+}
+
+.overlay-card__copy { min-width: 0; display: grid; gap: 3px; }
+.overlay-card__copy span { color: var(--overlay-accent); font-size: 10px; font-weight: 720; letter-spacing: 0.14em; }
+.overlay-card__copy strong { font-size: 16px; font-weight: 620; letter-spacing: -0.01em; }
+.overlay-card__copy small { max-width: 330px; overflow: hidden; color: var(--overlay-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.overlay-card__edge { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--overlay-accent); opacity: 0.7; }
+
+.overlay-card.success { border-color: rgba(134, 239, 207, 0.38); }
+.overlay-card.success .overlay-card__icon { border-color: rgba(134, 239, 207, 0.36); background: var(--overlay-success); }
+.overlay-card.success .overlay-card__copy span { color: var(--overlay-success); }
+.overlay-card.success .overlay-card__edge { background: var(--overlay-success); }
+.overlay-card.warning { border-color: rgba(255, 207, 132, 0.42); background: linear-gradient(110deg, rgba(255, 207, 132, 0.1), transparent 68%), var(--overlay-bg); }
+.overlay-card.warning .overlay-card__icon { color: #271a06; border-color: rgba(255, 207, 132, 0.38); background: var(--overlay-warning); }
+.overlay-card.warning .overlay-card__copy span { color: var(--overlay-warning); }
+.overlay-card.warning .overlay-card__edge { background: var(--overlay-warning); }
+.overlay-card.critical { border-color: rgba(236, 106, 103, 0.48); background: linear-gradient(110deg, rgba(236, 106, 103, 0.12), transparent 68%), var(--overlay-bg); }
+.overlay-card.critical .overlay-card__icon { color: #2d0808; border-color: rgba(236, 106, 103, 0.42); background: var(--overlay-danger); }
+.overlay-card.critical .overlay-card__copy span { color: var(--overlay-danger); }
+.overlay-card.critical .overlay-card__edge { background: var(--overlay-danger); }

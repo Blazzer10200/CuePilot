@@ -10,6 +10,7 @@ internal static class RoutineWorker
 internal sealed class AdaptiveRoutineEngine : IDisposable
 {
     private const int MaximumPromptPressAttempts = 5;
+    private const int CastAccelerationPulseMilliseconds = 40;
     private readonly object sync = new();
     private FishingRoutineSettings settings = new();
     private CancellationTokenSource? cancellation;
@@ -72,8 +73,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
 
             while (!token.IsCancellationRequested)
             {
-                SetState(RoutineState.Armed, "Line cast. Watching the target application for the fishing meter.");
-                debugSession.SetStage("Meter", "Watching for a stable tension meter.");
+                SetState(RoutineState.Armed,
+                    $"Cast started. Waiting {settings.FishingCastAccelerationDelayMilliseconds / 1_000d:0.0}s for the cast-bar acceleration window.");
+                debugSession.SetStage("CastingBar", "Waiting for the guarded one-click cast acceleration window.");
                 var meterOutcome = await WaitForMeterAsync(token, debugSession);
                 if (meterOutcome == MeterWaitOutcome.CastPromptReady)
                 {
@@ -160,6 +162,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     private async Task<MeterWaitOutcome> WaitForMeterAsync(CancellationToken token, FishingDebugSession debugSession)
     {
         var meterGate = new FishingMeterStabilityGate();
+        var castAccelerationGate = new FishingCastAccelerationGate(settings.FishingCastAccelerationDelayMilliseconds);
         var castPromptGate = new FishingPromptStabilityGate(FishingPromptKind.Cast);
         var collectPromptGate = new FishingPromptStabilityGate(FishingPromptKind.Collect);
         var unavailableTargetSamples = 0;
@@ -203,6 +206,46 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             if (sample is not null)
             {
                 debugSession.RecordMeter(sample.Analysis, sample.Frame, sampleCount);
+
+                FishingPromptObservation? accelerationPrompt = null;
+                if (clock.ElapsedMilliseconds >= settings.FishingCastAccelerationDelayMilliseconds)
+                {
+                    accelerationPrompt = FishingPromptDetector.Analyze(sample.Frame.Bitmap);
+                }
+
+                var accelerationAction = castAccelerationGate.Observe(
+                    clock.Elapsed,
+                    observation.IsVisible,
+                    accelerationPrompt is { Kind: not FishingPromptKind.None });
+                if (accelerationAction == FishingCastAccelerationAction.Skip)
+                {
+                    var reason = observation.IsVisible
+                        ? "circular_meter_visible"
+                        : $"actionable_{accelerationPrompt?.Kind.ToString().ToLowerInvariant()}_prompt_visible";
+                    FishingLoopDiagnosticLog.Write("cast_acceleration_skipped", reason);
+                    debugSession.Record("casting_bar", "acceleration_skipped", new
+                    {
+                        reason,
+                        elapsedMilliseconds = clock.ElapsedMilliseconds,
+                        meterConfidence = observation.Confidence,
+                        prompt = accelerationPrompt?.Kind,
+                        promptConfidence = accelerationPrompt?.Confidence,
+                    });
+                }
+                else if (accelerationAction == FishingCastAccelerationAction.Click)
+                {
+                    await EnsureInputReadyAsync(token);
+                    SetState(RoutineState.Armed, "Cast bar ready. Sending one bounded acceleration click.");
+                    FishingLoopDiagnosticLog.Write(
+                        "cast_acceleration_click_start",
+                        $"delay_ms={clock.ElapsedMilliseconds};pulse_ms={CastAccelerationPulseMilliseconds}");
+                    await ClickCastAccelerationAsync(token, debugSession);
+                    FishingLoopDiagnosticLog.Write(
+                        "cast_acceleration_click_end",
+                        $"pulse_ms={CastAccelerationPulseMilliseconds}");
+                    debugSession.SetStage("Meter", "Cast accelerated; watching for a stable circular tension meter.");
+                    SetState(RoutineState.Armed, "Cast accelerated. Watching for the circular fishing meter.");
+                }
             }
             if (meterGate.Observe(observation))
             {
@@ -507,6 +550,32 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             {
                 input.SendKey(settings.TargetWindow, key, true);
                 debugSession.Record("input", "key_up", new { key });
+            }
+        }
+    }
+
+    private async Task ClickCastAccelerationAsync(CancellationToken token, FishingDebugSession debugSession)
+    {
+        var leftIsDown = false;
+        try
+        {
+            input.SendLeftButton(settings.TargetWindow, false);
+            leftIsDown = true;
+            debugSession.Record("input", "cast_acceleration_left_down", new
+            {
+                pulseMilliseconds = CastAccelerationPulseMilliseconds,
+            });
+            await Task.Delay(CastAccelerationPulseMilliseconds, token);
+        }
+        finally
+        {
+            if (leftIsDown)
+            {
+                input.SendLeftButton(settings.TargetWindow, true);
+                debugSession.Record("input", "cast_acceleration_left_up", new
+                {
+                    pulseMilliseconds = CastAccelerationPulseMilliseconds,
+                });
             }
         }
     }

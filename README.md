@@ -13,7 +13,7 @@ CuePilot is a Svelte/Tauri desktop app backed by a local, headless .NET engine. 
 ## Install on Windows
 
 1. Open the [latest CuePilot release](https://github.com/Blazzer10200/CuePilot/releases/latest).
-2. Download `CuePilot-5.1.5-Windows-x64-Setup.exe` and run it. The installer is per-user, so it does not require administrator access.
+2. Download `CuePilot-5.1.7-Windows-x64-Setup.exe` and run it. The installer is per-user, so it does not require administrator access.
 3. Launch **CuePilot** from the Start menu, open an activity, and select the running FiveM window once.
 4. Use `F10` for Fishing and `Pause / Break` for an immediate emergency stop. `F9` remains reserved but cannot start automatic lockpicking while Class C calibration stays gated. Both activity shortcuts can be changed in Settings.
 

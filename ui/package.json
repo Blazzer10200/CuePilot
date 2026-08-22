@@ -1,13 +1,13 @@
 {
   "name": "cuepilot-ui",
   "private": true,
-  "version": "5.1.6",
+  "version": "5.1.7",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run",
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
+    "check": "svelte-check --config ./svelte.config.js --tsconfig ./tsconfig.json",
+    "test": "vitest run --configLoader runner",
     "engine:stage": "pwsh -NoProfile -File scripts/build-engine.ps1",
     "engine:stage:release": "pwsh -NoProfile -File scripts/build-engine.ps1 -Release",
     "tauri": "tauri",

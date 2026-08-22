@@ -6,6 +6,25 @@ It is intentionally not an authorization to enable unverified automation.
 
 ## Next up
 
+### Implemented — live-validate one-click cast acceleration
+
+**Files:** `src/Automation/AdaptiveRoutineEngine.cs`, fishing routine settings
+and persistence, and focused engine tests.
+
+- After a verified `E` cast action clears, CuePilot now waits about five
+  seconds and sends exactly one short LMB click to advance the non-timing
+  casting bar.
+- It revalidates FiveM, capture, and input immediately before the click and
+  skips it if the circular tension meter or another actionable prompt appears
+  first.
+- It never retries the click during the same cast, keeps `Pause / Break`
+  release behavior intact, and records the action in local diagnostics.
+- Live-test the delay separately from the existing 35–90 ms circular-meter
+  tension controller.
+
+**Why:** Advancing the casting bar as soon as it appears gets the line into
+the water sooner without changing the later tension minigame behavior.
+
 The following items were completed in 5.1.3 and are retained as short records:
 
 - **Verify setup:** read-only target, input-capability, and capture-health

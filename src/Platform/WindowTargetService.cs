@@ -49,8 +49,8 @@ internal static class WindowTargetService
                 return true;
             }
 
-            NativeMethods.GetWindowThreadProcessId(window, out var nativeProcessId);
-            if (nativeProcessId == 0)
+            if (NativeMethods.GetWindowThreadProcessId(window, out var nativeProcessId) == 0
+                || nativeProcessId == 0)
             {
                 return true;
             }
@@ -126,7 +126,12 @@ internal static class WindowTargetService
                 return true;
             }
 
-            NativeMethods.GetWindowThreadProcessId(window, out var candidateProcessId);
+            if (NativeMethods.GetWindowThreadProcessId(window, out var candidateProcessId) == 0
+                || candidateProcessId == 0)
+            {
+                return true;
+            }
+
             try
             {
                 using var process = Process.GetProcessById((int)candidateProcessId);
@@ -174,7 +179,13 @@ internal static class WindowTargetService
             return false;
         }
 
-        NativeMethods.GetWindowThreadProcessId(match, out var processId);
+        if (NativeMethods.GetWindowThreadProcessId(match, out var processId) == 0 || processId == 0)
+        {
+            resolved = default!;
+            detail = $"{target.ProcessName} window no longer has a valid process.";
+            return false;
+        }
+
         resolved = new ResolvedWindowTarget(
             match,
             (int)processId,
@@ -278,7 +289,7 @@ internal static class WindowTargetService
     private static string GetTitle(IntPtr window)
     {
         var builder = new StringBuilder(512);
-        NativeMethods.GetWindowText(window, builder, builder.Capacity);
-        return builder.ToString();
+        var length = NativeMethods.GetWindowText(window, builder, builder.Capacity);
+        return length > 0 ? builder.ToString(0, length) : string.Empty;
     }
 }

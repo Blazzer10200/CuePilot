@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -85,7 +86,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
             automation = classProfile is not null ? new LockpickingClassController(requestedTarget, classProfile) : null;
             inputEnabled = classProfile is not null;
             vehicleClass = classProfile?.VehicleClass ?? string.Empty;
-            evidenceDirectory = Path.Combine(AppPaths.DiagnosticsDirectory, "lockpicking", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+            evidenceDirectory = Path.Combine(
+                AppPaths.DiagnosticsDirectory,
+                "lockpicking",
+                DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture));
             Directory.CreateDirectory(evidenceDirectory);
             lastEvidenceKey = string.Empty;
             savedEvidenceCount = 0;
