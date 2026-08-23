@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.1.8 - 2026-08-23 - Single-instance desktop launch
+
+- Prevented duplicate CuePilot launches from competing for the global shortcut or starting a second engine sidecar; a repeat launch now restores and focuses the existing main window.
+
 ## 5.1.7 - 2026-08-21 - Faster casts and clearer controls
 
 - Added a guarded one-click casting-bar accelerator that waits five seconds after casting by default, clicks only once, and skips itself when the circular meter or another actionable prompt appears first.

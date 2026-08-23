@@ -239,8 +239,21 @@ fn overlay_enabled(value: Option<&str>) -> bool {
     }
 }
 
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
+        // This must stay ahead of every other plugin so a second launch exits
+        // before it can claim F10 or start a competing engine sidecar.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _working_directory| focus_main_window(app),
+        ))
         .manage(EngineBridge::default())
         .manage(OverlayState::default())
         .setup(|app| {
