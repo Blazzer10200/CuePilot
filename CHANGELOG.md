@@ -1,5 +1,32 @@
 # Changelog
 
+## 5.2.0 - 2026-08-25 - Self-updating releases
+
+- Replaced the Tauri NSIS release artifact with a Velopack package, per-user installer, public GitHub update feed, portable bundle, checksums, and a machine-readable release manifest.
+- Added an in-app update center that checks on launch and every six hours, shows release notes and download progress, requires confirmation, blocks installation during an active activity, stops the owned engine sidecar, and relaunches after a successful update.
+- Added source-build and failure handling, exact Velopack CLI/runtime pinning, focused frontend/Rust tests, Clippy release gates, and public-feed asset verification.
+- Added a disposable installed-updater harness that proves local-feed check, delta download, engine-sidecar shutdown, 5.2.0 to 5.2.1 apply/relaunch, payload replacement, and clean uninstall under an isolated package identity.
+- Kept the Velopack install root under the distinct `CuePilotDesktop` pack ID so legacy `%LOCALAPPDATA%\CuePilot` settings and diagnostics are never inside the updater's replace/uninstall boundary.
+- Made Fishing/Lockpicking held-input cleanup bypass foreground validation for input CuePilot actually owns, including focus-loss and cancellation-safe Class C mouse-up handling.
+- Stopped programmatically activating FiveM during preflight; Automatic delivery now waits for the user to return to the game without disturbing FiveM NUI/raw-input focus.
+- Added an owned-input stop gate so late detector results cannot press `E`/LMB after Stop and idle or observe-only shutdowns do not inject synthetic release events into in-game menus.
+- Replaced detached Fishing and Lockpicking routine workers with one bounded owned-worker lifecycle, prevented restart until cleanup returns, awaited Lockpicking cursor-motion shutdown, and serialized Rust sidecar start/stop so concurrent commands cannot spawn duplicate engines.
+- Moved Lockpicking image encoding, JSONL persistence, and calibration traces off the capture loop; bounded trace cadence and queue depth; and limited retained evidence to eight sessions or 500 MB.
+- Made workspace cleanup preserve the current production package by default, report readable totals, and separately select stale updater-smoke/audit packages.
+- Updated release, security, maintenance, and repository-navigation documentation for the new distribution contract.
+
+## 5.1.8 - 2026-08-23 - Single-instance desktop launch
+
+- Prevented duplicate CuePilot launches from competing for the global shortcut or starting a second engine sidecar; a repeat launch now restores and focuses the existing main window.
+
+## 5.1.7 - 2026-08-21 - Faster casts and clearer controls
+
+- Added a guarded one-click casting-bar accelerator that waits five seconds after casting by default, clicks only once, and skips itself when the circular meter or another actionable prompt appears first.
+- Added a prominent Fishing Start/Stop control, explicit five-stage progress, clearer status and safety messaging, Basic/Advanced settings guidance, and a persistent Detection Review action area.
+- Clarified Vehicle Lockpicking as observe-only calibration, with the unverified Class C control and technical telemetry kept out of the primary workflow.
+- Hardened capture construction, window/process validation, diagnostic isolation, culture-independent replay parsing, and native DLL lookup without changing CuePilot's local-only security boundary.
+- Kept the experimental game overlay disabled by default while its native visibility behavior remains under evaluation.
+
 ## 5.1.5 - 2026-08-20 - Ultrawide and fullscreen capture
 
 - Added dual-layout HUD searches for 3440×1440, 5120×1440, and other non-16:9 targets so prompts and meters can be anchored either to FiveM's centered 16:9 safe canvas or to the full visible frame.

@@ -74,7 +74,7 @@ internal static class UiBridge
                                     settings.Routine,
                                     setupCapture,
                                     new TargetInputRouter(settings.Routine.InputMode),
-                                    activateTarget: false,
+                                    waitForForeground: false,
                                     CancellationToken.None).GetAwaiter().GetResult();
                                 Respond(output, id, true, Snapshot(
                                     settings,

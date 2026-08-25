@@ -1,10 +1,45 @@
 # CuePilot product backlog
 
-This is a ranked later-work list based on the current shipping 5.1.5 code,
-the local Fishing diagnostics, and a read-only inspection of the running UI.
+This is a ranked later-work list based on the 5.2.0 release code, local
+Fishing/Lockpicking diagnostics, automated gates, and a live UI inspection.
 It is intentionally not an authorization to enable unverified automation.
 
 ## Next up
+
+### Completed — safety and reliability blockers from the 2026-08-25 audit
+
+1. **Owned-input release and stop gate:** Fishing Stop/fault/disposal bypasses foreground validation only for a key or mouse button CuePilot actually owns. Stop closes the input gate before publishing completion, so a late detector result cannot begin another press; idle and observe-only stops emit no synthetic events into FiveM's NUI. Class C applies the same owned-button rule.
+2. **Owned Stop → Start lifecycle:** Fishing and Lockpicking share `OwnedRoutineWorker`, reject a restart until prior cleanup returns, cancel and wait up to three seconds, and fail closed on timeout. Class C cursor motion is also cancelled and awaited before replacement.
+3. **Atomic sidecar lifecycle:** cloned Rust bridges share a start/stop lifecycle gate spanning process check, spawn, pipe ownership, and shutdown. Shutdown atomically takes the owned child and invalidates its reader generation.
+4. **Bound asynchronous Lockpicking diagnostics:** image encoding, JSONL writes, and second-pass target tracing moved to a bounded writer. Trace sampling is capped at 10 Hz/900 entries, and retention keeps eight sessions within 500 MB.
+5. **No focus stealing:** CuePilot no longer imports or calls `SetForegroundWindow`/`ShowWindow`. Automatic input waits up to ten seconds for the user to return to FiveM; Foreground-only mode still fails immediately.
+
+The focused regressions and complete local release gate pass. The supervised exactly-one-click Fishing smoke and FiveM F1/NUI confirmation remain explicitly tracked live follow-ups; they were not represented as automated proof.
+
+### Completed — installed Velopack apply/relaunch proof
+
+`scripts/test-velopack-update.ps1` now creates a disposable `CuePilotUpdaterSmoke` installation and proves a real 5.2.0 → 5.2.1 delta download, packaged engine-sidecar shutdown, apply, relaunch, version/payload replacement, and clean uninstall. It never uses the production `CuePilotDesktop` identity or legacy `%LOCALAPPDATA%\CuePilot` data.
+
+### Implemented; live validation still pending — one-click cast acceleration
+
+**Files:** `src/Automation/AdaptiveRoutineEngine.cs`, fishing routine settings
+and persistence, and focused engine tests.
+
+- After a verified `E` cast action clears, CuePilot now waits about five
+  seconds and sends exactly one short LMB click to advance the non-timing
+  casting bar.
+- It revalidates FiveM, capture, and input immediately before the click and
+  skips it if the circular tension meter or another actionable prompt appears
+  first.
+- It never retries the click during the same cast, keeps `Pause / Break`
+  release behavior intact, and records the action in local diagnostics.
+- Live-test the delay separately from the existing 35–90 ms circular-meter
+  tension controller.
+
+**Why:** Advancing the casting bar as soon as it appears gets the line into
+the water sooner without changing the later tension minigame behavior.
+
+The repository contains automated coverage, but there is still no recorded live proof that the accelerator sends exactly one click at the intended in-game phase. Keep that smoke test on the release gate.
 
 The following items were completed in 5.1.3 and are retained as short records:
 
@@ -70,7 +105,7 @@ timing or tracker failure across a full minigame.
 
 ### 4. Separate the Fishing workspace from the application shell
 
-**Files:** split `ui/src/App.svelte` (currently 1,079 lines) into a new
+**Files:** split `ui/src/App.svelte` (currently more than 1,100 lines) into a new
 `ui/src/lib/activities/FishingWorkspace.svelte`; keep app-wide windows,
 shortcuts, connection state, and drawers in `App.svelte`.
 
@@ -129,17 +164,17 @@ recognition is not yet trustworthy enough for automated input.
 
 ## Release and quality improvements
 
-### 8. Add a release-readiness panel and artifact manifest
+### 8. Partially completed — release-readiness panel and artifact manifest
 
 **Files:** `scripts/verify.ps1`, `ui/scripts/build-engine.ps1`,
 `ui/src-tauri/tauri.conf.json`, and release documentation.
 
-- Generate a small manifest with app/engine version, validation results,
-  installer SHA-256, and bundled sidecar version.
+- `scripts/package-velopack.ps1` now emits a release manifest with app/shell/
+  engine versions, Velopack version, artifact sizes, and SHA-256 values.
 - Show that information in an About/Support panel and write it alongside
   local diagnostics.
-- Keep code-signing and auto-update as separate future decisions, since they
-  require external signing/release infrastructure.
+- Add automated validation results to the manifest once the workflow can
+  attest to the exact gate run rather than merely the packaged versions.
 
 **Why:** It makes it much easier to tell which build a buddy is running and
 which diagnostics belong to it.
@@ -156,6 +191,8 @@ diagnostics tests in `ui/src-tauri/src/lib.rs`.
   8 MB cap.
 - Show when a frame is intentionally unavailable because it exceeds the local
   review budget, with an Open folder option still available.
+- Lockpicking now also uses a bounded asynchronous writer and cross-session
+  retention of eight sessions / 500 MB.
 
 **Why:** The current bridge can base64 every decisive frame from a manifest in
 one response. A busy session can make the diagnostic drawer slower than the
@@ -192,32 +229,31 @@ optional diagnostics fields and old hotkey shapes.
 focused tests exist, but shared fixtures would catch a compatibility mistake
 before a packaged build reaches other people.
 
-### 12. Partially completed — tighten offline privacy and release trust
+### 12. Partially completed — updater trust documented; code signing open
 
 **Files:** `ui/src-tauri/tauri.conf.json`, `README.md`, `SECURITY.md`, and
 the GitHub release workflow under `.github/workflows/release.yml`.
 
-- Remove the unused Google Fonts CSP allowances: the UI uses installed system
-  font fallbacks and has no font import.
+- Google Fonts CSP allowances are removed; the UI uses installed system fonts.
+- Velopack now checks the public GitHub release feed, requires confirmation,
+  verifies package hashes, and publishes a checked feed/manifest from CI.
 - Keep screenshot/evidence sharing opt-in and clearly state what a copied
   diagnostic summary omits.
-- Evaluate code signing and a signed update channel as a separate external
-  project with certificate, hosting, and revocation ownership—not as an
-  automatic in-app downloader.
+- Add Authenticode signing only with explicit certificate, identity,
+  timestamping, renewal, revocation, and secret-ownership decisions. Until
+  then GitHub/repository security and HTTPS are the update-channel trust root.
 
 **Why:** The product correctly claims local-only operation, but the release
 configuration should be as narrowly offline as the implementation.
 
 ## Suggested order
 
-1. Verify setup.
-2. Detection Review timeline and lazy diagnostic loading.
-3. Ordered Fishing replay.
-4. UI resize/interaction coverage, then the Fishing workspace split.
-5. Guarded presets and the lockpicking evidence checklist.
-6. Class C only after the evidence gate passes.
-7. Shared bridge fixtures and a release manifest.
-8. Decide separately on signing/updating.
+1. During the next supervised FiveM session, confirm F1/NUI camera isolation and record the exactly-one-click cast validation.
+2. Add UI resize/interaction coverage, then split the Fishing workspace.
+3. Finish the Detection Review timeline and release-readiness/About panel.
+4. Add guarded presets and the lockpicking evidence checklist.
+5. Class C only after the evidence gate passes.
+6. Add shared bridge fixtures; decide separately on Authenticode signing.
 
 ## Guardrails
 

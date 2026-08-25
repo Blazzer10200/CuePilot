@@ -1,17 +1,39 @@
-use std::{fs, process::Command, thread};
+use std::{fs, process::Command, sync::Arc, sync::Mutex, thread};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 mod engine_bridge;
+mod update_service;
 
 use engine_bridge::EngineBridge;
+use update_service::UpdateService;
 
 // Keep a diagnostics refresh responsive even when an instrumented session has
 // many full-resolution screenshots. The source files remain local and are
 // always available through the Diagnostics folder.
 const MAX_DEBUG_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_SINGLE_DEBUG_IMAGE_BYTES: usize = 6 * 1024 * 1024;
+
+#[derive(Default)]
+pub(crate) struct OverlayState {
+    sequence: Mutex<u64>,
+    payload: Mutex<Option<serde_json::Value>>,
+}
+
+pub(crate) fn publish_overlay(app: &AppHandle, payload: serde_json::Value) {
+    let state = app.state::<OverlayState>();
+    {
+        if let Ok(mut sequence) = state.sequence.lock() {
+            *sequence = sequence.wrapping_add(1);
+        }
+    }
+    {
+        if let Ok(mut current) = state.payload.lock() {
+            *current = Some(payload);
+        };
+    }
+}
 
 #[tauri::command]
 fn engine_command(
@@ -197,31 +219,113 @@ fn open_diagnostics() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn overlay_poll(app: AppHandle) -> Result<serde_json::Value, String> {
+    let state = app.state::<OverlayState>();
+    let sequence = *state
+        .sequence
+        .lock()
+        .map_err(|_| "Overlay state lock failed.")?;
+    let payload = state
+        .payload
+        .lock()
+        .map_err(|_| "Overlay payload lock failed.")?
+        .clone();
+    Ok(serde_json::json!({ "sequence": sequence, "notification": payload }))
+}
+
+fn overlay_enabled(value: Option<&str>) -> bool {
+    matches!(
+        value.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
+        Some("1" | "true" | "on")
+    )
+}
+
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 pub fn run() {
+    // Velopack must run before Tauri initializes. During install/update/remove
+    // lifecycle hooks this may fast-exit without constructing the desktop UI.
+    velopack::VelopackApp::build().run();
+
+    // Release-mode smoke packages can exercise the real installed Velopack
+    // manager without constructing a Tauri window or touching production data.
+    #[cfg(feature = "update-test-feed")]
+    if update_service::run_smoke_from_args() {
+        return;
+    }
+
     tauri::Builder::default()
+        // This must stay ahead of every other plugin so a second launch exits
+        // before it can claim F10 or start a competing engine sidecar.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _working_directory| focus_main_window(app),
+        ))
         .manage(EngineBridge::default())
+        .manage(OverlayState::default())
+        .manage(Arc::new(UpdateService::new()))
         .setup(|app| {
             use tauri::Emitter;
             use tauri_plugin_global_shortcut::ShortcutState;
 
+            let overlay_setting = std::env::var("CUEPILOT_OVERLAY_ENABLED").ok();
+            if overlay_enabled(overlay_setting.as_deref()) {
+                WebviewWindowBuilder::new(
+                    app,
+                    "overlay",
+                    WebviewUrl::App("index.html?overlay".into()),
+                )
+                .title("CuePilot Overlay")
+                .inner_size(430.0, 112.0)
+                .decorations(false)
+                .transparent(true)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .shadow(false)
+                .resizable(false)
+                .focused(false)
+                .visible(false)
+                .build()?;
+            }
+
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
                     .with_handler(move |handle, shortcut, event| {
+                        let bridge = handle.state::<EngineBridge>().inner().clone();
                         if event.state() == ShortcutState::Pressed {
-                            let bridge = handle.state::<EngineBridge>().inner().clone();
                             let Some(command) = bridge.command_for_shortcut(shortcut) else {
                                 return;
                             };
                             let handle = handle.clone();
+                            let shortcut_label = match command {
+                                "toggle" => "F10",
+                                "toggle_lockpicking_class_c" => "F9",
+                                "stop" => "Pause / Break",
+                                _ => "shortcut",
+                            };
+                            let shortcut_payload = serde_json::json!({
+                                "name": "shortcut",
+                                "payload": {
+                                    "key": shortcut_label,
+                                    "command": command,
+                                },
+                            });
+                            publish_overlay(&handle, shortcut_payload.clone());
+                            let _ = handle.emit("engine://event", shortcut_payload);
                             thread::spawn(move || {
                                 if let Err(detail) = bridge.command(&handle, command, None, None) {
-                                    let _ = handle.emit(
-                                        "engine://event",
-                                        serde_json::json!({
-                                            "name": "fault",
-                                            "payload": { "detail": detail },
-                                        }),
-                                    );
+                                    let fault_payload = serde_json::json!({
+                                        "name": "fault",
+                                        "payload": { "detail": detail },
+                                    });
+                                    publish_overlay(&handle, fault_payload.clone());
+                                    let _ = handle.emit("engine://event", fault_payload);
                                 }
                             });
                         }
@@ -239,7 +343,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             engine_command,
             diagnostics_snapshot,
-            open_diagnostics
+            open_diagnostics,
+            overlay_poll,
+            update_service::updater_status,
+            update_service::check_for_updates,
+            update_service::download_update,
+            update_service::apply_pending_update,
+            update_service::open_update_releases
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
@@ -269,6 +379,17 @@ mod diagnostics_tests {
     fn all_profiles_attempt_to_register_global_shortcuts() {
         assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot"));
         assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot.dev"));
+    }
+
+    #[test]
+    fn overlay_requires_explicit_opt_in() {
+        assert!(!overlay_enabled(None));
+        assert!(!overlay_enabled(Some("0")));
+        assert!(!overlay_enabled(Some("FALSE")));
+        assert!(!overlay_enabled(Some(" off ")));
+        assert!(overlay_enabled(Some("1")));
+        assert!(overlay_enabled(Some("true")));
+        assert!(overlay_enabled(Some(" on ")));
     }
 
     #[test]

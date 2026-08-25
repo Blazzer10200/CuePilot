@@ -427,6 +427,7 @@ internal sealed class FishingDebugSession : IDisposable
         settings.FishingMinimumPulseMilliseconds,
         settings.FishingMaximumPulseMilliseconds,
         settings.FishingMinimumRestMilliseconds,
+        settings.FishingCastAccelerationDelayMilliseconds,
         settings.MaximumDurationSeconds,
         settings.CollectDelayMilliseconds,
         settings.CollectOnTimeout,

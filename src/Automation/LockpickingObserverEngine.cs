@@ -1,8 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-using System.Text.Json;
 
 namespace CuePilot;
 
@@ -30,27 +27,15 @@ internal sealed record LockpickingObserveStatus(
 internal sealed class LockpickingObserverEngine : IDisposable
 {
     private readonly object sync = new();
-    private CancellationTokenSource? cancellation;
+    private readonly OwnedRoutineWorker routineWorker = new();
     private IFrameSource? frameSource;
     private volatile bool observing;
     private LockpickingObserveStatus status = LockpickingObserveStatus.Stopped();
+    private LockpickingDiagnosticSession? diagnosticSession;
     private string evidenceDirectory = string.Empty;
-    private string lastEvidenceKey = string.Empty;
-    private int savedEvidenceCount;
-    private int savedNonNumberedEvidenceCount;
-    private int savedNumberedEvidenceCount;
-    private int savedSpinEvidenceCount;
-    private long lastSpinEvidenceTimestamp;
     private LockpickingClassController? automation;
     private bool inputEnabled;
     private string vehicleClass = string.Empty;
-
-    private const int MaximumEvidenceFrames = 72;
-    // Numbered bubbles are the calibration-critical phase. Keep a dense, lossless
-    // HUD replay so one Observe run can be analysed frame-by-frame.
-    private const int MaximumNumberedEvidenceFrames = 180;
-    private const int MaximumSpinEvidenceFrames = 30;
-    private static readonly long SpinEvidenceIntervalTicks = Math.Max(1, Stopwatch.Frequency / 12);
 
     internal event EventHandler<LockpickingObserveStatus>? StatusChanged;
     internal bool IsObserving => observing;
@@ -63,9 +48,9 @@ internal sealed class LockpickingObserverEngine : IDisposable
     {
         lock (sync)
         {
-            if (observing)
+            if (observing || routineWorker.IsRunning)
             {
-                throw new InvalidOperationException("Lockpicking observation is already running.");
+                throw new InvalidOperationException("Lockpicking observation is already running or still stopping.");
             }
             if (!requestedTarget.IsConfigured)
             {
@@ -77,22 +62,15 @@ internal sealed class LockpickingObserverEngine : IDisposable
                 throw new InvalidOperationException($"Class {classProfile.VehicleClass} input requires a verified FiveM target.");
             }
 
-            cancellation?.Dispose();
-            cancellation = new CancellationTokenSource();
             frameSource?.Dispose();
             frameSource = FrameSourceFactory.Create();
             automation?.Dispose();
             automation = classProfile is not null ? new LockpickingClassController(requestedTarget, classProfile) : null;
             inputEnabled = classProfile is not null;
             vehicleClass = classProfile?.VehicleClass ?? string.Empty;
-            evidenceDirectory = Path.Combine(AppPaths.DiagnosticsDirectory, "lockpicking", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-            Directory.CreateDirectory(evidenceDirectory);
-            lastEvidenceKey = string.Empty;
-            savedEvidenceCount = 0;
-            savedNonNumberedEvidenceCount = 0;
-            savedNumberedEvidenceCount = 0;
-            savedSpinEvidenceCount = 0;
-            lastSpinEvidenceTimestamp = 0;
+            diagnosticSession?.Dispose();
+            diagnosticSession = new LockpickingDiagnosticSession();
+            evidenceDirectory = diagnosticSession.DirectoryPath;
             observing = true;
             Publish(new LockpickingObserveStatus(
                 true,
@@ -109,14 +87,29 @@ internal sealed class LockpickingObserverEngine : IDisposable
                 InputEnabled: classProfile is not null,
                 VehicleClass: vehicleClass));
             var target = requestedTarget.Copy();
-            _ = RoutineWorker.Start(() => RunSafeAsync(target, cancellation.Token));
+            var session = diagnosticSession;
+            routineWorker.Start((_, token) => RunSafeAsync(target, session, token));
         }
     }
 
     internal void Stop(string detail = "Lockpicking observation stopped safely.")
     {
-        cancellation?.Cancel();
+        routineWorker.Cancel();
         automation?.Stop();
+        if (!routineWorker.WaitForCompletion())
+        {
+            observing = false;
+            inputEnabled = false;
+            Publish(Status with
+            {
+                Observing = false,
+                State = "Faulted",
+                Detail = "Lockpicking did not stop within the three-second safety deadline. Restart CuePilot before starting again.",
+                InputEnabled = false,
+                SpinInputActive = false,
+            });
+            return;
+        }
         observing = false;
         inputEnabled = false;
         Publish(Status with
@@ -129,7 +122,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
         });
     }
 
-    private async Task RunSafeAsync(WindowTargetSettings target, CancellationToken token)
+    private async Task RunSafeAsync(
+        WindowTargetSettings target,
+        LockpickingDiagnosticSession diagnostics,
+        CancellationToken token)
     {
         var sampleCount = 0;
         var tracker = new LockpickingObservationTracker();
@@ -146,7 +142,7 @@ internal sealed class LockpickingObserverEngine : IDisposable
             {
                 if (inputEnabled && (NativeMethods.GetAsyncKeyState(NativeMethods.VkPause) & 0x8000) != 0)
                 {
-                    Stop("Emergency stop: Pause / Break released all Class C lockpicking input.");
+                    StopFromWorker("Emergency stop: Pause / Break released all Class C lockpicking input.");
                     return;
                 }
                 if (!WindowTargetService.TryResolve(target, out var resolved, out var resolveDetail))
@@ -201,7 +197,7 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     var sampleTimestamp = Stopwatch.GetTimestamp();
                     if (!inputEnabled)
                     {
-                        TrySaveTargetTrace(frame.Bitmap, sampleCount);
+                        diagnostics.QueueTargetTrace(frame.Bitmap, sampleCount, sampleTimestamp);
                     }
                     observation = tracker.Track(
                         observation,
@@ -247,10 +243,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     unexpectedCount = observation.State == LockpickingVisualState.Unexpected ? unexpectedCount + 1 : 0;
 
                     var state = observation.State == LockpickingVisualState.Hidden ? "Searching" : "Tracking";
-                    TrySaveEvidence(frame.Bitmap, observation, spin, capture, sampleCount, sampleTimestamp);
+                    diagnostics.QueueEvidence(frame.Bitmap, observation, spin, capture, sampleCount, sampleTimestamp);
                     if (spin is not null)
                     {
-                        spin = spin with { CapturedFrames = savedSpinEvidenceCount };
+                        spin = spin with { CapturedFrames = diagnostics.SavedSpinEvidenceCount };
                     }
                     var detail = $"{observation.State} · {observation.PredictedAction} · {observation.Reason}";
                     Publish(new LockpickingObserveStatus(
@@ -322,6 +318,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
                 SpinInputActive = false,
             });
         }
+        finally
+        {
+            diagnostics.Dispose();
+        }
     }
 
     private void StopCompleted(string detail, LockpickingObservation observation)
@@ -340,131 +340,36 @@ internal sealed class LockpickingObserverEngine : IDisposable
         });
     }
 
+    private void StopFromWorker(string detail)
+    {
+        automation?.Stop();
+        observing = false;
+        inputEnabled = false;
+        Publish(Status with
+        {
+            Observing = false,
+            State = "Stopped",
+            Detail = detail,
+            InputEnabled = false,
+            SpinInputActive = false,
+        });
+    }
+
     private void Publish(LockpickingObserveStatus value)
     {
         lock (sync) status = value;
         StatusChanged?.Invoke(this, value);
     }
 
-    private void TrySaveEvidence(
-        Bitmap frame,
-        LockpickingObservation observation,
-        LockpickingSpinTelemetry? spin,
-        FrameSourceStatus capture,
-        int sampleCount,
-        long sampleTimestamp)
-    {
-        var evidenceKey = $"{observation.State}:{observation.Target?.Phase}:{observation.PredictedAction}";
-        var saveNumberedFrame = observation.State == LockpickingVisualState.Numbered
-            && savedNumberedEvidenceCount < MaximumNumberedEvidenceFrames;
-        var saveSpinBurst = observation.State == LockpickingVisualState.Spin
-            && savedSpinEvidenceCount < MaximumSpinEvidenceFrames
-            && (lastSpinEvidenceTimestamp == 0 || sampleTimestamp - lastSpinEvidenceTimestamp >= SpinEvidenceIntervalTicks);
-        if (!saveNumberedFrame
-            && !saveSpinBurst
-            && (savedNonNumberedEvidenceCount >= MaximumEvidenceFrames || evidenceKey == lastEvidenceKey))
-        {
-            return;
-        }
-
-        try
-        {
-            var sequence = savedEvidenceCount + 1;
-            var kind = saveSpinBurst ? "spinburst" : observation.State.ToString().ToLowerInvariant();
-            var stem = $"{sequence:00}-{kind}-{sampleCount:000000}";
-            var croppedHudEvidence = saveSpinBurst || saveNumberedFrame;
-            var evidenceRegion = croppedHudEvidence ? HudEvidenceRegion(frame, observation) : new Rectangle(0, 0, frame.Width, frame.Height);
-            using var evidence = new Bitmap(evidenceRegion.Width, evidenceRegion.Height, PixelFormat.Format24bppRgb);
-            using (var graphics = Graphics.FromImage(evidence))
-            {
-                graphics.DrawImage(
-                    frame,
-                    new Rectangle(0, 0, evidence.Width, evidence.Height),
-                    evidenceRegion,
-                    GraphicsUnit.Pixel);
-            }
-            var imageFormat = croppedHudEvidence ? ImageFormat.Png : ImageFormat.Jpeg;
-            var extension = croppedHudEvidence ? "png" : "jpg";
-            evidence.Save(Path.Combine(evidenceDirectory, $"{stem}.{extension}"), imageFormat);
-            File.AppendAllText(
-                Path.Combine(evidenceDirectory, "events.jsonl"),
-                JsonSerializer.Serialize(new
-                {
-                    capturedAt = DateTimeOffset.Now,
-                    sampleCount,
-                    frame = new { frame.Width, frame.Height },
-                    evidenceRegion = new { evidenceRegion.Left, evidenceRegion.Top, evidenceRegion.Width, evidenceRegion.Height },
-                    evidenceFormat = extension,
-                    capture = new
-                    {
-                        capture.Backend,
-                        frameAgeMilliseconds = capture.FrameAge.TotalMilliseconds,
-                        capture.CaptureMilliseconds,
-                        capture.AccumulatedFrames,
-                    },
-                    spin,
-                    observation,
-                }) + Environment.NewLine);
-            lastEvidenceKey = evidenceKey;
-            savedEvidenceCount = sequence;
-            if (saveNumberedFrame)
-            {
-                savedNumberedEvidenceCount++;
-            }
-            else if (!saveSpinBurst)
-            {
-                savedNonNumberedEvidenceCount++;
-            }
-            if (saveSpinBurst)
-            {
-                savedSpinEvidenceCount++;
-                lastSpinEvidenceTimestamp = sampleTimestamp;
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ExternalException)
-        {
-            // Observation remains available even if optional local evidence cannot be persisted.
-        }
-    }
-
-    private static Rectangle HudEvidenceRegion(Bitmap frame, LockpickingObservation observation)
-    {
-        var minimum = Math.Min(frame.Width, frame.Height);
-        var radius = observation.HudRadius * minimum * 1.18;
-        var desired = Math.Max(1, (int)Math.Ceiling(radius * 2));
-        var width = Math.Min(frame.Width, desired);
-        var height = Math.Min(frame.Height, desired);
-        var left = Math.Clamp((int)Math.Round(observation.HudCenterX * frame.Width - width / 2d), 0, frame.Width - width);
-        var top = Math.Clamp((int)Math.Round(observation.HudCenterY * frame.Height - height / 2d), 0, frame.Height - height);
-        return new Rectangle(left, top, width, height);
-    }
-
-    private void TrySaveTargetTrace(Bitmap frame, int sampleCount)
-    {
-        try
-        {
-            var trace = LockpickingDetector.TraceTargets(frame);
-            File.AppendAllText(
-                Path.Combine(evidenceDirectory, "candidate-trace.jsonl"),
-                JsonSerializer.Serialize(new
-                {
-                    diagnostic = "lockpick-target-trace-v1",
-                    capturedAt = DateTimeOffset.Now,
-                    sampleCount,
-                    trace,
-                }) + Environment.NewLine);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ExternalException)
-        {
-            // Optional local diagnostics must not interrupt observation.
-        }
-    }
-
     public void Dispose()
     {
         Stop();
-        automation?.Dispose();
-        cancellation?.Dispose();
-        frameSource?.Dispose();
+        routineWorker.Dispose();
+        if (!routineWorker.IsRunning)
+        {
+            automation?.Dispose();
+            diagnosticSession?.Dispose();
+            frameSource?.Dispose();
+        }
     }
 }

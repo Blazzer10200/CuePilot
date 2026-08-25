@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using System.Text.Json;
 
 namespace CuePilot;
@@ -98,7 +99,14 @@ internal static class Program
     }
 
     private static double ArgumentDouble(string[] args, string name, double fallback) =>
-        double.TryParse(ArgumentValue(args, name), out var value) && value > 0 ? value : fallback;
+        double.TryParse(
+            ArgumentValue(args, name),
+            NumberStyles.Float,
+            CultureInfo.InvariantCulture,
+            out var value)
+        && value > 0
+            ? value
+            : fallback;
 
     private static int ReplayLockpicking(string directory, double framesPerSecond)
     {

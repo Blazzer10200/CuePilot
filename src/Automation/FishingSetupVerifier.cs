@@ -28,7 +28,7 @@ internal static class FishingSetupVerifier
         FishingRoutineSettings settings,
         IFrameSource frameSource,
         TargetInputRouter input,
-        bool activateTarget,
+        bool waitForForeground,
         CancellationToken token)
     {
         if (!WindowTargetService.TryResolve(settings.TargetWindow, out var target, out var targetDetail))
@@ -41,7 +41,7 @@ internal static class FishingSetupVerifier
             return Unavailable("FiveM is minimized. Restore it, then verify setup again.", target.Bounds.Width, target.Bounds.Height);
         }
 
-        var capability = activateTarget
+        var capability = waitForForeground
             ? await input.PrepareAsync(settings.TargetWindow, token)
             : input.Probe(settings.TargetWindow);
         var inputCheck = new FishingSetupCheck(capability.Ready, capability.Detail);

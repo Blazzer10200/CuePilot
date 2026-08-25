@@ -12,15 +12,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -28,6 +28,18 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: |
+          dotnet tool update -g vpk --version 1.2.0
+          if ($LASTEXITCODE -ne 0) {
+            dotnet tool install -g vpk --version 1.2.0
+          }
+          $banner = (& vpk -h 2>&1 | Select-String 'Velopack CLI ([0-9.]+)').Matches[0].Groups[1].Value
+          if ($banner -ne '1.2.0') { throw "Expected vpk 1.2.0, found $banner" }
 
       - name: Verify release tag and version
         shell: pwsh
@@ -62,30 +74,50 @@ jobs:
           Pop-Location
           npm --prefix ui run engine:stage:release
           cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
+          cargo clippy --manifest-path .\ui\src-tauri\Cargo.toml --all-targets -- -D warnings
           cargo test --manifest-path .\ui\src-tauri\Cargo.toml
 
-      - name: Build Tauri installer
-        working-directory: ui
-        run: npm run tauri:build
-
-      - name: Prepare release assets
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          $installers = @(Get-ChildItem -LiteralPath "ui\src-tauri\target\release\bundle\nsis" -Filter "*.exe")
-          if ($installers.Count -ne 1) { throw "Expected one NSIS installer, found $($installers.Count)." }
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          $assetName = "CuePilot-$version-Windows-x64-Setup.exe"
-          $assetPath = Join-Path "release" $assetName
-          Copy-Item -LiteralPath $installers[0].FullName -Destination $assetPath
-          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $assetPath).Hash.ToLowerInvariant()
-          "$hash  $assetName" | Set-Content -Encoding ascii "release\$assetName.sha256"
-
-      - name: Create GitHub release
+      - name: Download prior Velopack package for delta generation
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $installer = (Get-ChildItem -LiteralPath release -Filter "*.exe" -File).FullName
-          $checksum = (Get-ChildItem -LiteralPath release -Filter "*.sha256" -File).FullName
-          gh release create "$env:GITHUB_REF_NAME" $installer $checksum --verify-tag --generate-notes --title "CuePilot $env:GITHUB_REF_NAME"
+          New-Item -ItemType Directory -Force -Path release\velopack | Out-Null
+          & vpk download github --repoUrl https://github.com/Blazzer10200/CuePilot --token $env:GH_TOKEN --channel win -o release\velopack --timeout 5
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'No prior Velopack baseline was available; this release will contain a full package only.'
+            $global:LASTEXITCODE = 0
+          }
+
+      - name: Build Velopack release
+        shell: pwsh
+        run: pwsh -NoProfile -File .\scripts\package-velopack.ps1 -Version $($env:GITHUB_REF_NAME.TrimStart('v'))
+
+      - name: Publish Velopack feed and GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & vpk upload github -o release\velopack --repoUrl https://github.com/Blazzer10200/CuePilot --channel win --publish --tag $env:GITHUB_REF_NAME --releaseName "CuePilot $env:GITHUB_REF_NAME" --token $env:GH_TOKEN
+          if ($LASTEXITCODE -ne 0) { throw 'Velopack GitHub upload failed' }
+          $extras = @(
+            (Get-ChildItem -LiteralPath release\velopack -File -Filter '*.sha256').FullName
+            (Join-Path $PWD 'release\velopack\release-manifest.json')
+          )
+          gh release upload "$env:GITHUB_REF_NAME" $extras --clobber
+
+      - name: Verify public update feed assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $release = gh release view "$env:GITHUB_REF_NAME" --json assets,url | ConvertFrom-Json
+          $names = @($release.assets | ForEach-Object name)
+          foreach ($required in @('CuePilotDesktop-win-Setup.exe', "CuePilotDesktop-$version-full.nupkg", 'releases.win.json', 'release-manifest.json', 'CuePilotDesktop-win-Setup.exe.sha256')) {
+            if ($required -notin $names) { throw "Published release is missing $required. Assets: $($names -join ', ')" }
+          }
+          $feed = Get-Content -Raw release\velopack\releases.win.json | ConvertFrom-Json
+          $full = @($feed.Assets | Where-Object { $_.Type -eq 'Full' -and $_.Version -eq $version })
+          if ($full.Count -ne 1) { throw "releases.win.json does not advertise CuePilot $version as a full update" }
+          Write-Host "Velopack feed verified: $($release.url)"

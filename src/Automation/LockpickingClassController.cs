@@ -13,6 +13,7 @@ internal interface ILockpickingInputDriver
 {
     void MoveCursor(WindowTargetSettings target, int screenX, int screenY);
     void SendLeftButton(WindowTargetSettings target, bool up);
+    void ReleaseLeftButtonUnconditionally();
 }
 
 internal sealed class LockpickingInputDriver : ILockpickingInputDriver
@@ -24,11 +25,14 @@ internal sealed class LockpickingInputDriver : ILockpickingInputDriver
 
     public void SendLeftButton(WindowTargetSettings target, bool up) =>
         input.SendLeftButton(target, up);
+
+    public void ReleaseLeftButtonUnconditionally() => InputSender.SendLeftButton(true);
 }
 
 internal sealed class LockpickingClassController : IDisposable
 {
     private readonly object sync = new();
+    private readonly object inputSync = new();
     private readonly ILockpickingInputDriver input;
     private readonly WindowTargetSettings target;
     private readonly LockpickingClassProfile profile;
@@ -40,6 +44,8 @@ internal sealed class LockpickingClassController : IDisposable
     private int actionCount;
     private bool spinActive;
     private bool spinStarted;
+    private bool acceptingInput = true;
+    private bool leftButtonHeld;
 
     internal LockpickingClassController(
         WindowTargetSettings target,
@@ -89,15 +95,15 @@ internal sealed class LockpickingClassController : IDisposable
             StopSpin();
             var screenX = windowBounds.Left + (int)Math.Round(readyTarget.CenterX * windowBounds.Width);
             var screenY = windowBounds.Top + (int)Math.Round(readyTarget.CenterY * windowBounds.Height);
-            input.MoveCursor(target, screenX, screenY);
-            input.SendLeftButton(target, false);
+            MoveCursor(screenX, screenY, token);
+            SendLeftButtonDown(token);
             try
             {
                 await Task.Delay(18, token);
             }
             finally
             {
-                input.SendLeftButton(target, true);
+                ReleaseLeftButtonIfOwned();
             }
 
             lastClickedTarget = readyTarget.Number.Value;
@@ -129,8 +135,9 @@ internal sealed class LockpickingClassController : IDisposable
 
     internal void Stop()
     {
+        lock (inputSync) acceptingInput = false;
         StopSpin();
-        try { input.SendLeftButton(target, true); } catch { }
+        ReleaseLeftButtonIfOwned();
     }
 
     internal static Point SpinPoint(
@@ -163,6 +170,7 @@ internal sealed class LockpickingClassController : IDisposable
     private void StartSpin(LockpickingObservation observation, Rectangle windowBounds, CancellationToken outerToken)
     {
         StopSpin();
+        ThrowIfSpinFaulted();
         var center = new Point(
             windowBounds.Left + (int)Math.Round(observation.HudCenterX * windowBounds.Width),
             windowBounds.Top + (int)Math.Round(observation.HudCenterY * windowBounds.Height));
@@ -195,7 +203,7 @@ internal sealed class LockpickingClassController : IDisposable
                     startingAngle,
                     clock.Elapsed.TotalSeconds,
                     profile.SpinDegreesPerSecond);
-                input.MoveCursor(target, point.X, point.Y);
+                MoveCursor(point.X, point.Y, token);
                 await Task.Delay(8, token);
             }
 
@@ -224,14 +232,55 @@ internal sealed class LockpickingClassController : IDisposable
     private void StopSpin()
     {
         CancellationTokenSource? cancellation;
+        Task? activeTask;
         lock (sync)
         {
             cancellation = spinCancellation;
+            activeTask = spinTask;
             spinCancellation = null;
+            spinTask = null;
             spinActive = false;
         }
-        cancellation?.Cancel();
-        cancellation?.Dispose();
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        var completed = activeTask is null || activeTask.IsCompleted;
+        if (!completed)
+        {
+            try
+            {
+                completed = activeTask!.Wait(TimeSpan.FromSeconds(1));
+            }
+            catch (AggregateException exception) when (exception.Flatten().InnerExceptions.All(
+                static error => error is OperationCanceledException))
+            {
+                completed = true;
+            }
+            catch (AggregateException exception)
+            {
+                lock (sync) spinFault ??= exception.Flatten().InnerException?.Message ?? exception.Message;
+                completed = true;
+            }
+        }
+
+        if (completed)
+        {
+            cancellation.Dispose();
+            return;
+        }
+
+        lock (sync)
+        {
+            spinFault ??= "Lockpicking cursor motion did not stop within the one-second safety deadline.";
+        }
+        _ = activeTask!.ContinueWith(
+            _ => cancellation.Dispose(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private void ThrowIfSpinFaulted()
@@ -245,6 +294,55 @@ internal sealed class LockpickingClassController : IDisposable
         if (!string.IsNullOrWhiteSpace(fault))
         {
             throw new InvalidOperationException(fault);
+        }
+    }
+
+    private void MoveCursor(int screenX, int screenY, CancellationToken token)
+    {
+        lock (inputSync)
+        {
+            ThrowIfInputClosed(token);
+            input.MoveCursor(target, screenX, screenY);
+        }
+    }
+
+    private void SendLeftButtonDown(CancellationToken token)
+    {
+        lock (inputSync)
+        {
+            ThrowIfInputClosed(token);
+            input.SendLeftButton(target, false);
+            leftButtonHeld = true;
+        }
+    }
+
+    private void ReleaseLeftButtonIfOwned()
+    {
+        lock (inputSync)
+        {
+            if (!leftButtonHeld)
+            {
+                return;
+            }
+
+            try
+            {
+                input.ReleaseLeftButtonUnconditionally();
+                leftButtonHeld = false;
+            }
+            catch
+            {
+                // The next stop/dispose path retries while ownership remains.
+            }
+        }
+    }
+
+    private void ThrowIfInputClosed(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (!acceptingInput)
+        {
+            throw new OperationCanceledException("Lockpicking input is stopping; no new input was sent.", token);
         }
     }
 
@@ -266,6 +364,5 @@ internal sealed class LockpickingClassController : IDisposable
     public void Dispose()
     {
         Stop();
-        spinTask = null;
     }
 }

@@ -70,6 +70,10 @@ if ($Rust) {
     cargo fmt --manifest-path (Join-Path $repoRoot "ui/src-tauri/Cargo.toml") -- --check
     Assert-NativeSuccess
 
+    Write-Host "rust: clippy"
+    cargo clippy --manifest-path (Join-Path $repoRoot "ui/src-tauri/Cargo.toml") --all-targets -- -D warnings
+    Assert-NativeSuccess
+
     Write-Host "rust: cargo test"
     cargo test --manifest-path (Join-Path $repoRoot "ui/src-tauri/Cargo.toml")
     Assert-NativeSuccess

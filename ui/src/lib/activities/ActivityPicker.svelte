@@ -12,6 +12,8 @@
 
   let { engineConnected, targetValid, focusActivity, onselect }: Props = $props();
   let activityCardNodes: Partial<Record<ActivityId, HTMLButtonElement>> = {};
+  const readyCount = activities.filter((activity) => activity.availability === "ready").length;
+  const observeCount = activities.filter((activity) => activity.availability !== "ready").length;
 
   onMount(() => {
     if (focusActivity) void tick().then(() => activityCardNodes[focusActivity]?.focus());
@@ -56,7 +58,7 @@
       <span class="activity-card__capabilities" aria-label="Capabilities">
         {#each activity.capabilities as capability}<span>{capability}</span>{/each}
       </span>
-      <span class="activity-card__action">Open activity<ChevronRight size={15} strokeWidth={1.9} /></span>
+      <span class="activity-card__action">Open {activity.shortName}<ChevronRight size={15} strokeWidth={1.9} /></span>
     </button>
   {/each}
 </section>
@@ -68,5 +70,5 @@
 
 <footer class="status-footer activity-home__footer">
   <div class="safety-summary"><ShieldCheck size={15} strokeWidth={1.9} /><p><strong>Local by design</strong><i></i>No gameplay imagery leaves this PC</p></div>
-  <div class="system-status" aria-label="System status"><span><i></i>{activities.length} available activities</span><b aria-hidden="true"></b><span>{activities.length} configured</span></div>
+  <div class="system-status" aria-label="Activity availability"><span><i></i>{readyCount} automation ready</span><b aria-hidden="true"></b><span>{observeCount} observe-only</span></div>
 </footer>

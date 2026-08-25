@@ -1202,6 +1202,7 @@ internal sealed class FishingMeterFrameSample(
 
 internal sealed class FishingDiagnosticLog : IDisposable
 {
+    private static readonly JsonSerializerOptions EvidenceJson = new() { WriteIndented = true };
     private readonly StreamWriter writer;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly string directory;
@@ -1319,10 +1320,11 @@ internal sealed class FishingDiagnosticLog : IDisposable
                 candidateConfidence = primary.Value.Evidence.CandidateConfidence,
             },
         };
-        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, EvidenceJson));
         FishingLoopDiagnosticLog.Write(
             $"{safeEventName.Replace('-', '_')}_capture",
-            $"file={imageName};tracked={analysis.UsedTrackedRegion};candidates={analysis.CandidateCount}");
+            $"file={imageName};tracked={analysis.UsedTrackedRegion};candidates={analysis.CandidateCount}",
+            directory);
         return imagePath;
     }
 
@@ -1333,9 +1335,9 @@ internal static class FishingLoopDiagnosticLog
 {
     private static readonly object Sync = new();
 
-    internal static void Write(string eventName, string detail = "")
+    internal static void Write(string eventName, string detail = "", string? diagnosticsDirectory = null)
     {
-        var directory = AppPaths.DiagnosticsDirectory;
+        var directory = diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory;
         Directory.CreateDirectory(directory);
         var line = string.Join(',',
             DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),

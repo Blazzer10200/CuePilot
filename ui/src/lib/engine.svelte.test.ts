@@ -55,6 +55,7 @@ function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
         fishingMinimumPulseMilliseconds: 35,
         fishingMaximumPulseMilliseconds: 90,
         fishingMinimumRestMilliseconds: 70,
+        fishingCastAccelerationDelayMilliseconds: 5000,
         maximumDurationSeconds: 210,
         collectDelayMilliseconds: 250,
         collectOnTimeout: false,

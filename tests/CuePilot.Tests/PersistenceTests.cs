@@ -14,6 +14,7 @@ public sealed class PersistenceTests
             FishingMinimumPulseMilliseconds = 1,
             FishingMaximumPulseMilliseconds = 500,
             FishingMinimumRestMilliseconds = 1,
+            FishingCastAccelerationDelayMilliseconds = 1,
         };
 
         settings.Clamp();
@@ -25,6 +26,7 @@ public sealed class PersistenceTests
         Assert.Equal(20, settings.FishingMinimumPulseMilliseconds);
         Assert.Equal(120, settings.FishingMaximumPulseMilliseconds);
         Assert.Equal(20, settings.FishingMinimumRestMilliseconds);
+        Assert.Equal(3_000, settings.FishingCastAccelerationDelayMilliseconds);
     }
 
     [Fact]
@@ -37,6 +39,7 @@ public sealed class PersistenceTests
         settings.Routine.FishingMinimumPulseMilliseconds = 30;
         settings.Routine.FishingMaximumPulseMilliseconds = 85;
         settings.Routine.FishingMinimumRestMilliseconds = 65;
+        settings.Routine.FishingCastAccelerationDelayMilliseconds = 4_800;
         settings.Routine.TargetWindow = new WindowTargetSettings
         {
             ProcessId = 3258,
@@ -52,6 +55,7 @@ public sealed class PersistenceTests
         Assert.Equal(30, restored.Routine.FishingMinimumPulseMilliseconds);
         Assert.Equal(85, restored.Routine.FishingMaximumPulseMilliseconds);
         Assert.Equal(65, restored.Routine.FishingMinimumRestMilliseconds);
+        Assert.Equal(4_800, restored.Routine.FishingCastAccelerationDelayMilliseconds);
         Assert.Equal(3258, restored.Routine.TargetWindow.ProcessId);
     }
 
@@ -86,6 +90,7 @@ public sealed class PersistenceTests
         Assert.Equal(35, restored.Routine.FishingMinimumPulseMilliseconds);
         Assert.Equal(90, restored.Routine.FishingMaximumPulseMilliseconds);
         Assert.Equal(70, restored.Routine.FishingMinimumRestMilliseconds);
+        Assert.Equal(5_000, restored.Routine.FishingCastAccelerationDelayMilliseconds);
         Assert.False(restored.Routine.CollectOnTimeout);
     }
 
