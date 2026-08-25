@@ -1,4 +1,4 @@
-# Handoff — CuePilot — 2026-08-25 07:00 CDT
+# Handoff — CuePilot — 2026-08-25 08:00 CDT
 
 ## Current Objective
 
@@ -6,14 +6,14 @@
 
 ## Current State
 
-- Release source: CuePilot 5.2.0, prepared on `codex/post-release` for merge through `main` and the `v5.2.0` GitHub release.
+- Release source: CuePilot 5.2.0, published from `main` merge `8208abad` as the public [`v5.2.0` GitHub release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.2.0).
 - Versions are synchronized at 5.2.0 across .NET, npm/lock, Cargo/lock, and Tauri configuration.
 - Velopack crate and CLI are pinned exactly to 1.2.0. Tauri's NSIS bundler is disabled.
 - `release/velopack/` contains the verified 5.2.0 installer, portable zip, full package, feed, checksum, and release manifest; the tagged GitHub workflow is the public asset source of truth.
 - This computer now has only the Velopack 5.2.0 app registered under `%LOCALAPPDATA%\CuePilotDesktop`; the legacy 5.1.7 NSIS app is uninstalled and its desktop development shortcut is removed.
 - `%LOCALAPPDATA%\CuePilot` is now data-only: valid settings, patterns, small workflow backups, four fishing sessions, and the newest eight lockpicking sessions remain. Legacy binaries, WebView cache, old release archives, stale evidence, and migration staging were removed.
-- Repository cleanup removed 22,767.5 MB of generated build/test/smoke/audit output plus later regenerated staging, while preserving `release/velopack/` and dependency caches. Measured C-drive free space increased from 844.0 GB to 863.5 GB during the main cleanup.
-- Full gate passes after NUI/focus hardening: 239 .NET tests, headless self-test, 18 Vitest tests, Svelte 0 errors/0 warnings, production UI build, Rust fmt, Clippy with warnings denied, and 11 Rust tests.
+- Repository cleanup removed 22,767.5 MB of historical generated output and a final 5,650.2 MB of regenerated test/smoke/build output, while preserving `release/velopack/` and dependency caches. Measured C-drive free space increased from 844.0 GB to 863.5 GB during the main cleanup.
+- Full gate passes after NUI/focus hardening: 239 .NET tests, headless self-test, 18 Vitest tests, Svelte 0 errors/0 warnings, production UI build, Rust fmt, Clippy with warnings denied, and 11 Rust tests. PR, `main`, and tagged-release GitHub runs also pass, including installer publication and public-feed verification.
 - Disposable installed update proof passes: isolated `CuePilotUpdaterSmoke` 5.2.0 downloaded/applied the generated 5.2.1 delta, stopped the packaged .NET sidecar, relaunched as 5.2.1 with the replaced marker, then removed its process, install, registry entry, and shortcuts.
 - Live CDP review passed at 1180x760 and emulated 760x620: update dialog fits, focus traps/restores, dev copy stays out of the feed, and console errors are zero. Repo-owned CDP processes were stopped.
 
@@ -33,7 +33,8 @@
 - Added `scripts/test-velopack-update.ps1` plus a feature-gated installed smoke path in the real Rust updater.
 - Hardened `scripts/clean-workspace.ps1`: current release artifacts and the tracked engine placeholder are preserved, stale smoke/audit/packaging staging has a dedicated selector, and previews show readable per-target and total sizes.
 - Packaging removes its temporary staging directory even on failure, and the inspectable UI launcher now recreates `tmp/` after a clean workspace.
-- Rebuilt and cleanly reinstalled the corrected production 5.2.0 package locally. Installed shell/engine hashes match the new package, settings stayed byte-identical, the packaged engine self-test passed, and no owned process remains.
+- Rebuilt and cleanly reinstalled the corrected production 5.2.0 package locally. Installed shell/engine hashes match the package, settings stayed byte-identical, the packaged engine self-test passed, and the installed app was relaunched for the user from the Velopack `current` path.
+- Updated GitHub's official checkout, setup-dotnet, setup-node, and upload-artifact actions to their current Node 24-based major versions.
 
 ## Known Problems
 
