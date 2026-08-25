@@ -116,9 +116,11 @@ public sealed class RoutineWorkerTests
                 cleanedUp.Set();
             }
         });
-        Assert.True(started.Wait(TimeSpan.FromSeconds(1)));
+        // Cold ThreadPool startup on a shared CI runner can exceed one second.
+        // These are upper bounds, not fixed delays; successful runs return immediately.
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
 
-        var stopped = worker.Stop(TimeSpan.FromSeconds(1));
+        var stopped = worker.Stop(TimeSpan.FromSeconds(5));
 
         Assert.True(stopped);
         Assert.True(cleanedUp.IsSet);
@@ -136,7 +138,7 @@ public sealed class RoutineWorkerTests
             started.Set();
             release.Wait();
         }));
-        Assert.True(started.Wait(TimeSpan.FromSeconds(1)));
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
 
         try
         {
@@ -149,8 +151,8 @@ public sealed class RoutineWorkerTests
             release.Set();
         }
 
-        Assert.True(worker.WaitForCompletion(TimeSpan.FromSeconds(1)));
+        Assert.True(worker.WaitForCompletion(TimeSpan.FromSeconds(5)));
         worker.Start((_, _) => Task.CompletedTask);
-        Assert.True(worker.WaitForCompletion(TimeSpan.FromSeconds(1)));
+        Assert.True(worker.WaitForCompletion(TimeSpan.FromSeconds(5)));
     }
 }
