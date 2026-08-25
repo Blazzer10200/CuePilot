@@ -5,7 +5,7 @@ CuePilot is an activity-oriented minigame assistant. The desktop shell owns shar
 ## Shared shell
 
 - FiveM target discovery and validation
-- visible-desktop capture and foreground enforcement
+- visible-desktop capture and foreground validation without programmatic focus changes
 - bounded input delivery and emergency release
 - engine connection, notices, window controls, and local storage
 - launch-time activity selection and safe return to the activity library

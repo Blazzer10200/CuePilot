@@ -16,7 +16,6 @@ internal static class NativeMethods
     internal const uint MouseeventfMove = 0x0001;
     internal const uint MouseeventfVirtualdesk = 0x4000;
     internal const uint MouseeventfAbsolute = 0x8000;
-    internal const int SwRestore = 9;
     internal const int VkPause = 0x13;
     internal const int SmXvirtualscreen = 76;
     internal const int SmYvirtualscreen = 77;
@@ -104,14 +103,6 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsIconic(IntPtr window);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool ShowWindow(IntPtr window, int command);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool SetForegroundWindow(IntPtr window);
 
     internal delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
 

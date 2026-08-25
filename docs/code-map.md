@@ -2,6 +2,13 @@
 
 Use this map to enter the repository by task instead of scanning the whole tree.
 
+For a ten-second orientation pass (branch, version sync, handoff, package, and
+working tree), run:
+
+```powershell
+pwsh -NoProfile -File .\scripts\project-status.ps1
+```
+
 ## Runtime boundaries
 
 ```text
@@ -32,7 +39,8 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 4. `src/Automation/LockpickingClassProfiles.cs` — evidence-backed per-class calibration. Add a class here only after a complete live recording.
 5. `src/Automation/LockpickingClassController.cs` — reusable verified click and clockwise-orbit executor.
 6. `src/Automation/LockpickingSpinTracker.cs` — cursor telemetry used for calibration evidence.
-7. `tests/CuePilot.Tests/LockpickingDetectorTests.cs` and `Fixtures/Lockpicking/` — deterministic replay coverage.
+7. `src/Diagnostics/LockpickingDiagnosticSession.cs` — bounded background evidence writer, trace sampling, and cross-session retention.
+8. `tests/CuePilot.Tests/LockpickingDetectorTests.cs`, `LockpickingDiagnosticSessionTests.cs`, and `Fixtures/Lockpicking/` — deterministic controller, persistence, retention, and replay coverage.
 
 ### Engine/UI contract
 
@@ -51,12 +59,22 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 5. `ui/src/app.css` — shared product styling.
 6. `.agents/skills/cuepilot-ui/SKILL.md` and `ui/scripts/cdp/` — focus-safe live inspection.
 
+### Updates and releases
+
+1. `ui/src-tauri/src/update_service.rs` — Velopack manager, GitHub source, blocking work isolation, progress, and sidecar-safe apply.
+2. `ui/src/lib/updates.svelte.ts` — launch/periodic checks, state machine, download progress, and retry behavior.
+3. `ui/src/lib/UpdateCenter.svelte` — version-badge dialog, release notes, active-activity gate, and user confirmation.
+4. `scripts/package-velopack.ps1` — version guard, allowlisted staging, WebView2 prerequisite, package/feed/checksum/manifest generation.
+5. `.github/workflows/release.yml` — tag gate, prior delta baseline, publication, and public asset/feed verification.
+6. `scripts/test-velopack-update.ps1` — disposable installed 5.2.0 → 5.2.1 delta/apply/relaunch/cleanup test under a separate package identity.
+7. `ui/src/lib/updates.svelte.test.ts` and Rust tests in `update_service.rs` — focused updater contracts.
+
 ### Windows integration and packaging
 
 - `src/Capture/`, `src/Input/`, and `src/Platform/` — desktop capture, input delivery, target resolution, and Win32 interop.
-- `ui/src-tauri/tauri.conf.json` and `tauri.dev.conf.json` — distinct Release/Dev identities.
+- `ui/src-tauri/tauri.conf.json` and `tauri.dev.conf.json` — distinct Release/Dev identities; Tauri's own bundler is disabled because Velopack owns release packaging.
 - `ui/scripts/build-engine.ps1` — stages the sidecar for Tauri.
-- `scripts/build-brand-assets.ps1` and `install-desktop-shortcuts.ps1` — icons and launchers.
+- `scripts/build-brand-assets.ps1` and `ui/scripts/run-dev-inspectable.ps1` — icons and the isolated development launcher. Velopack owns installed shortcuts.
 
 ## Fast searches
 
@@ -64,6 +82,7 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 rg -n "command-name" src/Application ui/src ui/src-tauri/src
 rg -n "Detector|Tracker|Controller" src/Automation tests/CuePilot.Tests
 rg -n "LockpickingVisualState|FishingPromptKind|RoutineState" src tests ui/src
+rg -n "UpdateService|check_for_updates|updates\.state|package-velopack" ui scripts .github
 rg --files src ui/src ui/src-tauri/src tests/CuePilot.Tests
 ```
 
@@ -73,6 +92,9 @@ Generated schemas, locks, build outputs, dependencies, temporary diagnostics, an
 
 ```powershell
 pwsh -NoProfile -File .\scripts\verify.ps1 -All
+cargo clippy --manifest-path .\ui\src-tauri\Cargo.toml --all-targets -- -D warnings
+pwsh -NoProfile -File .\scripts\package-velopack.ps1
+pwsh -NoProfile -File .\scripts\test-velopack-update.ps1
 ```
 
 Preview disposable workspace output without deleting dependency caches:

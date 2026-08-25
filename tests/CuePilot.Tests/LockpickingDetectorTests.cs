@@ -378,6 +378,43 @@ public sealed class LockpickingDetectorTests
     }
 
     [Fact]
+    public async Task ClassCControllerReleasesTheMouseUnconditionallyWhenClickIsCancelled()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var input = new RecordingLockpickingInputDriver
+        {
+            OnButtonDown = cancellation.Cancel,
+        };
+        using var controller = new LockpickingClassController(
+            new WindowTargetSettings { ProcessName = "FiveM" },
+            LockpickingClassProfiles.ClassC,
+            input);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.HandleAsync(
+            ReadyTarget(1, 0.7, 0.5),
+            new Rectangle(0, 0, 1000, 1000),
+            cancellation.Token));
+
+        Assert.Equal([false, true], input.ButtonUps);
+        Assert.Equal(1, input.UnconditionalReleases);
+    }
+
+    [Fact]
+    public void ClassCControllerStopWithoutAnOwnedButtonDoesNotInjectMouseInput()
+    {
+        var input = new RecordingLockpickingInputDriver();
+        using var controller = new LockpickingClassController(
+            new WindowTargetSettings { ProcessName = "FiveM" },
+            LockpickingClassProfiles.ClassC,
+            input);
+
+        controller.Stop();
+
+        Assert.Empty(input.ButtonUps);
+        Assert.Equal(0, input.UnconditionalReleases);
+    }
+
+    [Fact]
     public async Task ClassCControllerRejectsInferredTargetNumber()
     {
         var input = new RecordingLockpickingInputDriver();
@@ -627,10 +664,25 @@ public sealed class LockpickingDetectorTests
     {
         internal List<Point> Moves { get; } = [];
         internal List<bool> ButtonUps { get; } = [];
+        internal Action? OnButtonDown { get; init; }
+        internal int UnconditionalReleases { get; private set; }
 
         public void MoveCursor(WindowTargetSettings target, int screenX, int screenY) =>
             Moves.Add(new Point(screenX, screenY));
 
-        public void SendLeftButton(WindowTargetSettings target, bool up) => ButtonUps.Add(up);
+        public void SendLeftButton(WindowTargetSettings target, bool up)
+        {
+            ButtonUps.Add(up);
+            if (!up)
+            {
+                OnButtonDown?.Invoke();
+            }
+        }
+
+        public void ReleaseLeftButtonUnconditionally()
+        {
+            UnconditionalReleases++;
+            ButtonUps.Add(true);
+        }
     }
 }

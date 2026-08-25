@@ -18,6 +18,7 @@ Use the task-oriented [code map](code-map.md) before broad searches. It lists th
 - .NET 8 SDK
 - Node.js 22 and npm
 - stable Rust toolchain
+- Velopack CLI 1.2.0 for release packaging (`dotnet tool install -g vpk --version 1.2.0`)
 
 Install frontend dependencies once from the repository root:
 
@@ -56,6 +57,7 @@ npm --prefix ui run build
 
 # Rust/Tauri bridge
 cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
+cargo clippy --manifest-path .\ui\src-tauri\Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path .\ui\src-tauri\Cargo.toml
 ```
 
@@ -97,7 +99,7 @@ The script uses deterministic local resizing and rounded-corner masking; it does
 - Regression fixtures belong under `tests/CuePilot.Tests/Fixtures/` and should be limited to the visual evidence required by the test.
 - Review new fixtures for personal information, chat text, identifiers, and unrelated overlays before committing them.
 - Runtime traces and annotated evidence under `%LOCALAPPDATA%\CuePilot\diagnostics\` are local artifacts, not repository content.
-- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. Dependency caches are preserved unless `-Dependencies` is explicitly supplied; use `-Captures` to select generated CDP screenshots.
+- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. The current release is preserved by default; `-StaleReleaseArtifacts` selects updater smoke/audit output and packaging staging while `-ReleaseArtifacts` selects the entire release directory. Dependency caches are preserved unless `-Dependencies` is supplied, and `-Captures` selects generated CDP screenshots.
 
 ### Instrumented Fishing sessions
 
@@ -120,7 +122,7 @@ Start Lockpicking from its workspace. `Observe only` reuses the selected FiveM w
 
 Starting Observe arms a waiting state and resumes capture when FiveM is foreground. Pause / Break, focus loss, capture failure, HUD disappearance, and uncertain states stop observation rather than guessing. Do not map the saved Class C timing evidence to A, B, or D.
 
-Evidence is bounded to 72 frames per session under `%LOCALAPPDATA%\CuePilot\diagnostics\lockpicking\<session-id>`. Normal state transitions retain their full-frame context. SPIN additionally retains at most 30 HUD crops at approximately 12 Hz; each JSONL entry includes the source frame and crop bounds, capture timing, frame age/batch, and cursor-derived spin telemetry. Replay any saved or fixture frame through the same production detector:
+Per-session saves cap non-numbered transitions at 72 frames, numbered evidence at 180 frames, and SPIN crops at 30 frames under `%LOCALAPPDATA%\CuePilot\diagnostics\lockpicking\<session-id>`. Image encoding, JSONL appends, and the optional target-trace detector run on a bounded background writer instead of the capture loop. Target traces are sampled at no more than 10 Hz and 900 frames per session. Cross-session retention keeps the newest eight sessions within a 500 MB total ceiling; cleanup is best-effort and runs when a new session starts. Each JSONL entry includes the source frame and crop bounds, capture timing, frame age/batch, and cursor-derived spin telemetry. Replay any saved or fixture frame through the same production detector:
 
 ```powershell
 dotnet run --project .\CuePilot.csproj -- --analyze-lockpicking C:\path\to\full-frame.jpg
@@ -131,18 +133,26 @@ Before promoting another vehicle class, capture its own complete numbered and SP
 
 ## Release gate
 
-Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, `ui/src-tauri/Cargo.toml`, and `ui/src-tauri/tauri.conf.json`. After the full automated gate and the activity-specific live smoke test pass, build the NSIS installer with:
+Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, and `ui/src-tauri/tauri.conf.json`. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
+
+After the full automated gate and activity-specific live smoke test pass, build the same artifacts used by CI:
 
 ```powershell
 npm --prefix ui run tauri:build
 ```
 
-The installer build stages the Release sidecar automatically. Do not replace the last known-good installed build solely because compilation succeeded.
+That command stages an allowlisted Release shell, self-contained .NET sidecar, icon, and license; it then writes `CuePilotDesktop-win-Setup.exe`, the full/delta package feed, portable zip, SHA-256, and `release-manifest.json` under `release/velopack/`. WebView2 is an explicit Velopack bootstrap requirement. Tauri's former NSIS bundler is disabled.
 
-For a portable release executable without creating an installer, run `npm --prefix ui run tauri:build:portable`. After producing a verified release executable, install or refresh the two desktop shortcuts with:
+`npm --prefix ui run tauri:build:portable` builds only the raw shell and staged resource directory; it is an input to packaging, not the supported end-user installer. Do not replace the last known-good installed build solely because compilation or packaging succeeded. A tagged release must also verify the public GitHub assets and `releases.win.json` entry.
+
+The first Velopack-enabled release is a one-time manual migration from the legacy Tauri NSIS install. Use pack ID `CuePilotDesktop`: the old `%LOCALAPPDATA%\CuePilot` install root also stores settings/diagnostics, so reusing it would put persistent data inside Velopack's replace/uninstall boundary. After the 5.2.0 Setup.exe is installed, later releases can check, download, apply, and relaunch in-app. For local feed/apply testing, build with the `update-test-feed` Cargo feature and point `CUEPILOT_UPDATE_FEED` at a generated feed; production builds ignore that local override.
+
+Run the repeatable installed update test before tagging an updater change:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\install-desktop-shortcuts.ps1 -OfficialExecutable C:\path\to\cuepilot-ui.exe
+pwsh -NoProfile -File .\scripts\test-velopack-update.ps1
 ```
 
-`CuePilot` opens that fixed release build. `CuePilot Dev` runs `scripts/launch-cuepilot-dev.ps1`, stages the current Debug engine, and launches the inspectable development shell. Their stable shortcut icons are copied under `%LOCALAPPDATA%\CuePilot\branding` so checkout moves do not break icon rendering.
+It builds a feature-gated release shell, packages isolated `CuePilotUpdaterSmoke` 5.2.0 and 5.2.1 feeds, silently installs under ignored `release/velopack-smoke/`, downloads/applies the delta through the real Rust `UpdateManager`, starts and safely stops the packaged .NET sidecar, verifies relaunch plus the replaced payload marker, and uninstalls the test identity. The script fails if an installed process, registry entry, shortcut, or `current` directory remains. Use `-SkipBuild` only when the release binary was just built with `update-test-feed` and only packaging/install repetition is needed.
+
+Velopack exclusively owns the installed `CuePilot` Start-menu and desktop shortcuts. Development runs through `npm --prefix ui run cdp:dev` or `scripts/launch-cuepilot-dev.ps1`; repository tools must never repoint the official shortcut at a raw build.

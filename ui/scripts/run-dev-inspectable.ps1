@@ -19,6 +19,7 @@ $batchPath = Join-Path $env:TEMP 'cuepilot-inspect-dev.bat'
 $taskName = 'CuePilotInspectDev'
 $stdoutPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.out.log"
 $stderrPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.err.log"
+[System.IO.Directory]::CreateDirectory((Split-Path -Parent $stdoutPath)) | Out-Null
 $env:CARGO_TARGET_DIR = $cargoTargetPath
 
 function Test-Elevated {

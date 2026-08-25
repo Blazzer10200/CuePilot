@@ -8,9 +8,9 @@
 ## Fast repository map
 - `src/` = headless .NET engine and runtime logic
   - `Automation/` = detector/routine engine orchestration (`AdaptiveRoutineEngine`, detector implementations)
+  - `Diagnostics/` = bounded Fishing and Lockpicking evidence writers plus headless self-test
   - `Capture/`, `Input/`, `Platform/` = frame source + input action + host platform hooks
   - `Application/` = engine startup, settings, and the versioned local bridge
-  - `Diagnostics/` = headless engine self-test
 - `ui/` = Svelte + Tauri front-end
   - `ui/src/` = app shell and state wiring
   - `ui/src/lib/activities.ts` = typed activity registry and readiness metadata
@@ -25,15 +25,20 @@
 ## High-signal edit points
 - Start with:
   - `src/Automation/AdaptiveRoutineEngine.cs`
+  - `src/Automation/RoutineWorker.cs`
   - `src/Automation/*Detector*.cs`
   - `src/Automation/LockpickingClassProfiles.cs`
   - `src/Automation/LockpickingClassController.cs`
   - `src/Automation/LockpickingObserverEngine.cs`
   - `src/Application/UiBridge.cs`
+  - `src/Diagnostics/LockpickingDiagnosticSession.cs`
   - `ui/src/App.svelte`
   - `ui/src/lib/activities.ts`
   - `ui/src/lib/engine.svelte.ts`
+  - `ui/src/lib/updates.svelte.ts`
+  - `ui/src-tauri/src/update_service.rs`
   - `ui/src-tauri/src/engine_bridge.rs`
+  - `scripts/package-velopack.ps1`
 
 ## Runtime boundaries
 - Keep the .NET side authoritative for capture + detection + safety checks.
@@ -44,10 +49,12 @@
 - Full local gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
 - `.NET`: `dotnet build CuePilot.sln -c Release`, `dotnet test tests/CuePilot.Tests/CuePilot.Tests.csproj -c Release`
 - `UI`: `npm test --prefix ui`, `npm run check --prefix ui`, `npm run build --prefix ui`
-- `Rust`: `cargo test --manifest-path ui/src-tauri/Cargo.toml`
+- `Rust`: `cargo clippy --manifest-path ui/src-tauri/Cargo.toml --all-targets -- -D warnings`, `cargo test --manifest-path ui/src-tauri/Cargo.toml`
+- `Package`: `pwsh -NoProfile -File scripts/package-velopack.ps1`
 
 ## Search and navigation defaults
 - Use `rg` for code search.
+- Start unfamiliar or resumed work with `pwsh -NoProfile -File scripts/project-status.ps1`, then follow `HANDOFF.md` and `docs/code-map.md`.
 - `tmp/` is noise output from sessions and should be treated as non-source.
 - Generated Tauri schemas, dependency locks, build output, and CDP captures are excluded by `.rgignore`; address them explicitly when the task actually concerns them.
 - Preview repository cleanup with `pwsh -NoProfile -File scripts/clean-workspace.ps1`; dependency caches are opt-in and should normally be preserved for faster iteration.

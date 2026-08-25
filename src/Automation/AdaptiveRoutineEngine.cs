@@ -2,18 +2,14 @@ using System.Diagnostics;
 
 namespace CuePilot;
 
-internal static class RoutineWorker
-{
-    internal static Task Start(Func<Task> work) => Task.Run(work);
-}
-
 internal sealed class AdaptiveRoutineEngine : IDisposable
 {
     private const int MaximumPromptPressAttempts = 5;
     private const int CastAccelerationPulseMilliseconds = 40;
     private readonly object sync = new();
+    private readonly OwnedRoutineWorker routineWorker = new();
+    private readonly AutomationInputGate inputGate;
     private FishingRoutineSettings settings = new();
-    private CancellationTokenSource? cancellation;
     private IFrameSource? frameSource;
     private TargetInputRouter input = new(InputDeliveryMode.Automatic);
     private readonly FishingMeterTracker meterTracker = new();
@@ -24,13 +20,18 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     internal RoutineState State => state;
     internal FishingDebugSnapshot? DebugSnapshot => latestDebugSession?.Snapshot;
 
+    internal AdaptiveRoutineEngine(InputReleaseSafety? inputRelease = null)
+    {
+        inputGate = new AutomationInputGate(inputRelease);
+    }
+
     internal void Arm(FishingRoutineSettings requestedSettings)
     {
         lock (sync)
         {
-            if (State is not (RoutineState.Stopped or RoutineState.Faulted))
+            if (State is not (RoutineState.Stopped or RoutineState.Faulted) || routineWorker.IsRunning)
             {
-                throw new InvalidOperationException("The fishing routine is already running.");
+                throw new InvalidOperationException("The fishing routine is already running or still stopping.");
             }
 
             if (!requestedSettings.TargetWindow.IsConfigured)
@@ -40,8 +41,6 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
 
             settings = requestedSettings.Copy();
             settings.Clamp();
-            cancellation?.Dispose();
-            cancellation = new CancellationTokenSource();
             frameSource?.Dispose();
             frameSource = FrameSourceFactory.Create();
             meterTracker.Reset();
@@ -50,15 +49,29 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             latestDebugSession = debugSession;
             debugSession.SetStage("Preflight", "Resolving the target application.");
             SetState(RoutineState.Casting, "Preflight: resolving the target application.");
-            _ = RoutineWorker.Start(() => RunRoutineSafeAsync(cancellation.Token, debugSession));
+            inputGate.BeginRun();
+            try
+            {
+                routineWorker.Start((_, token) => RunRoutineSafeAsync(token, debugSession));
+            }
+            catch
+            {
+                inputGate.StopAndReleaseOwnedInput();
+                throw;
+            }
         }
     }
 
     internal void Stop(string reason = "Fishing routine stopped.")
     {
+        routineWorker.Cancel();
+        inputGate.StopAndReleaseOwnedInput();
         latestDebugSession?.Record("control", "stop_requested", new { reason });
-        cancellation?.Cancel();
-        ReleaseLeftButton();
+        if (!routineWorker.WaitForCompletion())
+        {
+            SetState(RoutineState.Faulted, "Fishing did not stop within the three-second safety deadline. Restart CuePilot before starting again.");
+            return;
+        }
         SetState(RoutineState.Stopped, reason);
     }
 
@@ -121,7 +134,6 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         catch (OperationCanceledException)
         {
             outcome = "Stopped safely";
-            ReleaseLeftButton();
             if (State != RoutineState.Stopped)
             {
                 SetState(RoutineState.Stopped, "Fishing routine cancelled safely.");
@@ -131,11 +143,11 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         {
             outcome = $"Faulted: {exception.Message}";
             debugSession.Record("fault", "exception", new { type = exception.GetType().Name, exception.Message });
-            ReleaseLeftButton();
             SetState(RoutineState.Faulted, exception.Message);
         }
         finally
         {
+            inputGate.StopAndReleaseOwnedInput();
             debugSession.Complete(outcome);
             Raise(new RoutineStatus(State, outcome));
             debugSession.Dispose();
@@ -145,8 +157,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     private async Task PreflightAsync(CancellationToken token, FishingDebugSession debugSession)
     {
         var source = frameSource ?? throw new InvalidOperationException("No frame source is configured.");
-        SetState(RoutineState.Casting, "Preflight: checking target, input, and live desktop capture.");
-        var verification = await FishingSetupVerifier.VerifyAsync(settings, source, input, activateTarget: true, token: token);
+        SetState(RoutineState.Casting, "Preflight: return to FiveM; CuePilot waits up to ten seconds without taking focus.");
+        var verification = await FishingSetupVerifier.VerifyAsync(settings, source, input, waitForForeground: true, token: token);
         debugSession.Record("preflight", "setup_verified", verification);
         if (!verification.Ready)
         {
@@ -428,6 +440,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 for (var attempt = 1; attempt <= maximumAttempts; attempt++)
                 {
                     await EnsureInputReadyAsync(token);
+                    token.ThrowIfCancellationRequested();
                     SetState(promptState, $"Verified “{label}” ({observation.Confidence:P0}). Pressing E.");
                     var eventPrefix = expected.ToString().ToLowerInvariant();
                     FishingLoopDiagnosticLog.Write($"{eventPrefix}_e_start", $"confidence={observation.Confidence:F3};attempt={attempt}");
@@ -539,7 +552,10 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         var keyIsDown = false;
         try
         {
-            input.SendKey(settings.TargetWindow, key, false);
+            inputGate.SendKeyDown(
+                key,
+                token,
+                () => input.SendKey(settings.TargetWindow, key, false));
             keyIsDown = true;
             debugSession.Record("input", "key_down", new { key });
             await Task.Delay(120, token);
@@ -548,8 +564,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         {
             if (keyIsDown)
             {
-                input.SendKey(settings.TargetWindow, key, true);
-                debugSession.Record("input", "key_up", new { key });
+                var released = inputGate.ReleaseKey(key);
+                debugSession.Record("input", "key_up", new { key, unconditional = true, released });
             }
         }
     }
@@ -559,7 +575,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         var leftIsDown = false;
         try
         {
-            input.SendLeftButton(settings.TargetWindow, false);
+            inputGate.SendLeftButtonDown(
+                token,
+                () => input.SendLeftButton(settings.TargetWindow, false));
             leftIsDown = true;
             debugSession.Record("input", "cast_acceleration_left_down", new
             {
@@ -571,10 +589,12 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         {
             if (leftIsDown)
             {
-                input.SendLeftButton(settings.TargetWindow, true);
+                var released = inputGate.ReleaseLeftButton();
                 debugSession.Record("input", "cast_acceleration_left_up", new
                 {
                     pulseMilliseconds = CastAccelerationPulseMilliseconds,
+                    unconditional = true,
+                    released,
                 });
             }
         }
@@ -687,7 +707,9 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 var decision = controller.Observe(observation, Stopwatch.GetTimestamp());
                 if (decision.Action == FishingControlAction.Pulse)
                 {
-                    input.SendLeftButton(settings.TargetWindow, false);
+                    inputGate.SendLeftButtonDown(
+                        token,
+                        () => input.SendLeftButton(settings.TargetWindow, false));
                     leftIsDown = true;
                     debugSession.Record("input", "left_down", new { decision.PulseMilliseconds, observation.TensionRatio, observation.ProgressRatio });
                     diagnostics.Write(observation, true, "pulse_start", decision.PulseMilliseconds);
@@ -696,7 +718,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                         token.ThrowIfCancellationRequested();
                     }
 
-                    input.SendLeftButton(settings.TargetWindow, true);
+                    inputGate.ReleaseLeftButton();
                     leftIsDown = false;
                     debugSession.Record("input", "left_up", new { decision.PulseMilliseconds });
                     diagnostics.Write(observation, false, "pulse_end", decision.PulseMilliseconds);
@@ -736,21 +758,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
 
     private void ReleaseLeftButton()
     {
-        try
-        {
-            input.SendLeftButton(settings.TargetWindow, true);
-        }
-        catch
-        {
-            try
-            {
-                InputSender.SendLeftButton(true);
-            }
-            catch
-            {
-                // Best-effort release on cancellation/fault cleanup.
-            }
-        }
+        inputGate.ReleaseLeftButton();
     }
 
     private void SetState(RoutineState value, string detail)
@@ -765,8 +773,11 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     public void Dispose()
     {
         Stop();
-        cancellation?.Dispose();
-        frameSource?.Dispose();
+        routineWorker.Dispose();
+        if (!routineWorker.IsRunning)
+        {
+            frameSource?.Dispose();
+        }
     }
 
     private enum MeterWaitOutcome

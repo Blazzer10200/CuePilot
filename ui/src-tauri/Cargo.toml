@@ -1,8 +1,13 @@
 [package]
 name = "cuepilot-ui"
-version = "5.1.8"
+version = "5.2.0"
 description = "CuePilot Tauri activity console"
 edition = "2021"
+
+[features]
+# Lets a release-mode test build use CUEPILOT_UPDATE_FEED with a local
+# Velopack feed. Production builds never honor that environment override.
+update-test-feed = []
 
 [lib]
 name = "cuepilot_ui_lib"
@@ -18,3 +23,6 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
+# Keep the linked updater runtime in lockstep with the `vpk` CLI used by the
+# release workflow and scripts/package-velopack.ps1.
+velopack = "=1.2.0"

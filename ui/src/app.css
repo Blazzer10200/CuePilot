@@ -194,6 +194,22 @@ main:has(.lockpick-live-layout) {
   font-weight: 620;
   letter-spacing: 0.035em;
   vertical-align: 1px;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+
+.brand .app-version:hover,
+.brand .app-version:focus-visible {
+  border-color: rgba(142, 241, 226, 0.32);
+  color: var(--accent);
+  background: rgba(142, 241, 226, 0.06);
+}
+
+.brand .app-version.available {
+  border-color: rgba(142, 241, 226, 0.42);
+  color: #07191b;
+  background: var(--accent);
+  box-shadow: 0 0 14px rgba(142, 241, 226, 0.16);
 }
 
 .brand small {

@@ -12,6 +12,8 @@
   import { getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
   import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
+  import UpdateCenter from "./lib/UpdateCenter.svelte";
+  import { updates } from "./lib/updates.svelte";
 
   const developmentBuild = import.meta.env.DEV;
   const applicationName = developmentBuild ? "CuePilot Dev" : "CuePilot";
@@ -69,7 +71,7 @@
   }
 
   const deliveryOptions: Array<{ value: RoutineSettings["inputMode"]; label: string; description: string }> = [
-    { value: "Automatic", label: "Automatic", description: "Focus FiveM before delivery" },
+    { value: "Automatic", label: "Automatic", description: "Wait for FiveM without stealing focus" },
     { value: "Foreground", label: "Foreground only", description: "Require FiveM to stay active" },
   ];
   const shortcutOptions = ["F6", "F7", "F8", "F9", "F10", "F11", "F12"];
@@ -188,9 +190,11 @@
     syncMotionPreference();
     motionQuery.addEventListener("change", syncMotionPreference);
     void engine.connect().catch((error: unknown) => engine.error = String(error));
+    void updates.initialize();
     return () => {
       motionQuery.removeEventListener("change", syncMotionPreference);
       if (noticeTimer) clearTimeout(noticeTimer);
+      updates.dispose();
       void engine.disconnect();
     };
   });
@@ -679,11 +683,11 @@
 <svelte:head><title>{applicationName}</title><link rel="icon" type="image/png" sizes="128x128" href={brandIcon} /><meta name="theme-color" content="#071518" /></svelte:head>
 <svelte:window onkeydown={handleWindowKeydown} onclick={handleWindowClick} />
 
-<main class:running={active} class:activity-home={selectedActivity === null} class:activity-workspace={selectedActivity !== null} inert={showSettings || showDiagnostics} aria-hidden={showSettings || showDiagnostics}>
+<main class:running={active} class:activity-home={selectedActivity === null} class:activity-workspace={selectedActivity !== null} inert={showSettings || showDiagnostics || updates.dialogOpen} aria-hidden={showSettings || showDiagnostics || updates.dialogOpen}>
   <div class="titlebar" role="group" aria-label="Window controls" onpointerdown={startDragging}>
     <div class="brand">
       <div class="mark" aria-hidden="true"><img src={brandIcon} alt="" /></div>
-      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<span class="app-version" aria-label={`Version ${__APP_VERSION__}`}>v{__APP_VERSION__}</span></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
+      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
     </div>
     <div class="drag-hint" aria-hidden="true"><GripHorizontal size={16} /> DRAG WINDOW</div>
     <div class="top-actions">
@@ -914,6 +918,8 @@
     />
   {/if}
 </main>
+
+<UpdateCenter automationActive={active || engine.snapshot?.lockpicking.observing === true} />
 
 {#if showSettings && draft && shortcutDraft && lockpickingShortcutDraft}
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>

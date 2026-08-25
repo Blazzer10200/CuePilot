@@ -215,34 +215,6 @@ internal static class WindowTargetService
         return false;
     }
 
-    internal static async Task<bool> TryActivateAsync(WindowTargetSettings target, CancellationToken token)
-    {
-        if (!TryResolve(target, out var resolved, out _))
-        {
-            return false;
-        }
-
-        if (resolved.IsMinimized)
-        {
-            NativeMethods.ShowWindow(resolved.Handle, NativeMethods.SwRestore);
-        }
-
-        NativeMethods.SetForegroundWindow(resolved.Handle);
-        var deadline = DateTime.UtcNow.AddMilliseconds(1_500);
-        while (DateTime.UtcNow < deadline)
-        {
-            token.ThrowIfCancellationRequested();
-            if (IsTargetForeground(target))
-            {
-                return true;
-            }
-
-            await Task.Delay(50, token);
-        }
-
-        return IsTargetForeground(target);
-    }
-
     private static bool Prefer(FiveMWindowTarget candidate, FiveMWindowTarget existing)
     {
         if (candidate.IsForeground != existing.IsForeground)

@@ -1,11 +1,13 @@
-use std::{fs, process::Command, sync::Mutex, thread};
+use std::{fs, process::Command, sync::Arc, sync::Mutex, thread};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 mod engine_bridge;
+mod update_service;
 
 use engine_bridge::EngineBridge;
+use update_service::UpdateService;
 
 // Keep a diagnostics refresh responsive even when an instrumented session has
 // many full-resolution screenshots. The source files remain local and are
@@ -233,10 +235,10 @@ fn overlay_poll(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 fn overlay_enabled(value: Option<&str>) -> bool {
-    match value.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
-        Some("1" | "true" | "on") => true,
-        _ => false,
-    }
+    matches!(
+        value.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
+        Some("1" | "true" | "on")
+    )
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -248,6 +250,17 @@ fn focus_main_window(app: &AppHandle) {
 }
 
 pub fn run() {
+    // Velopack must run before Tauri initializes. During install/update/remove
+    // lifecycle hooks this may fast-exit without constructing the desktop UI.
+    velopack::VelopackApp::build().run();
+
+    // Release-mode smoke packages can exercise the real installed Velopack
+    // manager without constructing a Tauri window or touching production data.
+    #[cfg(feature = "update-test-feed")]
+    if update_service::run_smoke_from_args() {
+        return;
+    }
+
     tauri::Builder::default()
         // This must stay ahead of every other plugin so a second launch exits
         // before it can claim F10 or start a competing engine sidecar.
@@ -256,6 +269,7 @@ pub fn run() {
         ))
         .manage(EngineBridge::default())
         .manage(OverlayState::default())
+        .manage(Arc::new(UpdateService::new()))
         .setup(|app| {
             use tauri::Emitter;
             use tauri_plugin_global_shortcut::ShortcutState;
@@ -330,7 +344,12 @@ pub fn run() {
             engine_command,
             diagnostics_snapshot,
             open_diagnostics,
-            overlay_poll
+            overlay_poll,
+            update_service::updater_status,
+            update_service::check_for_updates,
+            update_service::download_update,
+            update_service::apply_pending_update,
+            update_service::open_update_releases
         ])
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {

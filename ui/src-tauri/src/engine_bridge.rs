@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc, Arc, Mutex,
+        mpsc, Arc, Mutex, MutexGuard,
     },
     thread,
     time::Duration,
@@ -36,6 +36,7 @@ struct ProcessState {
 
 #[derive(Clone, Default)]
 pub(crate) struct EngineBridge {
+    lifecycle: Arc<Mutex<()>>,
     process: Arc<Mutex<ProcessState>>,
     pending: Arc<Mutex<PendingCommands>>,
     next_id: Arc<AtomicU64>,
@@ -63,6 +64,12 @@ enum EngineMessage {
 }
 
 impl EngineBridge {
+    fn lifecycle_guard(&self) -> Result<MutexGuard<'_, ()>, String> {
+        self.lifecycle
+            .lock()
+            .map_err(|_| "Engine lifecycle lock failed.".to_string())
+    }
+
     pub(crate) fn set_shortcuts_enabled(&self, enabled: bool) {
         self.shortcuts_enabled.store(enabled, Ordering::Relaxed);
     }
@@ -86,6 +93,10 @@ impl EngineBridge {
     }
 
     fn ensure_started(&self, app: &AppHandle) -> Result<(), String> {
+        // The guard spans the no-child check, spawn, pipe extraction, and state
+        // publication. Concurrent commands can never both observe an empty
+        // process slot and create duplicate sidecars.
+        let _lifecycle = self.lifecycle_guard()?;
         let stale_child = {
             let mut process = self
                 .process
@@ -264,6 +275,13 @@ impl EngineBridge {
     }
 
     pub(crate) fn shutdown(&self, _app: &AppHandle) {
+        let _lifecycle = match self.lifecycle_guard() {
+            Ok(guard) => guard,
+            Err(error) => {
+                fail_pending(&self.pending, &error);
+                return;
+            }
+        };
         // Closing the shell must never start an otherwise unused sidecar just to
         // deliver a shutdown request. Send the best-effort request only through
         // an already-open pipe, then close the owned process below.
@@ -273,14 +291,13 @@ impl EngineBridge {
             "processId": Value::Null,
             "settings": Value::Null,
         });
-        if let Ok(mut process) = self.process.lock() {
+        let child = self.process.lock().ok().and_then(|mut process| {
             if let Some(stream) = process.input.as_mut() {
                 let _ = writeln!(stream, "{request}");
                 let _ = stream.flush();
             }
-        }
-        let child = self.process.lock().ok().and_then(|mut process| {
             process.input.take();
+            process.generation = process.generation.wrapping_add(1);
             process.child.take()
         });
         if let Some(child) = child {
@@ -520,6 +537,26 @@ fn stop_owned_child(mut child: Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloned_bridges_share_one_lifecycle_gate() {
+        let bridge = EngineBridge::default();
+        let clone = bridge.clone();
+        let first = bridge.lifecycle_guard().expect("first lifecycle guard");
+        let (sender, receiver) = mpsc::channel();
+
+        let waiter = thread::spawn(move || {
+            let _second = clone.lifecycle_guard().expect("second lifecycle guard");
+            sender.send(()).expect("report acquired lifecycle guard");
+        });
+
+        assert!(receiver.recv_timeout(Duration::from_millis(40)).is_err());
+        drop(first);
+        receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("second bridge should enter after the first exits");
+        waiter.join().expect("lifecycle waiter should exit");
+    }
 
     #[test]
     fn decodes_success_response() {
