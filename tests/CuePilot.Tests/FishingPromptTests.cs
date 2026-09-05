@@ -3,6 +3,7 @@ using System.Drawing.Imaging;
 
 namespace CuePilot.Tests;
 
+[Collection("Fishing timing")]
 public sealed class FishingPromptTests
 {
     [Fact]

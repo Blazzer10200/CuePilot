@@ -68,6 +68,7 @@ jobs:
       - name: Test frontend and Rust bridge
         shell: pwsh
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           Push-Location ui
           npm test
           npm run check

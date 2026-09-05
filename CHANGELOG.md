@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.3.4 - 2026-09-04 - Public release validation
+
+- Includes the Pickpocket, History, Support Center, and workspace improvements from 5.3.0 through 5.3.3 in the public release channel.
+- Runs Fishing timing tests without competing detector test suites, preserving the existing 60 ms meter and 250 ms prompt budgets. The first 5.3.3 publication stopped at these timing gates; it was not published.
+- Makes combined GitHub validation steps stop on any failed native command and updates installation and activity documentation. Runtime detection and input behavior are unchanged from 5.3.3.
+
 ## 5.3.3 - 2026-09-04 - Clearer activity workspaces
 
 - Added a consistent workspace toolbar for FiveM window selection, Settings, and Diagnostics across all activities. Diagnostics opens on the current activity and restores keyboard focus when closed.

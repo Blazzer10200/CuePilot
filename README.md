@@ -21,12 +21,13 @@ CuePilot supports Windows 10/11 x64 and bundles its self-contained .NET engine. 
 
 Installed copies check the public GitHub release feed on launch and every six hours. When an update is available, the version badge and update notice open a review screen with release notes and progress. Installation is always user-confirmed, is disabled while an activity is running, stops the owned engine sidecar, and relaunches CuePilot after the verified package is applied. A manual installer remains available on the release page if the in-app path cannot reach GitHub.
 
-Version 5.2.0 is the one-time migration from the legacy NSIS layout. Its Velopack pack ID is `CuePilotDesktop`, deliberately separate from `%LOCALAPPDATA%\CuePilot`, because that legacy directory also contains settings and diagnostics. Close the legacy app, install 5.2.0 manually, and launch from the refreshed **CuePilot** shortcut; later releases update in-app. Do not remove the old NSIS entry until any wanted `%LOCALAPPDATA%\CuePilot` data is backed up.
+Velopack releases began with 5.2.0. Their pack ID is `CuePilotDesktop`, deliberately separate from `%LOCALAPPDATA%\CuePilot`, because that legacy directory also contains settings and diagnostics. To migrate from the legacy NSIS layout, close the legacy app, install the latest release manually, and launch from the refreshed **CuePilot** shortcut; later releases update in-app. Do not remove the old NSIS entry until any wanted `%LOCALAPPDATA%\CuePilot` data is backed up.
 
 ## Activities
 
 - **Fishing — Ready:** the current deterministic prompt and tension-meter controller.
 - **Vehicle Lockpicking — live calibration:** input-free observation while concurrent Class C target-label evidence is validated. All automated lockpicking input remains gated.
+- **Pickpocket — timing and priorities:** observe or explicitly arm one timed Space press, choose color and item priorities, adjust timing, and review persistent attempt history. Live timing still depends on the setup; a sent press or recorded card label does not independently verify inventory acquisition.
 
 The app opens on the activity library. Returning there stops any running activity and releases held input before changing workspaces. See [Activity architecture](docs/activities.md) for the module boundary and Lockpicking evidence checklist.
 
@@ -45,6 +46,8 @@ Every LMB hold is independently capped at 35–90 ms by the feedback controller.
 - Target, capture, and input health are visible together.
 - Current automation state, detector confidence, and processed samples are shown live.
 - Controller settings and local detection evidence are available in focused secondary panels.
+- Each activity shares FiveM window selection, Settings, and Diagnostics. The Support Center provides local build health, recorded sessions, and text report export.
+- Pickpocket uses `F7` for Start / Stop by default. `F8` is reserved for the FiveM console.
 - The Fishing Start / Stop shortcut is configurable from `F6` through `F12` and works while FiveM remains focused.
 - The reserved Lockpicking shortcut defaults to `F9` and is independently configurable from `F6` through `F12`; it cannot enable Class C input until the evidence gate passes.
 - `Pause / Break` is the global emergency stop and releases held input.

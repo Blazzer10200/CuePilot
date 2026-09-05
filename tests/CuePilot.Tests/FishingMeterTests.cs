@@ -5,6 +5,7 @@ using System.Text.Json;
 
 namespace CuePilot.Tests;
 
+[Collection("Fishing timing")]
 public sealed class FishingMeterTests
 {
     [Fact]

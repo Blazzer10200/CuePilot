@@ -43,6 +43,7 @@ jobs:
 
       - name: Restore and build engine
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           dotnet restore .\CuePilot.sln
           dotnet build .\CuePilot.sln -c Release --no-restore
 
@@ -60,11 +61,13 @@ jobs:
       - name: Frontend tests and checks
         working-directory: ui
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           npm test
           npm run check
 
       - name: Rust format and bridge tests
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
           npm --prefix ui run engine:stage:release
           cargo fmt --manifest-path .\ui\src-tauri\Cargo.toml -- --check
           cargo clippy --manifest-path .\ui\src-tauri\Cargo.toml --all-targets -- -D warnings
