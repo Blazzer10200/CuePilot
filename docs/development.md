@@ -151,7 +151,11 @@ Before promoting another vehicle class, capture its own complete numbered and SP
 
 ## Release gate
 
-Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, and `ui/src-tauri/tauri.conf.json`. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
+Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, `ui/src-tauri/Cargo.lock`, and `ui/src-tauri/tauri.conf.json`. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
+
+Fishing detector tests use the nonparallel `Fishing timing` collection so wall-clock assertions do not measure contention with unrelated replay suites. The 60 ms tracked-meter and 250 ms prompt budgets remain enforced. Combined GitHub PowerShell validation steps enable native-command failure propagation so an earlier failure cannot be hidden by a later successful command.
+
+Public release 5.3.4 is tagged at `6f569db7a867cbe114fd39de50d4c8e275556e04`. Both GitHub workflows passed, and all eight public assets were downloaded and checked against GitHub digests, manifest hashes, updater feed hashes/sizes, and packaged executable versions. The downloaded engine self-test passed. The public packages are mirrored under `release/velopack/` with verification and publication receipts. The earlier 5.3.3 tag was not published; its CI timing failures were resolved in 5.3.4 without changing detector or input behavior.
 
 After the full automated gate and activity-specific live smoke test pass, build the same artifacts used by CI:
 

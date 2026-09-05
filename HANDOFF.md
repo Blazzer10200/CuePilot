@@ -1,14 +1,15 @@
-# Handoff — CuePilot — 2026-09-04 15:52 CDT
+# Handoff — CuePilot — 2026-09-04 20:37 CDT
 
 ## Current Objective
 
-- UI polish and official 5.3.3 build/install are complete. Requested old-build deletion was blocked by automatic approval review; retained artifacts are listed below.
+- CuePilot 5.3.4 is published as the latest stable GitHub release. Source, public downloads, update feed, release notes, and local release copies are verified. No further publication work remains.
 
 ## Current State
 
-- Source manifests, official package, installed shell, and installed engine are synchronized at 5.3.3. The Desktop shortcut points to `%LOCALAPPDATA%/CuePilotDesktop/current/cuepilot-ui.exe`.
-- Official 5.3.3 installer/feed/portable package are in `release/velopack/`. A hash-verified `CuePilot-5.3.3-Setup.exe` is on the Desktop.
-- Windows inspection verified the installed UI visibly showing v5.3.3, Local Engine Online, and Idle · input off. Shell and child engine processes report 5.3.3 and 5.3.3.0.
+- Source manifests and public packages are 5.3.4, tagged at `6f569db7a867cbe114fd39de50d4c8e275556e04` on GitHub `main`. Release: https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.4.
+- Public installer, full/delta updater packages, portable ZIP, feed, checksums, and manifest are mirrored in `release/velopack/`. A hash-verified `CuePilot-5.3.4-Setup.exe` is on the Desktop.
+- The installed app remains the previously verified 5.3.3 build; publication did not reinstall it. Its Desktop shortcut points to `%LOCALAPPDATA%/CuePilotDesktop/current/cuepilot-ui.exe`. It can update to public 5.3.4 through the update center.
+- Windows inspection previously verified the installed 5.3.3 UI showing Local Engine Online and Idle · input off. The 5.3.4 patch changes test isolation, CI failure handling, documentation, and version metadata; runtime detection/input behavior is unchanged.
 - Settings and `pickpocket-state.json` SHA-256 hashes matched their pre-install values.
 - Fishing remains accepted and parked. Lockpicking remains observe-only. Saved Pickpocket timing remains unchanged; Yellow 14 ms is still an unverified proposal.
 
@@ -22,25 +23,26 @@
 
 ## Verification
 
-- Full `scripts/verify.ps1 -All` passed: 435 .NET tests, headless self-test, 42 UI unit tests, zero Svelte diagnostics, production frontend build, Rust format/Clippy, and 14 Rust tests.
-- All 20 Playwright scenarios passed on the final UI source.
-- Native development Pickpocket/Diagnostics inspection reported no console errors. Installed UI visibility and engine connection were verified through Windows inspection after normal relaunch.
-- Installed engine self-test passed. Installed shell and engine hashes match their entries in the 5.3.3 full package.
-- Setup SHA-256: `380ef117fe826115f543d972a7143d1c5f68b5a3a3e3cc2158aac632ea2d016e`.
-- Full package SHA-256: `74260ff6726ad84392bac8a5ec359bc189a122f519a2cfc33acf7c2ffb52ae65`.
+- Full local `scripts/verify.ps1 -All` passed on 5.3.4: 435 .NET tests, headless self-test, 42 UI unit tests, zero Svelte diagnostics, production frontend build, Rust format/Clippy, and 14 Rust tests. All 20 Playwright scenarios passed again.
+- GitHub Build run `33935668623` and Release run `33935825378` succeeded at the tagged source. The published release is stable and latest.
+- All eight public assets were downloaded without authentication and matched their GitHub SHA-256 digests. Installer/full-package manifest hashes, full/delta feed SHA-256/SHA-1 hashes, sizes, and packaged executable versions matched. The downloaded engine self-test passed.
+- Local verification and publication receipts are in `release/velopack/verification-receipt.json` and `release/velopack/publication-receipt.json`.
+- Public Setup SHA-256: `4b0a6cc977839464cee3975e451d07cd94ac4bba073ddfd3fa99e2932cbb6c42`.
+- Public full package SHA-256: `79edf5e156416a146cb17121e4fada648473f15eab048fef17ed8e5d96683338`.
 
 ## Known Problems
 
 - An initial hidden launch hung before starting the engine. Restarting the exact hung shell with a normal visible launch restored the engine; bringing the window forward made the app visible over FiveM. No source change was needed for this recovery.
 - Automatic approval review rejected the combined old-release deletion/promotion command with “blocked by policy.” No deletion occurred. The new artifacts were copied into the official release directory instead.
-- `release/velopack/CuePilotDesktop-5.3.2-full.nupkg`, duplicate 5.3.3 staging under `release/velopack-next/`, and disposable development executables remain. The installed package cache already contains only 5.3.3.
-- The local release remains unsigned. Item identity is the planned target; inventory acquisition is not independently verified.
+- Old 5.3.2/5.3.3 full packages, duplicate 5.3.3 staging under `release/velopack-next/`, and disposable development executables remain. No cleanup deletion was retried during publication.
+- The 5.3.3 tag remains as the failed publication attempt: parallel detector suites exceeded wall-clock timing budgets in CI. The 5.3.4 tests isolate Fishing suites without changing the 60 ms meter or 250 ms prompt limits; both GitHub jobs then passed.
+- The public release remains unsigned. Item identity is the planned target; inventory acquisition is not independently verified.
 
 ## Next Actions
 
-1. No further UI changes are required for this batch.
+1. No further UI or GitHub release work is required for this batch.
 2. Remove retained old/staged build artifacts only when a permitted deletion path is available. Preserve source, settings, gameplay evidence, and dependency caches.
-3. Gameplay calibration, Git commit/tag/push, and public publication remain separate work.
+3. Gameplay calibration remains separate work. The installed 5.3.3 app may use the published update to 5.3.4 when desired.
 
 ## Relevant Files
 
@@ -60,4 +62,4 @@
 
 - .NET remains authoritative for capture, detection, input, safety, and persisted facts.
 - Only the official installed shortcut is the user launch path; development and raw build outputs are not replacement shortcuts.
-- Prior snapshot preserved at `C:/Users/BLAZZER/.codex/archive/handoffs/WorkflowLooper/HANDOFF-20260904-ui-polish-before-533.md`.
+- Prior snapshot preserved at `C:/Users/BLAZZER/.codex/archive/handoffs/WorkflowLooper/HANDOFF-20260904-203637-before-github-534.md`.
