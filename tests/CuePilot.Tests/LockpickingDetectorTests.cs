@@ -5,6 +5,26 @@ namespace CuePilot.Tests;
 
 public sealed class LockpickingDetectorTests
 {
+    [Theory]
+    [InlineData(30, 37)]
+    [InlineData(80, 4)]
+    public void ObserveOnlySamplingKeepsABoundedCooldown(double elapsedMilliseconds, int expectedDelayMilliseconds)
+    {
+        var delay = LockpickingObserverEngine.GetSampleDelayMilliseconds(false, elapsedMilliseconds);
+
+        Assert.Equal(expectedDelayMilliseconds, delay);
+    }
+
+    [Theory]
+    [InlineData(10, 6)]
+    [InlineData(20, 0)]
+    public void InputEnabledSamplingRetainsLowLatency(double elapsedMilliseconds, int expectedDelayMilliseconds)
+    {
+        var delay = LockpickingObserverEngine.GetSampleDelayMilliseconds(true, elapsedMilliseconds);
+
+        Assert.Equal(expectedDelayMilliseconds, delay);
+    }
+
     public static IEnumerable<object[]> VisibleStates()
     {
         yield return ["numbered-ready-1.jpg", "Intermediate"];

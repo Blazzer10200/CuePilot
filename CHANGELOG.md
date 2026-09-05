@@ -1,5 +1,46 @@
 # Changelog
 
+## 5.3.3 - 2026-09-04 - Clearer activity workspaces
+
+- Added a consistent workspace toolbar for FiveM window selection, Settings, and Diagnostics across all activities. Diagnostics opens on the current activity and restores keyboard focus when closed.
+- Improved Home readability, calibration styling, disconnected status, and compact layouts at minimum and intermediate window sizes.
+- Made Pickpocket idle, observing, armed, tap-sent, cooldown, and disconnected states explicit. Saved results are dated and distinct from the current attempt; technical recording details stay in Diagnostics unless attention is needed.
+- Showed preference save feedback on every Pickpocket controls view, strengthened keyboard focus outlines, and kept target selection in the active workspace.
+- Preserved engine timing, detector behavior, user settings, and observe-only Lockpicking. Added browser regressions for shared controls, state presentation, focus, and responsive layouts.
+
+## 5.3.2 - 2026-09-04 - History and support tools
+
+- Added persistent Pickpocket History with outcome filters, attempt-specific timing/build/session details, selected-report copying, and direct access to matching local evidence.
+- Added clearer 1 ms earlier/later timing controls, consistent F8 reservation, accurate run-mode and updater language, shared target selection, and a compact Live/History/Reference workspace that fits without a page scrollbar.
+- Added an all-activity Support Center with passive build health, bounded durable shell/engine/frontend errors, session paging, storage totals, incomplete-evidence labels, decision timelines, and text-only evidence export.
+- Added isolated UI scenarios and resize/interaction tests, shared bridge fixtures across .NET/Rust/TypeScript, saved-history migration coverage, replay timing comparisons, project-status JSON, and source-fingerprinted verification receipts.
+- Keeps Fishing parked, Lockpicking observe-only, and Yellow 14 ms as an unverified proposed live trial. This release does not change installed user timing automatically or claim inventory verification from a Space press.
+
+## 5.3.1 - 2026-09-04 - Earlier yellow timing
+
+- Increased the initial yellow sliver advance from8 to20ms after a recorded TNT Recipe miss froze6px beyond a4px target. Red remains8ms; existing explicitly saved timing values are preserved.
+- Retained the miss and added a real-engine replay verifying one return-pass Space pair planned about12ms earlier at the new setting. The recorded outcome remains a miss; this timing trial still needs live confirmation.
+
+## 5.3.0 - 2026-09-03 - Pickpocket priorities and precision controls
+
+- Added Pickpocket with one timed Space press, first-sweep measurement for thin targets, independent red/yellow timing adjustments, and F7 start/stop with Pause/Break emergency stop.
+- Added rarest-first Yellow → Red → Purple → Blue → White and custom color ordering. Rank recorded items within each color, including Ring versus Luxury Watch; confirmed card labels determine the preferred target regardless of position. Unrecognized cards rank last, with wider-region fallback for ties.
+- Reorganized Run, Timing, Items, and Priority into fitted panels with color accents, automatic preference saving, and no duplicate item entries. Added clearer live progress and Result/Diagnostics views.
+- Persisted the three-minute cooldown and last five completed attempts across restarts without arming input. Added bounded diagnostic recordings and explicit storage-failure reporting.
+- Verified recorded card labels and shuffled same-color choices offline. This release does not claim a new live Yellow success or calibrated game-receipt latency.
+
+## 5.2.2 - 2026-08-25 - Bounded detection load
+
+- Reduced tracked 1440p Fishing meter analysis from roughly 80 ms to under 50 ms by pruning impossible LMB keycap locations before full template scoring, while retaining meter identity and fixture coverage.
+- Paced observe-only Lockpicking capture at 15 samples per second with a guaranteed cooldown after overruns instead of continuously retrying an unattainable 60-sample target.
+- Fixed Fishing prompt-clear diagnostics so samples advance normally instead of forcing a full-resolution PNG on every pass and building an image-encoding backlog during Stop.
+
+## 5.2.1 - 2026-08-25 - Responsive fishing detection
+
+- Cut 1440p Fishing prompt analysis from multi-second scans to responsive sampling by rejecting bright scene pixels that cannot be the dark-keycap `E`/`X` anchor before evaluating the template pyramid.
+- Preserved prompt identity, confidence, UI-scale coverage, and the three-frame prompt-clear safety gate across the complete fixture suite and retained live-session replay.
+- Added a 1440p performance regression test so a detector that cannot keep up with the routine's sampling loop fails the release gate.
+
 ## 5.2.0 - 2026-08-25 - Self-updating releases
 
 - Replaced the Tauri NSIS release artifact with a Velopack package, per-user installer, public GitHub update feed, portable bundle, checksums, and a machine-readable release manifest.

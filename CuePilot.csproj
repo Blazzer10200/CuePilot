@@ -9,7 +9,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>CuePilot</AssemblyName>
     <RootNamespace>CuePilot</RootNamespace>
-    <Version>5.2.0</Version>
+    <Version>5.3.3</Version>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\branding\cuepilot.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
@@ -28,5 +28,10 @@
     <EmbeddedResource Include="assets\vision\collect-ready.png" LogicalName="CuePilot.Vision.CollectReady.png" />
     <EmbeddedResource Include="assets\vision\catch-card.png" LogicalName="CuePilot.Vision.CatchCard.png" />
     <EmbeddedResource Include="assets\vision\tension-ready.png" LogicalName="CuePilot.Vision.TensionReady.png" />
+    <EmbeddedResource Include="assets\vision\pickpocket-header-1.png" LogicalName="CuePilot.Vision.PickpocketHeader1.png" />
+    <EmbeddedResource Include="assets\vision\pickpocket-header-2.png" LogicalName="CuePilot.Vision.PickpocketHeader2.png" />
+    <EmbeddedResource Include="assets\vision\pickpocket-header-3.png" LogicalName="CuePilot.Vision.PickpocketHeader3.png" />
+    <EmbeddedResource Include="assets\vision\pickpocket-header-4.png" LogicalName="CuePilot.Vision.PickpocketHeader4.png" />
+    <EmbeddedResource Include="assets\vision\pickpocket-items.json" LogicalName="CuePilot.Vision.PickpocketItems.json" />
   </ItemGroup>
 </Project>

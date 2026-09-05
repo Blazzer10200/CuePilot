@@ -50,14 +50,34 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 4. `ui/src/lib/engine.svelte.ts` — typed frontend client and reconnect behavior.
 5. `tests/CuePilot.Tests/UiBridgeTests.cs`, `ui/src/lib/engine.svelte.test.ts`, and Rust unit tests — matching contract coverage.
 
+### Pickpocket history, timing, and evidence
+
+1. `src/Automation/PickpocketSessionState.cs` — versioned bounded attempt history and cooldown persistence.
+2. `src/Automation/PickpocketObserverEngine.cs` — completion metadata and history query boundary.
+3. `src/Diagnostics/PickpocketDiagnosticSession.cs` / `PickpocketReplay.cs` — bounded evidence and pixel replay with explicit timing overrides.
+4. `ui/src/lib/activities/PickpocketHistory.svelte` / `history.ts` — paginated history, selected report and timing labels.
+5. `ui/src-tauri/src/support.rs` / `ui/src/lib/SupportCenter.svelte` — safe session resolution, health, timeline, and text-only export.
+6. `tests/CuePilot.Tests/PickpocketSessionStateTests.cs`, `ui/src/lib/activities/history.test.ts`, and `ui/e2e/workspaces.spec.ts` — migration, semantics and interaction checks.
+
+Compare a recorded small-target plan without input while retaining its observed outcome:
+
+```powershell
+foreach ($advance in 8, 14, 17, 20) {
+  dotnet run --project .\CuePilot.csproj -- --replay-pickpocket <manifest.json> --target-color Yellow --advance-ms $advance
+}
+# Or save a machine/build/fixture receipt for the comparison:
+pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.json>
+```
+
 ### Desktop UI
 
-1. `ui/src/App.svelte` — shell, Fishing workspace, settings, and diagnostics drawer.
+1. `ui/src/App.svelte` — shared activity navigation and target/settings/diagnostics toolbar, Fishing workspace, and dialogs with focus restoration.
 2. `ui/src/lib/activities.ts` — activity identity, availability, and capability metadata.
 3. `ui/src/lib/activities/ActivityPicker.svelte` — launch library.
 4. `ui/src/lib/activities/LockpickingWorkspace.svelte` — Lockpicking controls and live telemetry.
 5. `ui/src/app.css` — shared product styling.
 6. `.agents/skills/cuepilot-ui/SKILL.md` and `ui/scripts/cdp/` — focus-safe live inspection.
+7. `ui/e2e/ui-polish.spec.ts` and `ui/e2e/workspaces.spec.ts` — responsive layout, shared controls, live-state wording, save feedback, and keyboard-focus regressions using isolated scenarios.
 
 ### Updates and releases
 

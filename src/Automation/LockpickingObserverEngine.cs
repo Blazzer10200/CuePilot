@@ -26,6 +26,9 @@ internal sealed record LockpickingObserveStatus(
 
 internal sealed class LockpickingObserverEngine : IDisposable
 {
+    private const int InputEnabledSampleIntervalMilliseconds = 16;
+    private const int ObserveOnlySampleIntervalMilliseconds = 67;
+    private const int MinimumObserveOnlyCooldownMilliseconds = 4;
     private readonly object sync = new();
     private readonly OwnedRoutineWorker routineWorker = new();
     private IFrameSource? frameSource;
@@ -288,10 +291,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     }
                 }
 
-                var remainingMilliseconds = 16 - clock.Elapsed.TotalMilliseconds;
-                if (remainingMilliseconds >= 1)
+                var delayMilliseconds = GetSampleDelayMilliseconds(inputEnabled, clock.Elapsed.TotalMilliseconds);
+                if (delayMilliseconds >= 1)
                 {
-                    await Task.Delay((int)Math.Ceiling(remainingMilliseconds), token);
+                    await Task.Delay(delayMilliseconds, token);
                 }
                 else
                 {
@@ -322,6 +325,16 @@ internal sealed class LockpickingObserverEngine : IDisposable
         {
             diagnostics.Dispose();
         }
+    }
+
+    internal static int GetSampleDelayMilliseconds(bool inputEnabled, double elapsedMilliseconds)
+    {
+        var intervalMilliseconds = inputEnabled
+            ? InputEnabledSampleIntervalMilliseconds
+            : ObserveOnlySampleIntervalMilliseconds;
+        var remainingMilliseconds = intervalMilliseconds - elapsedMilliseconds;
+        var delayMilliseconds = remainingMilliseconds >= 1 ? (int)Math.Ceiling(remainingMilliseconds) : 0;
+        return inputEnabled ? delayMilliseconds : Math.Max(MinimumObserveOnlyCooldownMilliseconds, delayMilliseconds);
     }
 
     private void StopCompleted(string detail, LockpickingObservation observation)

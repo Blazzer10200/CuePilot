@@ -303,6 +303,22 @@ public sealed class FishingPromptTests
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"Prompt rejection took {clock.Elapsed.TotalSeconds:F1} seconds.");
     }
 
+    [Fact]
+    public void Live1440pPromptAnalysisStaysInsideTheSamplingBudget()
+    {
+        using var warmup = LoadFixture("cast-ready.png");
+        _ = FishingPromptDetector.Analyze(warmup);
+        using var bitmap = LoadFishingFixture("live-2560-ready-cast-after-collect.png");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+
+        var observation = FishingPromptDetector.Analyze(bitmap);
+
+        Assert.Equal(FishingPromptKind.Cast, observation.Kind);
+        Assert.True(
+            clock.Elapsed < TimeSpan.FromMilliseconds(250),
+            $"1440p prompt analysis took {clock.Elapsed.TotalMilliseconds:F0} ms; the detector cannot sustain responsive sampling.");
+    }
+
     [Theory]
     [InlineData("video-day-initial.png")]
     [InlineData("video-day-active.png")]

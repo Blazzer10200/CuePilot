@@ -1,3 +1,4 @@
+param([switch]$AsJson)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -16,6 +17,18 @@ try {
     $installedShell = Join-Path $localAppData 'CuePilotDesktop\current\cuepilot-ui.exe'
     $legacyShell = Join-Path $localAppData 'CuePilot\cuepilot-ui.exe'
 
+    if ($AsJson) {
+        [ordered]@{
+            schemaVersion = 1; generatedUtc = [DateTime]::UtcNow.ToString('o'); branch = $branch; tag = $tag
+            dirty = $changes.Count -gt 0; changeCount = $changes.Count; changes = $changes
+            versions = [ordered]@{ tauri = $tauriVersion; npm = $npmVersion; cargo = $cargoVersion; dotnet = $dotnetVersion; synchronized = $versions.Count -eq 1 }
+            installed = if (Test-Path -LiteralPath $installedShell -PathType Leaf) { [ordered]@{ present = $true; version = (Get-Item -LiteralPath $installedShell).VersionInfo.FileVersion } } else { [ordered]@{ present = $false; version = $null } }
+            legacyPresent = Test-Path -LiteralPath $legacyShell -PathType Leaf
+            handoffHeading = if (Test-Path -LiteralPath 'HANDOFF.md') { Get-Content 'HANDOFF.md' -TotalCount 1 } else { $null }
+            package = if (Test-Path -LiteralPath 'release\velopack\release-manifest.json') { Get-Content -Raw 'release\velopack\release-manifest.json' | ConvertFrom-Json } else { $null }
+        } | ConvertTo-Json -Depth 8
+        return
+    }
     Write-Host 'CuePilot project status' -ForegroundColor Cyan
     Write-Host "  branch:  $branch"
     Write-Host "  tag:     $tag"

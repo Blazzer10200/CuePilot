@@ -1,0 +1,57 @@
+[
+  {
+    "file": "clip-07.png",
+    "presentationMs": 7683.3330000000005,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-460.png",
+    "presentationMs": 7700.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-461.png",
+    "presentationMs": 7716.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-462.png",
+    "presentationMs": 7733.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-08.png",
+    "presentationMs": 7750.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-464.png",
+    "presentationMs": 7766.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-465.png",
+    "presentationMs": 7783.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "sequence-466.png",
+    "presentationMs": 7800.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-09.png",
+    "presentationMs": 7816.6669999999995,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-10.png",
+    "presentationMs": 7833.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-11.png",
+    "presentationMs": 7850.0,
+    "expectedState": "Grabbed"
+  }
+]

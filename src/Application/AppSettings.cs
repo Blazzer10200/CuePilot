@@ -34,8 +34,10 @@ internal sealed class AppSettings
     public string SelectedProfile { get; set; } = "fishing";
     public HotkeyBinding StartStop { get; set; } = DefaultStartStop();
     public HotkeyBinding LockpickingStartStop { get; set; } = DefaultLockpickingStartStop();
+    public HotkeyBinding PickpocketStartStop { get; set; } = new() { Key = "F7" };
     public HotkeyBinding EmergencyStop { get; set; } = DefaultEmergencyStop();
     public FishingRoutineSettings Routine { get; set; } = new();
+    public PickpocketPreferences Pickpocket { get; set; } = new();
 
     internal static AppSettings Defaults() => new();
 
@@ -45,8 +47,10 @@ internal sealed class AppSettings
         SelectedProfile = SelectedProfile,
         StartStop = StartStop.Copy(),
         LockpickingStartStop = LockpickingStartStop.Copy(),
+        PickpocketStartStop = PickpocketStartStop.Copy(),
         EmergencyStop = EmergencyStop.Copy(),
         Routine = Routine.Copy(),
+        Pickpocket = Pickpocket.Copy(),
     };
 
     internal static HotkeyBinding DefaultStartStop() => new() { Key = "F10" };
@@ -84,6 +88,7 @@ internal static class SettingsStore
     {
         settings.FormatVersion = 9;
         settings.Routine.Clamp();
+        settings.Pickpocket.Normalize();
         var directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         var temporaryPath = SettingsPath + ".tmp";
@@ -118,12 +123,20 @@ internal static class SettingsStore
         }
 
         var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? AppSettings.Defaults();
+        settings.Pickpocket ??= new();
+        settings.Pickpocket.Normalize();
         settings.Routine ??= new FishingRoutineSettings();
         settings.Routine.TargetWindow ??= new WindowTargetSettings();
         settings.Routine.TargetWindow.WindowTitle = NormalizeLegacyWindowTitle(settings.Routine.TargetWindow.WindowTitle);
         settings.StartStop ??= AppSettings.DefaultStartStop();
         settings.LockpickingStartStop ??= AppSettings.DefaultLockpickingStartStop();
         settings.EmergencyStop ??= AppSettings.DefaultEmergencyStop();
+        if (!document.RootElement.TryGetProperty("pickpocketStartStop", out var pickpocketBinding) || pickpocketBinding.ValueKind == JsonValueKind.Null)
+        {
+            settings.PickpocketStartStop = new HotkeyBinding { Key = new[] { "F7", "F6", "F11", "F12", "F5" }
+                .First(key => !new[] { settings.StartStop, settings.LockpickingStartStop, settings.EmergencyStop }
+                    .Any(binding => SameBinding(binding, new HotkeyBinding { Key = key }))) };
+        }
         if (string.IsNullOrWhiteSpace(settings.SelectedProfile)) settings.SelectedProfile = "fishing";
 
         if (formatVersion < 3)
@@ -145,6 +158,11 @@ internal static class SettingsStore
         IsValid(settings.StartStop)
         && IsValid(settings.LockpickingStartStop)
         && IsValid(settings.EmergencyStop)
+        && settings.PickpocketStartStop is not null && IsValid(settings.PickpocketStartStop)
+        && !settings.PickpocketStartStop.Key.Equals("F8", StringComparison.OrdinalIgnoreCase)
+        && !SameBinding(settings.PickpocketStartStop, settings.StartStop)
+        && !SameBinding(settings.PickpocketStartStop, settings.LockpickingStartStop)
+        && !SameBinding(settings.PickpocketStartStop, settings.EmergencyStop)
         && !SameBinding(settings.StartStop, settings.LockpickingStartStop)
         && !SameBinding(settings.StartStop, settings.EmergencyStop)
         && !SameBinding(settings.LockpickingStartStop, settings.EmergencyStop);

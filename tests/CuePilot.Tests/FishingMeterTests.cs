@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace CuePilot.Tests;
@@ -573,6 +574,23 @@ public sealed class FishingMeterTests
         Assert.NotNull(analysis.PrimaryCandidate);
         Assert.True(analysis.PrimaryCandidate.Value.Evidence.LmbPromptStrength >= 0.90,
             analysis.PrimaryCandidate.Value.Evidence.ToString());
+    }
+
+    [Fact]
+    public void Tracked1440pMeterAnalysisStaysInsideTheSamplingBudget()
+    {
+        using var frame = LoadFixture("live-2560-real-meter-lock.png");
+        var tracker = new FishingMeterTracker();
+        _ = FishingMeterService.AnalyzeFrameDetailed(frame, tracker);
+        var clock = Stopwatch.StartNew();
+
+        var analysis = FishingMeterService.AnalyzeFrameDetailed(frame, tracker);
+
+        Assert.True(analysis.Observation.IsVisible, analysis.ToString());
+        Assert.True(analysis.UsedTrackedRegion, analysis.ToString());
+        Assert.True(
+            clock.Elapsed < TimeSpan.FromMilliseconds(60),
+            $"Tracked 1440p meter analysis took {clock.Elapsed.TotalMilliseconds:F0} ms; the controller cannot sustain responsive sampling.");
     }
 
     [Theory]

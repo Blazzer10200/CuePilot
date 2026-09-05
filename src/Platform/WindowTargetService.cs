@@ -203,6 +203,15 @@ internal static class WindowTargetService
     internal static bool IsTargetForeground(WindowTargetSettings target) =>
         TryResolve(target, out var resolved, out _) && resolved.IsForeground;
 
+    // Final timing-critical revalidation of a window already resolved for this
+    // capture. Do not enumerate unrelated windows or reopen every process here.
+    internal static bool IsUnchangedForeground(ResolvedWindowTarget captured) =>
+        captured.Handle != IntPtr.Zero && captured.ProcessId > 0 && captured.IsForeground && !captured.IsMinimized
+        && NativeMethods.IsWindow(captured.Handle) && NativeMethods.IsWindowVisible(captured.Handle)
+        && !NativeMethods.IsIconic(captured.Handle) && NativeMethods.GetForegroundWindow() == captured.Handle
+        && NativeMethods.GetWindowThreadProcessId(captured.Handle, out var processId) != 0
+        && processId == captured.ProcessId && TryGetCaptureBounds(captured.Handle, out var bounds) && bounds == captured.Bounds;
+
     internal static bool TryGetHandle(WindowTargetSettings target, out IntPtr handle, out string detail)
     {
         if (TryResolve(target, out var resolved, out detail))

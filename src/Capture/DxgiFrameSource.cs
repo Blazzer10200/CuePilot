@@ -82,7 +82,8 @@ internal sealed class DxgiFrameSource : IFrameSource
                         var frameAge = CalculateFrameAge(frameInfo.LastPresentTime);
                         status = new FrameSourceStatus(FrameSourceState.Ready, Name,
                             "Desktop duplication frame ready.", frameAge, clock.Elapsed.TotalMilliseconds,
-                            frameInfo.AccumulatedFrames);
+                            frameInfo.AccumulatedFrames,
+                            frameInfo.LastPresentTime > 0 ? frameInfo.LastPresentTime * 1000d / Stopwatch.Frequency : null);
                         frame = new FrameLease(bitmap, status);
                         return true;
                     }

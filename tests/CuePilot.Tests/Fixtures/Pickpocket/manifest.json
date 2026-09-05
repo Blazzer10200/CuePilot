@@ -1,0 +1,67 @@
+[
+  {
+    "file": "clip-01.png",
+    "presentationMs": 6033.333,
+    "expectedState": "Hidden"
+  },
+  {
+    "file": "clip-02.png",
+    "presentationMs": 6866.6669999999995,
+    "expectedState": "Preparing"
+  },
+  {
+    "file": "clip-03.png",
+    "presentationMs": 7116.6669999999995,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-04.png",
+    "presentationMs": 7250.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-05.png",
+    "presentationMs": 7383.3330000000005,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-06.png",
+    "presentationMs": 7533.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-07.png",
+    "presentationMs": 7683.3330000000005,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-08.png",
+    "presentationMs": 7750.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-09.png",
+    "presentationMs": 7816.6669999999995,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-10.png",
+    "presentationMs": 7833.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip-11.png",
+    "presentationMs": 7850.0,
+    "expectedState": "Grabbed"
+  },
+  {
+    "file": "clip-12.png",
+    "presentationMs": 8033.3330000000005,
+    "expectedState": "Grabbed"
+  },
+  {
+    "file": "clip-13.png",
+    "presentationMs": 8950.0,
+    "expectedState": "Hidden"
+  }
+]

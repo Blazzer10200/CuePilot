@@ -99,7 +99,7 @@
         {:else if updates.state === "uptodate"}
           <CheckCircle2 size={24} />
           <h3>You're up to date</h3>
-          <p>Version {updates.runtime?.currentVersion ?? __APP_VERSION__} is the newest public release.</p>
+          <p>No newer public update available. Installed version: {updates.runtime?.currentVersion ?? __APP_VERSION__}.</p>
         {:else if updates.state === "disabled" && updates.runtime?.development}
           <ShieldCheck size={24} />
           <h3>Development build</h3>

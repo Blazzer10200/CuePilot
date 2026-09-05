@@ -43,6 +43,7 @@ pub(crate) struct EngineBridge {
     shortcuts_enabled: Arc<AtomicBool>,
     start_stop_shortcut: Arc<Mutex<Option<String>>>,
     lockpicking_start_stop_shortcut: Arc<Mutex<Option<String>>>,
+    pickpocket_start_stop_shortcut: Arc<Mutex<Option<String>>>,
     emergency_shortcut: Arc<Mutex<Option<String>>>,
 }
 
@@ -83,6 +84,12 @@ impl EngineBridge {
             "Lockpicking Start / Stop",
         );
         register_initial_shortcut(app, &self.emergency_shortcut, "Pause", "Emergency stop");
+        register_initial_shortcut(
+            app,
+            &self.pickpocket_start_stop_shortcut,
+            "F7",
+            "Pickpocket Start / Stop",
+        );
     }
 
     fn resource_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -159,6 +166,7 @@ impl EngineBridge {
         if let Some(stderr) = stderr {
             thread::spawn(move || {
                 for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                    crate::support::log("engine_stderr", &line);
                     eprintln!("[workflow-engine] {line}");
                 }
             });
@@ -199,7 +207,7 @@ impl EngineBridge {
             if let Some(child) = child {
                 thread::spawn(move || {
                     let mut child = child;
-                    let _ = child.wait();
+                    crate::support::log("engine_exit", &format!("{:?}", child.wait()));
                 });
             }
             fail_pending(&pending, &exit_detail);
@@ -255,6 +263,7 @@ impl EngineBridge {
             Ok(result) => result?,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 self.remove_pending(&id);
+                crate::support::log("command_timeout", &format!("{id}: {command}"));
                 return Err(format!("Local engine timed out while handling {command}."));
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -322,6 +331,8 @@ impl EngineBridge {
             Some("toggle_lockpicking_class_c")
         } else if shortcut_matches(&self.emergency_shortcut, "Pause", shortcut) {
             Some("stop")
+        } else if shortcut_matches(&self.pickpocket_start_stop_shortcut, "F7", shortcut) {
+            Some("toggle_pickpocket_observe")
         } else {
             None
         }
@@ -334,6 +345,13 @@ impl EngineBridge {
         let Some(settings) = snapshot.get("settings") else {
             return;
         };
+        sync_registered_shortcut(
+            app,
+            &self.pickpocket_start_stop_shortcut,
+            settings.get("pickpocketStartStop"),
+            "F7",
+            "Pickpocket Start / Stop",
+        );
         sync_registered_shortcut(
             app,
             &self.start_stop_shortcut,
@@ -653,5 +671,46 @@ mod tests {
         assert_eq!(bridge.command_for_shortcut(&start_stop), None);
         assert_eq!(bridge.command_for_shortcut(&lockpicking_start_stop), None);
         assert_eq!(bridge.command_for_shortcut(&emergency), None);
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
+            None
+        );
+    }
+
+    #[test]
+    fn pickpocket_toggle_uses_configured_binding_and_leaves_f8_unbound() {
+        let bridge = EngineBridge::default();
+        bridge.set_shortcuts_enabled(true);
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
+            Some("toggle_pickpocket_observe")
+        );
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F8").unwrap()),
+            None
+        );
+        *bridge.pickpocket_start_stop_shortcut.lock().unwrap() = Some("F6".into());
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F6").unwrap()),
+            Some("toggle_pickpocket_observe")
+        );
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
+            None
+        );
+    }
+
+    #[test]
+    fn shared_bridge_fixture_decodes_at_the_expected_protocol() {
+        let line = include_str!("../../../tests/contracts/bridge-response-v1.json");
+        match serde_json::from_str::<EngineMessage>(line)
+            .expect("shared bridge fixture should decode")
+        {
+            EngineMessage::Response {
+                result: Some(result),
+                ..
+            } => assert_eq!(result["protocolVersion"], EXPECTED_PROTOCOL_VERSION),
+            other => panic!("unexpected shared fixture message: {other:?}"),
+        }
     }
 }

@@ -1,10 +1,130 @@
 # CuePilot product backlog
 
-This is a ranked later-work list based on the 5.2.0 release code, local
-Fishing/Lockpicking diagnostics, automated gates, and a live UI inspection.
-It is intentionally not an authorization to enable unverified automation.
+This is the current product status and ranked later-work list. The app/debugging
+batch shipped in 5.3.2; 5.3.3 adds the workspace polish described below.
+Older review measurements remain historical evidence, not current defects.
+Neither release enables unverified automation.
+
+## Workspace polish — 5.3.3
+
+- Consistent FiveM window, Settings, and Diagnostics tools across activities, with active-run guards and focus restoration.
+- Readable compact Home rows, restored amber calibration styling, and distinct disconnected feedback.
+- Explicit Pickpocket live/input states, dated saved results, save feedback across controls, and secondary technical measurements.
+- Activity-specific diagnostics and corrected Lockpicking setup guidance; shared navigation safely stops an active observer.
+- Responsive checks include intermediate window sizes as well as the supported minimum. See [Development guide](development.md#workspace-ui-checks) for the UI regression scope.
+
+The requested UI polish is complete in source. Release/install verification and cleanup are recorded in the current [handoff](../HANDOFF.md). Gameplay timing and calibration remain separate work.
+
+## Expanded app and debugging priorities — 2026-09-04
+
+Requested follow-up research covers the whole app and the local debugging
+workflow. Detailed source evidence, implementation boundaries, acceptance
+criteria, and external references are in [App and debugging roadmap](app-debugging-roadmap.md).
+The implementation and official 5.3.2 release were completed on 2026-09-04;
+live Yellow calibration remains separate work.
+
+| Order | Work | Result |
+| --- | --- | --- |
+| 1 | Correct misleading controls and stale current instructions | **Done in source.** Mode, shortcuts, saved timing and help agree. |
+| 2 | Persistent item History and explicit earlier/later tuning | **Done in source.** Bounded dated history and 1 ms controls are available. |
+| 3 | Shared session identity and selected-attempt reports | **Done in source.** Rows copy their own report and open their evidence session. |
+| 4 | Compact shared shell, target selection and accessible settings | **Done in source.** Verified at 760×620 and 1180×760. |
+| 5 | Repeatable UI scenarios and interaction/resize tests | **Done in source.** Expanded Playwright scenarios cover layout, state, shared tools, and focus without FiveM. |
+| 6 | All-activity diagnostics browser and decision timeline | **Done in source.** Support Center pages all activity sessions. |
+| 7 | Durable shell/engine errors and a read-only health report | **Done in source.** Logs are bounded and health is passive. |
+| 8 | Recorded-engine replay and attempt comparison tool | **Done in source.** Replay accepts timing plans and benchmark receipts preserve outcomes. |
+| 9 | Aggregate evidence storage and incomplete-session handling | **Done in source.** Disk use and incomplete sessions are visible; cleanup awaits explicit deletion authorization. |
+| 10 | Shared bridge fixtures and persistence migration coverage | **Done in source.** .NET/Rust/TypeScript share a fixture; v1 history migration is covered. |
+| 11 | Build identity and machine-readable verification receipts | **Done in source.** Status and dirty-source receipts are JSON. |
+| 12 | Performance baselines, evidence catalog and code-map upkeep | **Done in source.** Machine-local replay benchmark and code-map commands are present. |
+
+Implementation completed in four batches: **1–3**, **4–5**, **6–9**, and
+**10–12**. Persistence and contract coverage landed with History, and build
+identity is stored with new attempts and release verification receipts.
+
+Yellow calibration remains a separate supervised live task: last recorded
+17 ms, proposed 14 ms unverified. Confirm the saved value before another trial.
+Fishing remains parked and Lockpicking remains observe-only.
 
 ## Next up
+
+### Current priority — Pickpocket minigame
+
+As of 2026-09-04, 5.3.2 supports one automatic Space pair, return-pass timing for tiny regions, color/item priorities, persistent History, local evidence, and the all-activity Support Center. Red, purple and white successes are recorded; Yellow TNT timing remains unresolved. The last 17 ms trial was 5 px before center; 14 ms is suggested next and remains unverified. Fishing is user-tested and parked. Lockpicking remains observe-only. See `HANDOFF.md` for current calibration evidence.
+
+### Implemented UI review — 2026-09-04
+
+The following requirements were implemented and retained here as acceptance
+history. Home, Fishing, Lockpicking, Pickpocket, settings, History, and failure
+states were verified in isolated Edge scenarios. No gameplay input,
+installed-app settings change, release installation, or public-feed check was
+part of this batch.
+
+**1. Correct misleading Pickpocket controls — first fix.**
+
+- The shortcut drawer says “Space input stays off” even with Precision selected. Make the description follow the selected mode: observe only, wide-target tap, or precision tap.
+- The yellow dropdown permanently marks 20 ms “current trial,” even when another value is saved. Derive that marker from saved state or remove it.
+- “Shortcuts & window” opens a shortcut-only drawer. Either include the window control or name the button “Shortcut settings.”
+- Done when the button, F7 description, run mode, saved value and input-armed status agree in all three modes. Source: `ui/src/App.svelte`, `PickpocketLiveWorkspace.svelte`.
+
+**2. Make earlier/later tuning and results obvious.**
+
+- **Completed request: a dedicated History tab listing what items were picked up and what items were missed.** It persists dated attempts with recognized item name, rarity, Picked up/Missed/Unknown outcome and the timing setting used. All/Picked up/Missed filters and page controls keep history bounded. Unrecognized names/results remain Unknown, and planned targets are distinct from observed outcomes; a Space press does not imply inventory acquisition.
+- Add explicit 1 ms “Press later” / “Press earlier” controls and a plain explanation of the change: 17 → 14 ms means pressing 3 ms later. Keep independent yellow/red values and visible save feedback.
+- Result history should retain item name, timing used and build version for each attempt. It currently stores color, width, outcome, offset and press count, so comparing trials requires logs.
+- Show “Before target center” / “Past target center” prominently, with early/late interpretation only where travel direction and result evidence support it. Frozen-frame offset is not measured input latency and must not silently become an automatic correction.
+- Keep historical report selection explicit: current Copy report copies the current session, even while an older result is selected. Its tooltip explains this; the visible label should too, or support copying the selected attempt.
+- Done when two TNT attempts can be compared in the UI without opening JSONL. Sources: `PickpocketLiveWorkspace.svelte`, `src/Automation/PickpocketSessionState.cs`, bridge result models.
+
+**3. Fit the other pages and keep actions visible.**
+
+Measured at the supported 760×620 minimum viewport: Home document height
+1307 px, Fishing 817 px, Lockpicking 1106 px, recorded Pickpocket reference
+626 px. Pickpocket live fits at 620 px. Home/Fishing/Lockpicking fit at
+1180×760, but Fishing settings still contain 1093 px in a 760 px drawer;
+at minimum size the drawer contains 1351 px in 620 px. Apply is below the fold.
+
+- Use compact activity cards at smaller sizes; reduce oversized introductory areas and place secondary telemetry in tabs or disclosure panels.
+- Make Basic/Advanced separate settings views, with Cancel/Apply always visible. Preserve current Fishing values and engine behavior.
+- Remove the reference page's small overflow without clipping content. Retain deliberate scrolling for long evidence lists rather than hiding overflow globally.
+- Done when primary pages and ordinary settings fit at both sizes, with keyboard focus and actions visible. Sources: `ActivityPicker.svelte`, `App.svelte`, `app.css`, `LockpickingWorkspace.svelte`, `PickpocketWorkspace.svelte`.
+
+**4. Keep game-window selection in the current activity.**
+
+- Pickpocket's setup callback calls `selectActivity("fishing")` before `findTarget()`. A shared target picker should return to the page the user was using.
+- Show selected FiveM window plus a clear change/reconnect action consistently across activities.
+- Done when Pickpocket can select/reselect its target without navigating into Fishing. Source: `App.svelte`, Pickpocket `onsetup` callback. Source-confirmed; native target selection was not exercised in this review.
+
+**5. Reserve F8 consistently throughout settings.**
+
+- Pickpocket filters out F8; Fishing and the reserved Lockpicking shortcut still offer it. Apply the user's FiveM-console exclusion to all selectors and validate it consistently in settings handling.
+- Explain a conflict with another activity's shortcut before saving, while preserving existing backend validation and user bindings. Do not silently remap an existing preference.
+- Done when F8 cannot be newly assigned and conflicting bindings have useful feedback. Source: `App.svelte`, shared `shortcutOptions` and activity selectors.
+
+**6. Make build identity and the installer easy to find.**
+
+- Add a clear About/Build entry with installed version, local build/public channel distinction, and a reliable path to the current installer or release folder when available.
+- Updater says the installed version “is the newest public release” whenever no newer update is returned. Use “No newer public update available”; absence of an update does not establish that a local build was publicly published.
+- Done when users can distinguish installed app, desktop shortcut and installer, and copy build details for a report. Sources: `UpdateCenter.svelte`, `updates.svelte.ts` (`refresh`). Installed updater behavior reviewed in source; only development-disabled state was rendered.
+
+**7. Clarify item selection and recognition.**
+
+- Add a compact summary of color order and same-color item order so the effective selection rule is visible from Run. Clearly state that Widest ignores item rank.
+- Label unrecognized names explicitly instead of implying every colored region has a catalogued item. Preserve color fallback and show what won selection.
+- Review the newly seen blue Wallet label against saved evidence before adding a verified catalog entry/template. Do not invent a name from color alone.
+- Done when two same-color regions make the chosen item and fallback understandable. Sources: `PickpocketLiveWorkspace.svelte`, `pickpocket-catalog.ts`, `PickpocketItemReader.cs`.
+
+**8. Lower priority: simplify navigation and evidence summaries.**
+
+- Optionally restore the last activity/tab on launch, without restoring an armed state. Currently `selectedActivity` initializes to null.
+- Reduce Home jargon and hide the empty “0 preview” count. Keep honest readiness labels, especially observe-only Lockpicking and uncalibrated yellow timing.
+- Continue the existing Detection Review timeline proposal below: explain the last decision/blocker before raw event details. For Lockpicking, replace the idle footer “None” with a meaningful state and describe what evidence is still needed.
+- Fishing automation remains parked; any future Fishing work here is presentation only unless separately requested.
+
+**Review evidence:** `tmp/ui-audit-*.png` and `tmp/ui-audit-initial.json`
+contain isolated fixture screenshots/measurements, not live gameplay proof.
+Source findings are distinguished above from rendered observations. These
+requirements ship in 5.3.2; the bullets remain as acceptance history.
 
 ### Completed — safety and reliability blockers from the 2026-08-25 audit
 
@@ -14,13 +134,13 @@ It is intentionally not an authorization to enable unverified automation.
 4. **Bound asynchronous Lockpicking diagnostics:** image encoding, JSONL writes, and second-pass target tracing moved to a bounded writer. Trace sampling is capped at 10 Hz/900 entries, and retention keeps eight sessions within 500 MB.
 5. **No focus stealing:** CuePilot no longer imports or calls `SetForegroundWindow`/`ShowWindow`. Automatic input waits up to ten seconds for the user to return to FiveM; Foreground-only mode still fails immediately.
 
-The focused regressions and complete local release gate pass. The supervised exactly-one-click Fishing smoke and FiveM F1/NUI confirmation remain explicitly tracked live follow-ups; they were not represented as automated proof.
+The prior focused regressions and complete local release gate passed. Fishing was accepted by the user on 2026-09-03 and its live follow-ups are parked; separate exactly-one-click and F1/NUI recordings were not supplied.
 
 ### Completed — installed Velopack apply/relaunch proof
 
 `scripts/test-velopack-update.ps1` now creates a disposable `CuePilotUpdaterSmoke` installation and proves a real 5.2.0 → 5.2.1 delta download, packaged engine-sidecar shutdown, apply, relaunch, version/payload replacement, and clean uninstall. It never uses the production `CuePilotDesktop` identity or legacy `%LOCALAPPDATA%\CuePilot` data.
 
-### Implemented; live validation still pending — one-click cast acceleration
+### Implemented; Fishing accepted by user — one-click cast acceleration
 
 **Files:** `src/Automation/AdaptiveRoutineEngine.cs`, fishing routine settings
 and persistence, and focused engine tests.
@@ -39,7 +159,7 @@ and persistence, and focused engine tests.
 **Why:** Advancing the casting bar as soon as it appears gets the line into
 the water sooner without changing the later tension minigame behavior.
 
-The repository contains automated coverage, but there is still no recorded live proof that the accelerator sends exactly one click at the intended in-game phase. Keep that smoke test on the release gate.
+The repository contains automated coverage. The user accepted Fishing overall on 2026-09-03; no separate exactly-one-click recording was supplied. Further Fishing validation is parked at the user's request.
 
 The following items were completed in 5.1.3 and are retained as short records:
 
@@ -248,12 +368,10 @@ configuration should be as narrowly offline as the implementation.
 
 ## Suggested order
 
-1. During the next supervised FiveM session, confirm F1/NUI camera isolation and record the exactly-one-click cast validation.
-2. Add UI resize/interaction coverage, then split the Fishing workspace.
-3. Finish the Detection Review timeline and release-readiness/About panel.
-4. Add guarded presets and the lockpicking evidence checklist.
-5. Class C only after the evidence gate passes.
-6. Add shared bridge fixtures; decide separately on Authenticode signing.
+Use the expanded ranked list at the top of this document. The older numbered
+items above remain detail/reference; their numbering is not today's execution
+order. Fishing presets and Class C input are deferred. Authenticode signing
+requires a separate identity/certificate decision.
 
 ## Guardrails
 

@@ -39,6 +39,7 @@ export interface AppSettings {
   selectedProfile: string;
   startStop: HotkeyBinding;
   lockpickingStartStop: HotkeyBinding;
+  pickpocketStartStop?: HotkeyBinding;
   emergencyStop: HotkeyBinding;
   routine: RoutineSettings;
 }
@@ -56,12 +57,62 @@ export interface Snapshot {
   diagnosticsDirectory: string;
   debug: FishingDebugSnapshot | null;
   lockpicking: LockpickingObserveStatus;
+  pickpocket?: PickpocketObserveStatus;
   setupVerification: FishingSetupVerification | null;
 }
 
 export interface FishingSetupCheck {
   passed: boolean;
   detail: string;
+}
+
+export type PickpocketColor = "White" | "Purple" | "Red" | "PaleGreen" | "Blue" | "Yellow";
+export type PickpocketPolicy = "Widest" | "PurpleBlueWhite" | "RarestFirst" | "Custom" | PickpocketColor;
+export type PickpocketInputMode = "Observe" | "SingleAttempt" | "PrecisionAttempt";
+export interface PickpocketTiming { redAdvanceMs: number; yellowAdvanceMs: number; customPriority?: PickpocketColor[]; itemPriority?: string[]; }
+export interface PickpocketRecentAttempt {
+  id: string; endedAtUnixMs: number; outcome: "Grabbed" | "Missed" | "Ended";
+  color: PickpocketColor | null; widthPixels: number | null; offsetPixels: number | null; automaticPresses: number;
+  itemName?: string | null; redAdvanceMs?: number | null; yellowAdvanceMs?: number | null;
+  engineVersion?: string | null; sessionId?: string | null; inputMode?: string | null; targetPolicy?: string | null;
+}
+export interface PickpocketObserveStatus {
+  recentAttempts?: PickpocketRecentAttempt[];
+  sessionStateError?: string | null;
+  customPriority?: PickpocketColor[];
+  itemPriority?: string[];
+  inputMode?: PickpocketInputMode;
+  redAdvanceMs?: number;
+  yellowAdvanceMs?: number;
+  inputArmed?: boolean;
+  automatedPressCount?: number;
+  inputDelivery?: { state: string; detail: string; plannedMs: number | null; keyDownMs: number | null; keyUpMs: number | null } | null;
+  observing: boolean;
+  state: string;
+  detail: string;
+  sampleCount: number;
+  captureMilliseconds: number;
+  analysisMilliseconds: number;
+  frameAgeMilliseconds: number | null;
+  captureBackend: string;
+  selectedBandIndex: number | null;
+  targetPolicy: PickpocketPolicy;
+  predictedPressCount: number;
+  cooldownUntilUnixMs: number;
+  evidenceDirectory: string;
+  attempt: number;
+  manualSpacePressCount?: number;
+  debug?: { state: string; recordsSaved: number; recordsDropped: number; imagesSaved: number; imagesSkipped: number; error: string | null; report: string;
+    result?: { state: string; color: string; widthPixels: number; offsetPixels: number | null } | null } | null;
+  observation: {
+    state: string;
+    bar: { x: number; y: number; width: number; height: number };
+    markerX: number;
+    bands: { color: PickpocketColor; left: number; right: number; itemName?: string | null }[];
+    confidence: number;
+    reason: string;
+  };
+  prediction: { canSchedule: boolean; speedPixelsPerSecond: number; reason: string } | null;
 }
 
 export interface FishingSetupVerification {
@@ -226,6 +277,34 @@ export class EngineClient {
     }
   }
 
+  async setPickpocket(mode: "observe" | "stop", policy: PickpocketPolicy = "Widest", inputMode: PickpocketInputMode = "Observe") {
+    this.error = null;
+    try {
+      if (mode === "observe") {
+        this.applySnapshot(await invoke<Snapshot>("engine_command", {
+          command: "configure_pickpocket", settings: { targetPolicy: policy, inputMode },
+        }));
+      }
+      const snapshot = await invoke<Snapshot>("engine_command", {
+        command: mode === "observe" ? "start_pickpocket_observe" : "stop_pickpocket_observe",
+      });
+      this.applySnapshot(snapshot);
+      return snapshot;
+    } catch (error) {
+      this.error = String(error);
+      throw error;
+    }
+  }
+
+  async configurePickpocket(policy: PickpocketPolicy, inputMode: PickpocketInputMode = "Observe", timing?: PickpocketTiming) {
+    this.error = null;
+    try {
+      this.applySnapshot(await invoke<Snapshot>("engine_command", {
+        command: "configure_pickpocket", settings: { targetPolicy: policy, inputMode, ...timing },
+      }));
+    } catch (error) { this.error = String(error); throw error; }
+  }
+
   async discoverTargets() {
     this.error = null;
     try {
@@ -309,6 +388,10 @@ export class EngineClient {
     if (message.name === "lockpicking_status") {
       const lockpicking = message.payload as LockpickingObserveStatus;
       if (this.snapshot) this.snapshot = { ...this.snapshot, lockpicking };
+    }
+    if (message.name === "pickpocket_status") {
+      const pickpocket = message.payload as PickpocketObserveStatus;
+      if (this.snapshot) this.snapshot = { ...this.snapshot, pickpocket };
     }
     if (message.name === "ready" || message.name === "target" || message.name === "settings") {
       try {

@@ -32,7 +32,7 @@ npm --prefix ui install
 npm --prefix ui run tauri:dev
 ```
 
-The development command stages the current Debug .NET sidecar before Tauri starts. Do not launch an old staged engine manually.
+The development command stages the optimized Release .NET sidecar before Tauri starts. The UI and inspectable shell remain development builds. Do not launch an old staged engine manually.
 
 ## Verification
 
@@ -41,6 +41,16 @@ Run the complete local gate before handing off a batch:
 ```powershell
 pwsh -NoProfile -File .\scripts\verify.ps1 -All
 ```
+
+After a gate, write a machine-readable receipt tied to the exact dirty content:
+
+```powershell
+pwsh -NoProfile -File .\scripts\write-verification-receipt.ps1 -Output .\tmp\verification-receipt.json -Status passed -Commands 'scripts/verify.ps1 -All' -DurationSeconds 0
+pwsh -NoProfile -File .\scripts\project-status.ps1 -AsJson
+```
+
+Use the measured duration when available. A later content change produces a
+different fingerprint, making the earlier receipt visibly stale.
 
 For a focused edit, use the matching gate first:
 
@@ -83,6 +93,14 @@ bash ui/scripts/cdp/c.sh look
 
 Use `map` or `find` before interacting. Do not exercise the global Start / Stop shortcut or target capture during a visual-only review. Generated captures stay under `ui/scripts/cdp/.tmp/` and are ignored by Git.
 
+### Workspace UI checks
+
+All activity pages share the FiveM window, Settings, and Diagnostics toolbar in `App.svelte`. Target selection and settings are disabled while an activity is running. Returning to Activities stops the active routine before navigating. Dialogs restore focus to their opener; Diagnostics initially selects the current activity's evidence.
+
+Pickpocket's status badge describes current input state independently of its selected run mode and saved result. Completed results carry a timestamp. Recording measurements are secondary to the next action and result; recording errors remain visible.
+
+Run `npm --prefix ui run test:e2e` for deterministic browser checks with no native gameplay input. The suite covers Home at 760×620, 820×700, 900×700, and 1180×760, activity layouts at minimum and intermediate sizes, settings and target focus, save failures, activity-specific diagnostics, and idle/observing/armed/tap-sent/cooldown/disconnected states. Browser scenarios do not establish native capture or gameplay accuracy; also inspect the development WebView before release.
+
 ## Brand assets
 
 `assets/branding/cuepilot-icon-source.png` and `cuepilot-dev-icon-source.png` are the canonical, untouched production and development artwork. Regenerate either cropped application PNG, multi-resolution Windows ICO, and lightweight UI icon by naming the asset explicitly:
@@ -99,7 +117,7 @@ The script uses deterministic local resizing and rounded-corner masking; it does
 - Regression fixtures belong under `tests/CuePilot.Tests/Fixtures/` and should be limited to the visual evidence required by the test.
 - Review new fixtures for personal information, chat text, identifiers, and unrelated overlays before committing them.
 - Runtime traces and annotated evidence under `%LOCALAPPDATA%\CuePilot\diagnostics\` are local artifacts, not repository content.
-- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. The current release is preserved by default; `-StaleReleaseArtifacts` selects updater smoke/audit output and packaging staging while `-ReleaseArtifacts` selects the entire release directory. Dependency caches are preserved unless `-Dependencies` is supplied, and `-Captures` selects generated CDP screenshots.
+- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. The current release is preserved by default; `-StaleReleaseArtifacts` selects updater smoke/audit output and packaging staging while `-ReleaseArtifacts` selects the entire release directory. Dependency caches are preserved unless `-Dependencies` is supplied, `-Captures` selects generated CDP screenshots, and `-CargoAppArtifacts` removes only runnable CuePilot binaries and legacy installers from the configured Cargo target directory while preserving its dependency cache.
 
 ### Instrumented Fishing sessions
 
@@ -156,3 +174,5 @@ pwsh -NoProfile -File .\scripts\test-velopack-update.ps1
 It builds a feature-gated release shell, packages isolated `CuePilotUpdaterSmoke` 5.2.0 and 5.2.1 feeds, silently installs under ignored `release/velopack-smoke/`, downloads/applies the delta through the real Rust `UpdateManager`, starts and safely stops the packaged .NET sidecar, verifies relaunch plus the replaced payload marker, and uninstalls the test identity. The script fails if an installed process, registry entry, shortcut, or `current` directory remains. Use `-SkipBuild` only when the release binary was just built with `update-test-feed` and only packaging/install repetition is needed.
 
 Velopack exclusively owns the installed `CuePilot` Start-menu and desktop shortcuts. Development runs through `npm --prefix ui run cdp:dev` or `scripts/launch-cuepilot-dev.ps1`; repository tools must never repoint the official shortcut at a raw build.
+
+Validate an installed UI release through a normal visible launch of the official shortcut. Confirm the version, local-engine connection, and idle input state in the rendered app, then compare shell/engine payload hashes with the package. A hidden launch during the 5.3.3 closeout stalled before starting the engine; restarting normally and bringing the window forward recovered it without a code change. Process existence alone is not a successful UI startup check.

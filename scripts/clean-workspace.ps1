@@ -5,7 +5,8 @@ param(
     [switch]$StaleReleaseArtifacts,
     [switch]$ReleaseArtifacts,
     [switch]$Dependencies,
-    [switch]$Captures
+    [switch]$Captures,
+    [switch]$CargoAppArtifacts
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +15,7 @@ $repoPrefix = $repoRoot + '\'
 $captureDirectory = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "ui/scripts/cdp/.tmp")).TrimEnd('\')
 $engineResourceDirectory = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "ui/src-tauri/resources/engine")).TrimEnd('\')
 
-if (-not ($BuildOutputs -or $StaleReleaseArtifacts -or $ReleaseArtifacts -or $Dependencies -or $Captures)) {
+if (-not ($BuildOutputs -or $StaleReleaseArtifacts -or $ReleaseArtifacts -or $Dependencies -or $Captures -or $CargoAppArtifacts)) {
     $BuildOutputs = $true
 }
 
@@ -61,6 +62,56 @@ if ($Captures) {
     $targets.Add($captureDirectory)
 }
 
+$cargoAppFiles = @()
+if ($CargoAppArtifacts) {
+    if ([string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {
+        throw "CARGO_TARGET_DIR must be set before selecting Cargo app artifacts."
+    }
+
+    $cargoTargetRoot = [System.IO.Path]::GetFullPath($env:CARGO_TARGET_DIR).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $cargoTargetRoot -PathType Container)) {
+        throw "Cargo target directory does not exist: $cargoTargetRoot"
+    }
+    $cargoTargetRoot = (Resolve-Path -LiteralPath $cargoTargetRoot).Path.TrimEnd('\')
+    $cargoTargetPrefix = $cargoTargetRoot + '\'
+    if ([System.IO.Path]::GetPathRoot($cargoTargetRoot).TrimEnd('\').Equals($cargoTargetRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean a drive root."
+    }
+
+    $cargoPatterns = @(
+        @{ Directory = "release\bundle\nsis"; Filter = "CuePilot_*-setup.exe" },
+        @{ Directory = "debug\deps"; Filter = "cuepilot_ui-*.exe" }
+    )
+    foreach ($pattern in $cargoPatterns) {
+        $directory = Join-Path $cargoTargetRoot $pattern.Directory
+        if (Test-Path -LiteralPath $directory -PathType Container) {
+            $cargoAppFiles += Get-ChildItem -LiteralPath $directory -Filter $pattern.Filter -File -ErrorAction SilentlyContinue
+        }
+    }
+
+    @(
+        "release\cuepilot-ui.exe",
+        "release\deps\cuepilot_ui.exe",
+        "release\resources\engine\CuePilot.exe",
+        "debug\cuepilot-ui.exe",
+        "debug\deps\cuepilot_ui.exe",
+        "debug\resources\engine\CuePilot.exe"
+    ) | ForEach-Object {
+        $path = Join-Path $cargoTargetRoot $_
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $cargoAppFiles += Get-Item -LiteralPath $path
+        }
+    }
+
+    $cargoAppFiles = @($cargoAppFiles) | Sort-Object FullName -Unique | ForEach-Object {
+        $resolved = [System.IO.Path]::GetFullPath($_.FullName)
+        if (-not $resolved.StartsWith($cargoTargetPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Cargo app artifact escaped the target directory: $resolved"
+        }
+        Get-Item -LiteralPath $resolved
+    }
+}
+
 $existingTargets = @($targets) |
     Sort-Object -Unique |
     Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
@@ -75,7 +126,7 @@ $existingTargets = @($targets) |
         $resolved
     }
 
-if (-not $existingTargets) {
+if (-not $existingTargets -and -not $cargoAppFiles) {
     Write-Host "No selected cleanup targets found."
     return
 }
@@ -88,6 +139,13 @@ $summary = foreach ($target in $existingTargets) {
         Megabytes = [math]::Round((($files | Measure-Object Length -Sum).Sum / 1MB), 1)
     }
 }
+$summary += foreach ($file in $cargoAppFiles) {
+    [pscustomobject]@{
+        Path = $file.FullName
+        Files = 1
+        Megabytes = [math]::Round(($file.Length / 1MB), 1)
+    }
+}
 
 $summary | Sort-Object Megabytes -Descending | Format-Table Path, Files, Megabytes -AutoSize
 $totalMegabytes = ($summary | Measure-Object Megabytes -Sum).Sum
@@ -97,6 +155,7 @@ if (-not $Apply) {
     Write-Host "The current release is preserved unless -ReleaseArtifacts is supplied."
     Write-Host "Use -StaleReleaseArtifacts to select smoke and audit packages without selecting release/velopack."
     Write-Host "Dependency caches are preserved unless -Dependencies is supplied."
+    Write-Host "Cargo dependency caches are preserved; -CargoAppArtifacts selects only runnable CuePilot binaries and legacy installers."
     return
 }
 
@@ -126,6 +185,11 @@ foreach ($target in $existingTargets) {
         Write-Host "Removing: $target"
         Remove-Item -LiteralPath $target -Recurse -Force
     }
+}
+
+foreach ($file in $cargoAppFiles) {
+    Write-Host "Removing Cargo app artifact: $($file.FullName)"
+    Remove-Item -LiteralPath $file.FullName -Force
 }
 
 Write-Host "Cleanup complete."

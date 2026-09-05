@@ -6,6 +6,49 @@ namespace CuePilot.Tests;
 
 public sealed class UiBridgeTests
 {
+    [Fact]
+    public void SharedBridgeFixtureMatchesProtocolAndRequiredSnapshotFields()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "contracts", "bridge-response-v1.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var result = document.RootElement.GetProperty("result");
+        Assert.Equal(UiBridge.ProtocolVersion, result.GetProperty("protocolVersion").GetInt32());
+        foreach (var property in new[] { "engineVersion", "routineState", "targetValid", "canStart", "targetValidation", "targets", "diagnosticsDirectory", "setupVerification" })
+            Assert.True(result.TryGetProperty(property, out _), $"Missing shared fixture property: {property}");
+    }
+    [Fact]
+    public void PickpocketShortcutIsSavedAndDuplicatesOrFiveMConsoleAreRejected()
+    {
+        foreach (var key in new[] { "F6", "F10", "F8" })
+        {
+            var settings = AppSettings.Defaults();
+            var incoming = settings.Copy();
+            incoming.PickpocketStartStop.Key = key;
+            AppSettings? saved = null;
+            var messages = RunBridge(settings, JsonSerializer.Serialize(new { id = "binding", command = "save_settings", settings = incoming }, Json), value => saved = value.Copy());
+            Assert.Equal(key == "F6", FindResponse(messages, "binding").GetProperty("ok").GetBoolean());
+            if (key == "F6") Assert.Equal("F6", saved!.PickpocketStartStop.Key);
+            else Assert.Null(saved);
+        }
+        var result = FindResponse(RunBridge(AppSettings.Defaults(), """
+            {"id":"toggle","command":"toggle_pickpocket_observe"}
+            """), "toggle");
+        Assert.False(result.GetProperty("ok").GetBoolean());
+        Assert.Contains("FiveM", result.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public void AddingPickpocketBindingPreservesExistingShortcutsAndSettings()
+    {
+        var restored = SettingsStore.DeserializeAndMigrateForTest("""
+            {"formatVersion":9,"startStop":{"key":"F7"},"lockpickingStartStop":{"key":"F9"},"routine":{"fishingLowerTensionPercent":60}}
+            """);
+        Assert.Equal("F7", restored.StartStop.Key);
+        Assert.Equal("F6", restored.PickpocketStartStop.Key);
+        Assert.Equal(60, restored.Routine.FishingLowerTensionPercent);
+        Assert.Equal("F6", restored.Copy().PickpocketStartStop.Key);
+        Assert.Equal("F6", SettingsStore.RoundTripForTest(restored).PickpocketStartStop.Key);
+    }
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -38,6 +81,128 @@ public sealed class UiBridgeTests
         Assert.Equal(JsonValueKind.Null, result.GetProperty("debug").ValueKind);
         Assert.Equal(JsonValueKind.Null, result.GetProperty("status").GetProperty("debug").ValueKind);
         Assert.Contains("FiveM", result.GetProperty("status").GetProperty("detail").GetString());
+        Assert.False(result.GetProperty("pickpocket").GetProperty("observing").GetBoolean());
+    }
+
+    [Fact]
+    public void PickpocketPolicyIsValidatedAndStartRequiresAvailableTarget()
+    {
+        var messages = RunBridge(AppSettings.Defaults(), """
+            {"id":"policy","command":"configure_pickpocket","settings":{"targetPolicy":"Widest"}}
+            {"id":"invalid","command":"configure_pickpocket","settings":{"targetPolicy":"Unknown item"}}
+            {"id":"start","command":"start_pickpocket_observe"}
+            {"id":"stop","command":"stop_pickpocket_observe"}
+            """);
+        Assert.True(FindResponse(messages, "policy").GetProperty("ok").GetBoolean());
+        Assert.Equal("Widest", FindResponse(messages, "policy").GetProperty("result").GetProperty("pickpocket").GetProperty("targetPolicy").GetString());
+        Assert.False(FindResponse(messages, "invalid").GetProperty("ok").GetBoolean());
+        Assert.False(FindResponse(messages, "start").GetProperty("ok").GetBoolean());
+        Assert.True(FindResponse(messages, "stop").GetProperty("ok").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("Yellow")]
+    [InlineData("RarestFirst")]
+    [InlineData("Custom")]
+    public void PickpocketPreferencesPersistWithoutArmingAndInvalidChangesDoNotSave(string policy)
+    {
+        AppSettings? saved = null;
+        var writes = 0;
+        var messages = RunBridge(AppSettings.Defaults(), """
+            {"id":"configure","command":"configure_pickpocket","settings":{"targetPolicy":"Yellow","inputMode":"PrecisionAttempt","redAdvanceMs":8,"yellowAdvanceMs":12}}
+            {"id":"bad","command":"configure_pickpocket","settings":{"targetPolicy":"Red","inputMode":"PrecisionAttempt","yellowAdvanceMs":21}}
+            """.Replace("\"Yellow\"", $"\"{policy}\""), save: value => { saved = value.Copy(); writes++; });
+        Assert.True(FindResponse(messages, "configure").GetProperty("ok").GetBoolean());
+        Assert.False(FindResponse(messages, "bad").GetProperty("ok").GetBoolean());
+        Assert.Equal(1, writes);
+        Assert.Equal(8, saved!.Pickpocket.RedAdvanceMs);
+        Assert.Equal(12, saved.Pickpocket.YellowAdvanceMs);
+        var restored = SettingsStore.RoundTripForTest(saved);
+        var restart = RunBridge(restored, """{"id":"read","command":"snapshot"}""");
+        var status = FindResponse(restart, "read").GetProperty("result").GetProperty("pickpocket");
+        Assert.Equal(policy, status.GetProperty("targetPolicy").GetString());
+        Assert.Equal("PrecisionAttempt", status.GetProperty("inputMode").GetString());
+        Assert.Equal(12, status.GetProperty("yellowAdvanceMs").GetInt32());
+        Assert.False(status.GetProperty("inputArmed").GetBoolean());
+        Assert.False(status.GetProperty("observing").GetBoolean());
+        restored.Copy().Pickpocket.RedAdvanceMs = 0;
+        Assert.Equal(8, restored.Pickpocket.RedAdvanceMs);
+    }
+
+    [Fact]
+    public void CustomOrderRoundTripsAndRejectsDuplicatesWithoutSaving()
+    {
+        AppSettings? saved = null;
+        var writes = 0;
+        var messages = RunBridge(AppSettings.Defaults(), """
+            {"id":"order","command":"configure_pickpocket","settings":{"targetPolicy":"Custom","inputMode":"PrecisionAttempt","customPriority":["Purple","Yellow","PaleGreen"]}}
+            {"id":"duplicate","command":"configure_pickpocket","settings":{"targetPolicy":"Custom","customPriority":["Yellow","Yellow"]}}
+            {"id":"empty","command":"configure_pickpocket","settings":{"targetPolicy":"Custom","customPriority":[]}}
+            """, save: value => { saved = value.Copy(); writes++; });
+        Assert.True(FindResponse(messages, "order").GetProperty("ok").GetBoolean());
+        Assert.False(FindResponse(messages, "duplicate").GetProperty("ok").GetBoolean());
+        Assert.False(FindResponse(messages, "empty").GetProperty("ok").GetBoolean());
+        Assert.Equal(1, writes);
+        var restored = SettingsStore.RoundTripForTest(saved!);
+        Assert.Equal(new[] { PickpocketBandColor.Purple, PickpocketBandColor.Yellow, PickpocketBandColor.PaleGreen }, restored.Pickpocket.CustomPriority);
+        var status = FindResponse(RunBridge(restored, """{"id":"read","command":"snapshot"}"""), "read").GetProperty("result").GetProperty("pickpocket");
+        Assert.Equal(new[] { "Purple", "Yellow", "PaleGreen" }, status.GetProperty("customPriority").EnumerateArray().Select(e => e.GetString()));
+        Assert.False(status.GetProperty("inputArmed").GetBoolean());
+        restored.Copy().Pickpocket.CustomPriority[0] = PickpocketBandColor.Red;
+        Assert.Equal(PickpocketBandColor.Purple, restored.Pickpocket.CustomPriority[0]);
+    }
+
+    [Fact]
+    public void SameColorItemOrderPersistsAndRejectsDuplicates()
+    {
+        var order = new PickpocketPreferences().ItemPriority;
+        (order[3], order[4]) = (order[4], order[3]);
+        var command = JsonSerializer.Serialize(new { id = "items", command = "configure_pickpocket", settings = new { targetPolicy = "RarestFirst", inputMode = "PrecisionAttempt", itemPriority = order } });
+        AppSettings? saved = null;
+        var response = FindResponse(RunBridge(AppSettings.Defaults(), command, save: value => saved = value.Copy()), "items");
+        Assert.True(response.GetProperty("ok").GetBoolean());
+        var restored = SettingsStore.RoundTripForTest(saved!);
+        Assert.Equal("Ring", restored.Pickpocket.ItemPriority[3]);
+        var status = FindResponse(RunBridge(restored, """{"id":"read","command":"snapshot"}"""), "read").GetProperty("result").GetProperty("pickpocket");
+        Assert.Equal(order, status.GetProperty("itemPriority").EnumerateArray().Select(e => e.GetString()));
+        var duplicate = RunBridge(restored, """{"id":"bad","command":"configure_pickpocket","settings":{"targetPolicy":"RarestFirst","itemPriority":["Ring","Ring"]}}""", save: _ => throw new Exception("Invalid order must not be saved"));
+        Assert.False(FindResponse(duplicate, "bad").GetProperty("ok").GetBoolean());
+        restored.Copy().Pickpocket.ItemPriority[3] = "Ruby";
+        Assert.Equal("Ring", restored.Pickpocket.ItemPriority[3]);
+    }
+
+    [Fact]
+    public void LegacyPickpocketSettingsDefaultSafelyAndInvalidSavedValuesNormalize()
+    {
+        var legacy = SettingsStore.DeserializeAndMigrateForTest("""{"formatVersion":9}""");
+        Assert.Equal("Observe", legacy.Pickpocket.InputMode);
+        Assert.Equal("RarestFirst", legacy.Pickpocket.TargetPolicy);
+        Assert.Equal(20, legacy.Pickpocket.YellowAdvanceMs);
+        var bad = SettingsStore.DeserializeAndMigrateForTest("""{"formatVersion":9,"pickpocket":{"targetPolicy":"Nope","inputMode":"Unlimited","redAdvanceMs":-1,"yellowAdvanceMs":21}}""");
+        Assert.Equal("RarestFirst", bad.Pickpocket.TargetPolicy);
+        Assert.Equal("Observe", bad.Pickpocket.InputMode);
+        Assert.Equal(8, bad.Pickpocket.RedAdvanceMs);
+        Assert.Equal(20, bad.Pickpocket.YellowAdvanceMs);
+    }
+
+    [Fact]
+    public void PickpocketInputRequiresExplicitValidModeAndDefaultsBackToObserve()
+    {
+        var messages = RunBridge(AppSettings.Defaults(), """
+            {"id":"armed","command":"configure_pickpocket","settings":{"targetPolicy":"Widest","inputMode":"SingleAttempt"}}
+            {"id":"precision","command":"configure_pickpocket","settings":{"targetPolicy":"PurpleBlueWhite","inputMode":"PrecisionAttempt"}}
+            {"id":"bad","command":"configure_pickpocket","settings":{"targetPolicy":"Widest","inputMode":"Unlimited"}}
+            {"id":"observe","command":"configure_pickpocket","settings":{"targetPolicy":"Widest"}}
+            """);
+        var armed = FindResponse(messages, "armed").GetProperty("result").GetProperty("pickpocket");
+        Assert.Equal("SingleAttempt", armed.GetProperty("inputMode").GetString());
+        Assert.False(armed.GetProperty("inputArmed").GetBoolean());
+        var precision = FindResponse(messages, "precision").GetProperty("result").GetProperty("pickpocket");
+        Assert.Equal("PrecisionAttempt", precision.GetProperty("inputMode").GetString());
+        Assert.Equal("PurpleBlueWhite", precision.GetProperty("targetPolicy").GetString());
+        Assert.False(precision.GetProperty("inputArmed").GetBoolean());
+        Assert.False(FindResponse(messages, "bad").GetProperty("ok").GetBoolean());
+        Assert.Equal("Observe", FindResponse(messages, "observe").GetProperty("result").GetProperty("pickpocket").GetProperty("inputMode").GetString());
     }
 
     [Fact]
@@ -166,7 +331,7 @@ public sealed class UiBridgeTests
         incoming.Routine.FishingLowerTensionPercent = 60;
         incoming.Routine.TargetWindow = new WindowTargetSettings { ProcessName = "ChatGPT", WindowTitle = "ChatGPT" };
         incoming.StartStop.Key = "F11";
-        incoming.LockpickingStartStop.Key = "F8";
+        incoming.LockpickingStartStop.Key = "F6";
         incoming.EmergencyStop.Key = "F12";
         var request = JsonSerializer.Serialize(new
         {
@@ -182,7 +347,7 @@ public sealed class UiBridgeTests
         Assert.Equal(60, saved.Routine.FishingLowerTensionPercent);
         Assert.Equal("FiveM", saved.Routine.TargetWindow.ProcessName);
         Assert.Equal("F11", saved.StartStop.Key);
-        Assert.Equal("F8", saved.LockpickingStartStop.Key);
+        Assert.Equal("F6", saved.LockpickingStartStop.Key);
         Assert.Equal("Pause", saved.EmergencyStop.Key);
     }
 

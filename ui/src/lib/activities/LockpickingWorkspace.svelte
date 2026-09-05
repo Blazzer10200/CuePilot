@@ -1,18 +1,16 @@
 <script lang="ts">
-  import { ArrowLeft, CarFront, ChevronRight, CircleDot, Eye, Gauge, KeyRound, MousePointer2, OctagonX, ScanEye, Settings2, ShieldCheck } from "@lucide/svelte";
-  import type { ActivityDefinition } from "../activities";
+  import { CarFront, CircleDot, Eye, Gauge, MousePointer2, OctagonX, ScanEye, ShieldCheck } from "@lucide/svelte";
   import type { LockpickingObserveStatus } from "../engine.svelte";
 
   interface Props {
-    activity: ActivityDefinition;
+    connected: boolean;
+    error: string | null;
     targetValid: boolean;
     status: LockpickingObserveStatus;
-    onback: () => void | Promise<void>;
     onmode: (mode: "observe" | "classC" | "stop") => void | Promise<void>;
-    onsettings: () => void | Promise<void>;
   }
 
-  let { activity, targetValid, status, onback, onmode, onsettings }: Props = $props();
+  let { connected, error, targetValid, status, onmode }: Props = $props();
   let pending = $state(false);
   const observation = $derived(status.observation);
   const hasHud = $derived(observation.state !== "Hidden");
@@ -21,10 +19,10 @@
   const targetLabel = $derived(observation.target?.number ? `Target ${observation.target.number}` : observation.target ? "Target acquired" : "No target detected");
   const actionLabel = $derived(humanAction(observation.predictedAction));
   const primaryState = $derived(
-    !status.observing
+    !connected ? { title: "Engine disconnected", detail: "Waiting for the local engine to reconnect." } : !status.observing
       ? targetValid
         ? { title: "Ready to observe", detail: "Open the lockpicking minigame in FiveM, then start observation." }
-        : { title: "Select a FiveM target", detail: "Return to Fishing to select the game window shared by every activity." }
+        : { title: "Select a FiveM window", detail: "Use Select FiveM above to choose the game window." }
       : hasHud
         ? observation.target
           ? { title: targetLabel, detail: `${actionLabel}. CuePilot is recording evidence without sending input.` }
@@ -45,22 +43,17 @@
   }
 
   async function setMode(mode: "observe" | "classC" | "stop") {
-    if (pending || (mode !== "stop" && !targetValid)) return;
+    if (pending || (mode !== "stop" && (!targetValid || !connected))) return;
     pending = true;
     try {
       await onmode(mode);
+    } catch {
+      // EngineClient exposes the failure in the workspace.
     } finally {
       pending = false;
     }
   }
 </script>
-
-<nav class="workspace-path" aria-label="Activity navigation">
-  <button onclick={onback} disabled={status.observing}><ArrowLeft size={14} strokeWidth={2} /> Activities</button>
-  <ChevronRight size={12} aria-hidden="true" />
-  <span><KeyRound size={13} strokeWidth={1.9} /> Vehicle lockpicking</span>
-  <em class:live={status.observing}>{status.inputEnabled ? "Class C active" : status.observing ? "Observing · input off" : activity.statusLabel}</em>
-</nav>
 
 <section class="lockpick-hero lockpick-hero--live" aria-labelledby="lockpick-heading">
   <div class="lockpick-hero__copy">
@@ -72,11 +65,12 @@
     {#if status.observing}
       <button class="lockpick-observe-button stop" onclick={() => setMode("stop")} disabled={pending}><OctagonX size={16} strokeWidth={1.9} /> Stop safely</button>
     {:else}
-      <button class="lockpick-observe-button secondary" title="Lockpicking controls" onclick={onsettings} disabled={pending}><Settings2 size={16} strokeWidth={1.9} /> Controls</button>
-      <button class="lockpick-observe-button" onclick={() => setMode("observe")} disabled={pending || !targetValid}><Eye size={16} strokeWidth={1.9} /> Start observing</button>
+      <button class="lockpick-observe-button" onclick={() => setMode("observe")} disabled={pending || !targetValid || !connected}><Eye size={16} strokeWidth={1.9} /> {pending ? "Starting…" : "Start observing"}</button>
     {/if}
   </div>
 </section>
+
+{#if error}<p class="error" role="alert">{error}</p>{/if}
 
 <section class="lockpick-live-layout">
   <article class="lockpick-viewport" aria-label="Lockpicking visual debug view">

@@ -1,0 +1,52 @@
+[
+  {
+    "file": "clip3-01.png",
+    "presentationMs": 900.0,
+    "expectedState": "Hidden"
+  },
+  {
+    "file": "clip3-02.png",
+    "presentationMs": 1050.0,
+    "expectedState": "Preparing"
+  },
+  {
+    "file": "clip3-03.png",
+    "presentationMs": 1300.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-04.png",
+    "presentationMs": 1750.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-05.png",
+    "presentationMs": 2000.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-06.png",
+    "presentationMs": 2500.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-07.png",
+    "presentationMs": 2900.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-08.png",
+    "presentationMs": 3000.0,
+    "expectedState": "Grabbed"
+  },
+  {
+    "file": "clip3-09.png",
+    "presentationMs": 3750.0,
+    "expectedState": "Grabbed"
+  },
+  {
+    "file": "clip3-10.png",
+    "presentationMs": 4000.0,
+    "expectedState": "Hidden"
+  }
+]

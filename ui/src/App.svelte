@@ -6,13 +6,15 @@
   import {
     Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
     Gauge, GripHorizontal, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
-    ShieldCheck, Square, Terminal, Waves, X,
+    ShieldCheck, Square, Terminal, X,
   } from "@lucide/svelte";
   import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
   import { getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
   import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
+  import PickpocketWorkspace from "./lib/activities/PickpocketWorkspace.svelte";
   import UpdateCenter from "./lib/UpdateCenter.svelte";
+  import SupportCenter from "./lib/SupportCenter.svelte";
   import { updates } from "./lib/updates.svelte";
 
   const developmentBuild = import.meta.env.DEV;
@@ -74,7 +76,8 @@
     { value: "Automatic", label: "Automatic", description: "Wait for FiveM without stealing focus" },
     { value: "Foreground", label: "Foreground only", description: "Require FiveM to stay active" },
   ];
-  const shortcutOptions = ["F6", "F7", "F8", "F9", "F10", "F11", "F12"];
+  let settingsAdvanced = $state(false);
+  const shortcutOptions = ["F6", "F7", "F9", "F10", "F11", "F12"];
 
   const engine = new EngineClient();
   const stoppedLockpicking: LockpickingObserveStatus = {
@@ -95,6 +98,7 @@
     observation: { state: "Hidden", confidence: 0, hudCenterX: 0, hudCenterY: 0, hudRadius: 0, target: null, visibleTargetCount: 0, predictedAction: "WAIT", reason: "Lockpicking HUD not found." },
   };
   let selectedActivity = $state<ActivityId | null>(null);
+  const lastActivityKey = "cuepilot.lastActivity";
   let homeFocusActivity = $state<ActivityId | null>(null);
   let runPending = $state<"start" | "stop" | null>(null);
   let selectingTarget = $state(false);
@@ -112,6 +116,9 @@
   let draft = $state<RoutineSettings | null>(null);
   let shortcutDraft = $state<HotkeyBinding | null>(null);
   let lockpickingShortcutDraft = $state<HotkeyBinding | null>(null);
+  let pickpocketShortcutDraft = $state<HotkeyBinding | null>(null);
+  let settingsOpener: HTMLElement | null = null;
+  let diagnosticsOpener: HTMLElement | null = null;
   let showDiagnostics = $state(false);
   let diagnostics = $state<DiagnosticsSnapshot | null>(null);
   let diagnosticsLoading = $state(false);
@@ -130,23 +137,12 @@
 
   const active = $derived(!["Stopped", "Faulted"].includes(engine.status.state));
   const currentActivity = $derived(selectedActivity ? getActivity(selectedActivity) : null);
-  const lockpickingActivity = getActivity("vehicle-lockpicking");
   const fishingSelected = $derived(selectedActivity === "fishing");
   const target = $derived(engine.snapshot?.settings.routine.targetWindow);
   const targetValid = $derived(engine.snapshot?.targetValid ?? false);
   const confidence = $derived(Math.round(engine.status.confidence * 100));
   const currentStep = $derived(cycleStep(engine.status.state));
-  const workspaceStatus = $derived(
-    !engine.connected
-      ? "Engine connecting"
-      : active
-        ? "Fishing active"
-        : engine.status.state === "Faulted"
-          ? "Paused safely"
-          : targetValid
-            ? "Ready to start"
-            : "Setup needed",
-  );
+  const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing || !!engine.snapshot?.lockpicking.observing);
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -176,6 +172,7 @@
     && !!engine.snapshot
     && (JSON.stringify(draft) !== JSON.stringify(engine.snapshot.settings.routine)
       || JSON.stringify(shortcutDraft) !== JSON.stringify(engine.snapshot.settings.startStop)
+      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })
       || JSON.stringify(lockpickingShortcutDraft) !== JSON.stringify(engine.snapshot.settings.lockpickingStartStop)),
   );
   const selectedDelivery = $derived(
@@ -185,14 +182,32 @@
   const debugSnapshot = $derived(engine.status.debug ?? engine.snapshot?.debug ?? diagnostics?.debugSession?.manifest ?? null);
 
   onMount(() => {
+    try {
+      const savedActivity = localStorage.getItem(lastActivityKey);
+      if (savedActivity && getActivity(savedActivity as ActivityId)) selectedActivity = savedActivity as ActivityId;
+    } catch { /* Navigation persistence is optional. */ }
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const syncMotionPreference = () => reduceMotion = motionQuery.matches;
     syncMotionPreference();
     motionQuery.addEventListener("change", syncMotionPreference);
+    const seenFrontendErrors = new Set<string>();
+    const recordFrontendError = (kind: "frontend_error" | "frontend_rejection", value: unknown) => {
+      const detail = value instanceof Error ? `${value.name}: ${value.message}\n${value.stack ?? ""}` : String(value);
+      if (seenFrontendErrors.has(detail)) return;
+      seenFrontendErrors.add(detail);
+      if (seenFrontendErrors.size > 20) seenFrontendErrors.delete(seenFrontendErrors.values().next().value!);
+      void invoke("support_log", { kind, detail }).catch(() => {});
+    };
+    const onFrontendError = (event: ErrorEvent) => recordFrontendError("frontend_error", event.error ?? event.message);
+    const onFrontendRejection = (event: PromiseRejectionEvent) => recordFrontendError("frontend_rejection", event.reason);
+    window.addEventListener("error", onFrontendError);
+    window.addEventListener("unhandledrejection", onFrontendRejection);
     void engine.connect().catch((error: unknown) => engine.error = String(error));
     void updates.initialize();
     return () => {
       motionQuery.removeEventListener("change", syncMotionPreference);
+      window.removeEventListener("error", onFrontendError);
+      window.removeEventListener("unhandledrejection", onFrontendRejection);
       if (noticeTimer) clearTimeout(noticeTimer);
       updates.dispose();
       void engine.disconnect();
@@ -370,7 +385,7 @@
 
   async function selectActivity(activityId: ActivityId) {
     if (runPending) return;
-    if (active) {
+    if (anyActivityRunning) {
       runPending = "stop";
       try {
         await engine.command("stop");
@@ -387,6 +402,7 @@
     closePanels();
     homeFocusActivity = activityId;
     selectedActivity = activityId;
+    try { localStorage.setItem(lastActivityKey, activityId); } catch { /* Continue without navigation persistence. */ }
     window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
   }
 
@@ -407,7 +423,7 @@
 
   async function returnToActivities() {
     if (runPending) return;
-    if (active) {
+    if (anyActivityRunning) {
       runPending = "stop";
       try {
         await engine.command("stop");
@@ -427,7 +443,7 @@
   }
 
   async function findTarget() {
-    if (selectingTarget) return;
+    if (selectingTarget || anyActivityRunning) return;
     selectingTarget = true;
     targetPickerOpen = false;
     targetOptionNodes = [];
@@ -497,10 +513,13 @@
   }
 
   async function openSettings() {
-    if (!engine.snapshot) return;
+    if (!engine.snapshot || anyActivityRunning) return;
+    closeTargetPicker(false);
+    settingsOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     draft = cloneRoutine(engine.snapshot.settings.routine);
     shortcutDraft = cloneHotkey(engine.snapshot.settings.startStop);
     lockpickingShortcutDraft = cloneHotkey(engine.snapshot.settings.lockpickingStartStop);
+    pickpocketShortcutDraft = cloneHotkey(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false });
     settingsError = null;
     closeTargetPicker(false);
     deliveryOpen = false;
@@ -510,13 +529,14 @@
   }
 
   async function saveSettings() {
-    if (!draft || !shortcutDraft || !lockpickingShortcutDraft || !engine.snapshot) return;
+    if (!draft || !shortcutDraft || !lockpickingShortcutDraft || !pickpocketShortcutDraft || !engine.snapshot) return;
     if (draft.fishingUpperTensionPercent < draft.fishingLowerTensionPercent + 5) {
       settingsError = "Target tension must be at least 5% above the pulse threshold.";
       return;
     }
-    if (sameHotkey(shortcutDraft, lockpickingShortcutDraft)) {
-      settingsError = "Fishing and Lockpicking must use different Start / Stop shortcuts.";
+    const bindings = [shortcutDraft, lockpickingShortcutDraft, pickpocketShortcutDraft, engine.snapshot.settings.emergencyStop];
+    if (bindings.some((binding, index) => bindings.slice(index + 1).some(other => sameHotkey(binding, other)))) {
+      settingsError = "Each activity and emergency stop must use a different shortcut.";
       return;
     }
     savingSettings = true;
@@ -526,6 +546,7 @@
         ...engine.snapshot.settings,
         startStop: cloneHotkey(shortcutDraft),
         lockpickingStartStop: cloneHotkey(lockpickingShortcutDraft),
+        pickpocketStartStop: cloneHotkey(pickpocketShortcutDraft),
         routine: cloneRoutine(draft),
       });
       closePanels();
@@ -539,7 +560,9 @@
 
   async function inspectDiagnostics() {
     if (diagnosticsLoading) return;
+    closeTargetPicker(false);
     const refreshing = showDiagnostics && diagnostics !== null;
+    if (!showDiagnostics) diagnosticsOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     showDiagnostics = true;
     if (!refreshing) {
       await tick();
@@ -566,7 +589,7 @@
   }
 
   function closePanels() {
-    const returnFocus = showSettings ? settingsButton : showDiagnostics ? diagnosticsButton : null;
+    const returnFocus = showSettings ? (settingsOpener?.isConnected ? settingsOpener : settingsButton) : showDiagnostics ? (diagnosticsOpener?.isConnected ? diagnosticsOpener : diagnosticsButton) : null;
     deliveryOpen = false;
     showSettings = false;
     showDiagnostics = false;
@@ -574,7 +597,7 @@
   }
 
   function handleWindowClick(event: MouseEvent) {
-    if (targetPickerOpen && event.target instanceof Element && !event.target.closest(".target-card")) {
+    if (targetPickerOpen && event.target instanceof Element && !event.target.closest(".target-card, .target-picker, .workspace-tools")) {
       closeTargetPicker(false);
     }
     if (deliveryOpen && event.target instanceof Element && !event.target.closest(".delivery-select")) {
@@ -691,6 +714,7 @@
     </div>
     <div class="drag-hint" aria-hidden="true"><GripHorizontal size={16} /> DRAG WINDOW</div>
     <div class="top-actions">
+      <button aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={15} /></button>
       <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
       <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
       <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
@@ -698,15 +722,26 @@
     </div>
   </div>
 
-  {#if selectedActivity === null}
-    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} onselect={selectActivity} />
-  {:else if fishingSelected}
+  {#if currentActivity}
+  <div class="workspace-header">
     <nav class="workspace-path" aria-label="Activity navigation">
       <button onclick={returnToActivities} disabled={!!runPending}><ArrowLeft size={14} strokeWidth={2} /> Activities</button>
       <ChevronRight size={12} aria-hidden="true" />
-      <span><Waves size={13} strokeWidth={1.9} /> Fishing</span>
-      <em class:live={active} aria-live="polite">{workspaceStatus}</em>
+      <span aria-current="page">{currentActivity.shortName}</span>
     </nav>
+    <div class="workspace-tools" role="group" aria-label="Workspace tools">
+      <button bind:this={targetButton} class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
+        <Monitor size={14} /><span>{selectingTarget ? "Scanning…" : targetValid ? "FiveM selected" : "Select FiveM"}</span>
+      </button>
+      <button bind:this={settingsButton} onclick={openSettings} disabled={anyActivityRunning || !!runPending || !engine.connected || !engine.snapshot}><Settings2 size={14} /> Settings</button>
+      <button bind:this={diagnosticsButton} aria-label="Open diagnostics" onclick={inspectDiagnostics}><FolderOpen size={14} /> Diagnostics</button>
+    </div>
+  </div>
+  {/if}
+
+  {#if selectedActivity === null}
+    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} onselect={selectActivity} />
+  {:else if fishingSelected}
 
   <section class="hero" aria-labelledby="state-heading">
     <div class="hero-copy">
@@ -752,23 +787,100 @@
           >
             {#if verifyingSetup}<RefreshCw size={14} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={14} strokeWidth={1.9} /> Verify setup{/if}
           </button>
-          <button
-            class:loading={selectingTarget}
-            class="target-button"
-            bind:this={targetButton}
-            aria-expanded={targetPickerOpen}
-            aria-controls="target-picker"
-            onclick={findTarget}
-            disabled={active || selectingTarget || verifyingSetup || !!runPending || !engine.connected}
-          >
-            {#if selectingTarget}
-              <RefreshCw size={15} strokeWidth={1.9} class="spin" /> Scanning…
-            {:else}
-              <Crosshair size={15} strokeWidth={1.9} /> Select FiveM target
-            {/if}
-          </button>
         </div>
       </header>
+      <div class="target-copy">
+        <strong>{target?.processName || "No target selected"}</strong>
+        <span class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
+      </div>
+      {#if setupVerification}
+        <div class:ready={setupVerification.ready} class="setup-check" aria-live="polite">
+          <strong>{setupVerification.ready ? "Setup verified" : "Setup needs attention"}</strong>
+          <span>{setupVerification.detail}</span>
+          <small>Target {setupVerification.target.passed ? "ready" : "blocked"} · Input {setupVerification.input.passed ? "ready" : "blocked"} · Capture {setupVerification.capture.passed ? "ready" : "blocked"}</small>
+        </div>
+      {/if}
+    </article>
+    <aside class="telemetry" aria-label="Compact telemetry">
+      <div class="metric">
+        <span>Samples</span>
+        <strong>{engine.status.sampleCount.toLocaleString()}</strong>
+        <small>Detector frames</small>
+      </div>
+      <i aria-hidden="true"></i>
+      <div class="metric">
+        <span>Input mode</span>
+        <strong>{engine.snapshot?.settings.routine.inputMode || "—"}</strong>
+        <small>{engine.connected ? "Local delivery" : "Waiting for engine"}</small>
+      </div>
+    </aside>
+  </section>
+
+  <section class="cycle" aria-label="Routine cycle">
+    {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
+      {@const stepState = cycleStepState(index)}
+      <div
+        class:complete={stepState === "complete"}
+        class:current={stepState === "active" || stepState === "ready" || stepState === "fault"}
+        class:live={stepState === "active"}
+        class:ready={stepState === "ready"}
+        class:fault={stepState === "fault"}
+        class="cycle-step"
+        aria-current={stepState === "active" || stepState === "ready" || stepState === "fault" ? "step" : undefined}
+        aria-label={`${step}: ${stepState}`}
+      >
+        <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
+        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{/if}</span>
+        <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
+      </div>
+    {/each}
+  </section>
+
+  <section class="actions fishing-actions">
+    <button
+      class:stop={active}
+      class:loading={!!runPending}
+      class="primary-action run-action"
+      onclick={toggleRun}
+      disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
+      aria-describedby="run-action-hint"
+    >
+      {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
+      {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
+      {:else if active}<Square size={14} fill="currentColor" /> Stop Fishing
+      {:else}<Play size={16} fill="currentColor" /> Start Fishing{/if}
+      <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
+    </button>
+    <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
+  </section>
+
+  <footer class="status-footer">
+    <div class="safety-summary">
+      <ShieldCheck size={15} strokeWidth={1.9} />
+      <p><strong>Safe control</strong><i></i><kbd>Pause / Break</kbd> always releases input<i></i>FiveM must remain foreground</p>
+    </div>
+    <div class="system-status" aria-label="System status">
+      <span><i></i>Local only</span>
+      <b aria-hidden="true"></b>
+      <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
+    </div>
+  </footer>
+  {:else if selectedActivity === "pickpocket"}
+    <PickpocketWorkspace
+      shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
+      onpolicy={async (policy, inputMode, timing) => { await engine.configurePickpocket(policy, inputMode, timing); }}
+      status={engine.snapshot?.pickpocket} connected={engine.connected} {targetValid}
+      error={engine.error}
+      onmode={async (mode, policy, inputMode) => { await engine.setPickpocket(mode, policy, inputMode); }} />
+  {:else}
+    <LockpickingWorkspace
+      connected={engine.connected}
+      error={engine.error}
+      {targetValid}
+      status={engine.snapshot?.lockpicking ?? stoppedLockpicking}
+      onmode={async (mode) => { await engine.setLockpicking(mode); }}
+    />
+  {/if}
       {#if targetPickerOpen}
         <div
           id="target-picker"
@@ -829,109 +941,25 @@
           </footer>
         </div>
       {/if}
-      <div class="target-copy">
-        <strong>{target?.processName || "No target selected"}</strong>
-        <span class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
-      </div>
-      {#if setupVerification}
-        <div class:ready={setupVerification.ready} class="setup-check" aria-live="polite">
-          <strong>{setupVerification.ready ? "Setup verified" : "Setup needs attention"}</strong>
-          <span>{setupVerification.detail}</span>
-          <small>Target {setupVerification.target.passed ? "ready" : "blocked"} · Input {setupVerification.input.passed ? "ready" : "blocked"} · Capture {setupVerification.capture.passed ? "ready" : "blocked"}</small>
-        </div>
-      {/if}
-    </article>
-    <aside class="telemetry" aria-label="Compact telemetry">
-      <div class="metric">
-        <span>Samples</span>
-        <strong>{engine.status.sampleCount.toLocaleString()}</strong>
-        <small>Detector frames</small>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="metric">
-        <span>Input mode</span>
-        <strong>{engine.snapshot?.settings.routine.inputMode || "—"}</strong>
-        <small>{engine.connected ? "Local delivery" : "Waiting for engine"}</small>
-      </div>
-    </aside>
-  </section>
 
-  <section class="cycle" aria-label="Routine cycle">
-    {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
-      {@const stepState = cycleStepState(index)}
-      <div
-        class:complete={stepState === "complete"}
-        class:current={stepState === "active" || stepState === "ready" || stepState === "fault"}
-        class:live={stepState === "active"}
-        class:ready={stepState === "ready"}
-        class:fault={stepState === "fault"}
-        class="cycle-step"
-        aria-current={stepState === "active" || stepState === "ready" || stepState === "fault" ? "step" : undefined}
-        aria-label={`${step}: ${stepState}`}
-      >
-        <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
-        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{/if}</span>
-        <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
-      </div>
-    {/each}
-  </section>
-
-  <section class="actions">
-    <button
-      class:stop={active}
-      class:loading={!!runPending}
-      class="primary-action run-action"
-      onclick={toggleRun}
-      disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
-      aria-describedby="run-action-hint"
-    >
-      {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
-      {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
-      {:else if active}<Square size={14} fill="currentColor" /> Stop Fishing
-      {:else}<Play size={16} fill="currentColor" /> Start Fishing{/if}
-      <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
-    </button>
-    <button class="sub-action" bind:this={settingsButton} onclick={openSettings} disabled={active || !!runPending || !engine.snapshot}><Settings2 size={16} strokeWidth={1.8} /> Settings</button>
-    <button class="sub-action" bind:this={diagnosticsButton} onclick={inspectDiagnostics}><FolderOpen size={16} strokeWidth={1.8} /> Detection review</button>
-    <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
-  </section>
-
-  <footer class="status-footer">
-    <div class="safety-summary">
-      <ShieldCheck size={15} strokeWidth={1.9} />
-      <p><strong>Safe control</strong><i></i><kbd>Pause / Break</kbd> always releases input<i></i>FiveM must remain foreground</p>
-    </div>
-    <div class="system-status" aria-label="System status">
-      <span><i></i>Local only</span>
-      <b aria-hidden="true"></b>
-      <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
-    </div>
-  </footer>
-  {:else}
-    <LockpickingWorkspace
-      activity={lockpickingActivity}
-      {targetValid}
-      status={engine.snapshot?.lockpicking ?? stoppedLockpicking}
-      onback={returnToActivities}
-      onmode={async (mode) => { await engine.setLockpicking(mode); }}
-      onsettings={openSettings}
-    />
-  {/if}
 </main>
 
-<UpdateCenter automationActive={active || engine.snapshot?.lockpicking.observing === true} />
+<UpdateCenter automationActive={active || engine.snapshot?.lockpicking.observing === true || engine.snapshot?.pickpocket?.observing === true} />
 
-{#if showSettings && draft && shortcutDraft && lockpickingShortcutDraft}
+{#if showSettings && draft && shortcutDraft && lockpickingShortcutDraft && pickpocketShortcutDraft}
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
   <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
     <header class="panel-header">
-      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : "Lockpicking profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Lockpicking controls"}</h2></div>
+      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : selectedActivity === "pickpocket" ? "Pickpocket profile" : "Lockpicking profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : selectedActivity === "pickpocket" ? "Pickpocket controls" : "Lockpicking controls"}</h2></div>
       <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
     </header>
-    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : "Review the shortcut reserved for Class C. Automated lockpicking remains unavailable until calibration evidence passes its release gate."}</p>
+    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : selectedActivity === "pickpocket" ? "Choose your in-game start/stop toggle. The selected run mode and target apply to both the button and shortcut." : "Review the shortcut reserved for Class C. Automated lockpicking remains unavailable until calibration evidence passes its release gate."}</p>
     <p class:visible={settingsDirty} class="settings-change-note" aria-live="polite"><i></i>{settingsDirty ? "Unsaved changes" : "Profile is up to date"}</p>
 
-    <div class="settings-tier"><strong>Basic</strong><span>{fishingSelected ? "The controls most people need." : "The only available lockpicking preference."}</span></div>
+    {#if fishingSelected}<nav class="settings-view-tabs" aria-label="Settings view"><button aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
+    <div class="settings-content">
+    {#if !settingsAdvanced || !fishingSelected}
+    <div class="settings-tier"><strong>Basic</strong><span>{fishingSelected ? "The controls most people need." : "In-game shortcut preference."}</span></div>
     {#if fishingSelected}
       <section class="settings-group shortcut-setting" aria-labelledby="shortcut-heading">
         <header class="settings-group__header">
@@ -941,7 +969,18 @@
         <div class="shortcut-control">
           <div><strong>Toggle Fishing from FiveM</strong><small>Press once to start. Press again to stop and release input.</small></div>
           <select aria-label="Fishing start and stop shortcut" bind:value={shortcutDraft.key}>
+            {#if shortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
             {#each shortcutOptions as key}<option value={key}>{key}</option>{/each}
+          </select>
+        </div>
+      </section>
+    {:else if selectedActivity === "pickpocket"}
+      <section class="settings-group shortcut-setting" aria-labelledby="pickpocket-shortcut-heading">
+        <header class="settings-group__header"><div><p>Global control</p><h3 id="pickpocket-shortcut-heading">Pickpocket Start / Stop shortcut</h3></div><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
+        <div class="shortcut-control"><div><strong>Toggle Pickpocket from FiveM</strong><small>{engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.</small></div>
+          <select aria-label="Pickpocket start and stop shortcut" bind:value={pickpocketShortcutDraft.key}>
+            {#if pickpocketShortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
+            {#each shortcutOptions.filter(key => key !== "F8") as key}<option value={key}>{key}</option>{/each}
           </select>
         </div>
       </section>
@@ -954,6 +993,7 @@
         <div class="shortcut-control">
           <div><strong>Reserved Class C shortcut</strong><small>Class C input is unavailable until the evidence gate passes. This binding is saved for that future release.</small></div>
           <select aria-label="Reserved Class C shortcut" bind:value={lockpickingShortcutDraft.key}>
+            {#if lockpickingShortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
             {#each shortcutOptions as key}<option value={key}>{key}</option>{/each}
           </select>
         </div>
@@ -972,6 +1012,9 @@
       </div>
     </section>
 
+    {/if}
+    {/if}
+    {#if fishingSelected && settingsAdvanced}
     <div class="settings-tier settings-tier--advanced"><strong>Advanced</strong><span>Timing and delivery guardrails. Defaults are recommended unless detection evidence shows a problem.</span></div>
     <section class="settings-group" aria-labelledby="timing-heading">
       <header class="settings-group__header">
@@ -1031,6 +1074,7 @@
       </label>
     </section>
     {/if}
+    </div>
     {#if settingsError}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 150 }}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
     <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}No changes to apply <Check size={16} strokeWidth={2.1} />{/if}</button></div>
   </div>
@@ -1040,8 +1084,10 @@
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
   <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
     <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" title="Close detection review" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
-    <p class="panel-copy" id="diagnostics-description">Every Start attempt records a bounded local session with detector decisions, rejection reasons, and decisive frames.</p>
+    <p class="panel-copy" id="diagnostics-description">Review build health and saved sessions. Choose an attempt to inspect its decisions or export a local report.</p>
     <div class="diagnostics-scroll">
+    <SupportCenter connected={engine.connected} engineVersion={engine.snapshot?.engineVersion} initialActivity={selectedActivity === "vehicle-lockpicking" ? "lockpicking" : selectedActivity ?? "pickpocket"} />
+    {#if fishingSelected}
     {#if diagnosticsLoading && !diagnostics}
       <div class="empty-state diagnostics-empty"><RefreshCw size={16} class="spin" /> Loading diagnostics…</div>
     {:else if diagnosticsError && !diagnostics}
@@ -1161,6 +1207,7 @@
       </div>
     {:else}
       <div class="empty-state diagnostics-empty">Diagnostics are unavailable.</div>
+    {/if}
     {/if}
     </div>
     <div class="panel-actions panel-actions--compact diagnostics-toolbar" aria-label="Detection review actions">

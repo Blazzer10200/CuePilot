@@ -4,6 +4,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 mod engine_bridge;
+mod support;
 mod update_service;
 
 use engine_bridge::EngineBridge;
@@ -48,6 +49,9 @@ fn engine_command(
         | "start"
         | "stop"
         | "start_lockpicking_observe"
+        | "start_pickpocket_observe"
+        | "toggle_pickpocket_observe"
+        | "stop_pickpocket_observe"
         | "start_lockpicking_class_c"
         | "toggle_lockpicking_class_c"
         | "stop_lockpicking_observe"
@@ -58,6 +62,10 @@ fn engine_command(
         }
         "select_target" => Err("Target process ID is required.".into()),
         "save_settings" if settings.is_some() => bridge.command(&app, &command, None, settings),
+        "configure_pickpocket" | "pickpocket_history" if settings.is_some() => {
+            bridge.command(&app, &command, None, settings)
+        }
+        "configure_pickpocket" => Err("Settings payload is required.".into()),
         "save_settings" => Err("Settings payload is required.".into()),
         _ => Err("Unsupported local engine command.".into()),
     }
@@ -253,6 +261,11 @@ pub fn run() {
     // Velopack must run before Tauri initializes. During install/update/remove
     // lifecycle hooks this may fast-exit without constructing the desktop UI.
     velopack::VelopackApp::build().run();
+    let previous_panic_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        support::log("shell_panic", &info.to_string());
+        previous_panic_hook(info);
+    }));
 
     // Release-mode smoke packages can exercise the real installed Velopack
     // manager without constructing a Tauri window or touching production data.
@@ -306,6 +319,7 @@ pub fn run() {
                             let shortcut_label = match command {
                                 "toggle" => "F10",
                                 "toggle_lockpicking_class_c" => "F9",
+                                "toggle_pickpocket_observe" => "Pickpocket",
                                 "stop" => "Pause / Break",
                                 _ => "shortcut",
                             };
@@ -342,6 +356,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             engine_command,
+            support::support_sessions,
+            support::support_report,
+            support::support_health,
+            support::open_evidence_session,
+            support::export_evidence_report,
+            support::support_log,
             diagnostics_snapshot,
             open_diagnostics,
             overlay_poll,

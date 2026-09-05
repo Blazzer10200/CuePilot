@@ -1,5 +1,5 @@
-export type ActivityId = "fishing" | "vehicle-lockpicking";
-export type ActivityAvailability = "ready" | "observe" | "calibration";
+export type ActivityId = "fishing" | "vehicle-lockpicking" | "pickpocket";
+export type ActivityAvailability = "ready" | "observe" | "calibration" | "preview";
 
 export interface ActivityPreparationItem {
   label: string;
@@ -19,6 +19,17 @@ export interface ActivityDefinition {
 }
 
 export const activities: readonly ActivityDefinition[] = [
+  {
+    id: "pickpocket",
+    name: "Pickpocket",
+    shortName: "Pickpocket",
+    eyebrow: "Precision timing",
+    description: "Track randomized regions and test one timed Space tap with local diagnostics.",
+    availability: "calibration",
+    statusLabel: "One-tap test",
+    capabilities: ["Live timing", "3-minute cooldown", "One-tap calibration"],
+    preparation: [],
+  },
   {
     id: "fishing",
     name: "Fishing",

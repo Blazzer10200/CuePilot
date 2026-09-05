@@ -88,6 +88,9 @@ internal static class Program
         var replay = ArgumentValue(args, "--replay-session");
         if (replay is not null) return ReplayDebugSession(replay);
 
+        var pickpocketReplay = ArgumentValue(args, "--replay-pickpocket");
+        if (pickpocketReplay is not null) return PickpocketReplay.Run(pickpocketReplay, ArgumentValue(args, "--target-color"), ArgumentDouble(args, "--advance-ms", 8));
+
         Console.Error.WriteLine("CuePilot Engine is started by the Tauri desktop application. Use --self-test or a documented probe command for direct execution.");
         return 2;
     }

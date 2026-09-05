@@ -1,0 +1,97 @@
+[
+  {
+    "file": "clip3-timing-01.png",
+    "presentationMs": 1850.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-02.png",
+    "presentationMs": 1866.6670000000001,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-03.png",
+    "presentationMs": 1883.3329999999999,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-04.png",
+    "presentationMs": 1900.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-05.png",
+    "presentationMs": 1916.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-06.png",
+    "presentationMs": 1933.3329999999999,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-07.png",
+    "presentationMs": 1950.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-08.png",
+    "presentationMs": 1966.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-09.png",
+    "presentationMs": 1983.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-10.png",
+    "presentationMs": 2000.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-11.png",
+    "presentationMs": 2016.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-12.png",
+    "presentationMs": 2033.3329999999999,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-13.png",
+    "presentationMs": 2050.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-14.png",
+    "presentationMs": 2066.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-15.png",
+    "presentationMs": 2083.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-16.png",
+    "presentationMs": 2100.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-17.png",
+    "presentationMs": 2116.667,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-18.png",
+    "presentationMs": 2133.333,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip3-timing-19.png",
+    "presentationMs": 2150.0,
+    "expectedState": "Active"
+  }
+]

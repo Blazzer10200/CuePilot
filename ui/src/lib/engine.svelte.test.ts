@@ -81,6 +81,65 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("EngineClient", () => {
+  it("sends separate color adjustments without starting input", async () => {
+    tauri.invoke.mockResolvedValue(snapshot());
+    const client = new EngineClient();
+    await client.configurePickpocket("Yellow", "PrecisionAttempt", { redAdvanceMs: 8, yellowAdvanceMs: 12 });
+    expect(tauri.invoke).toHaveBeenCalledExactlyOnceWith("engine_command", { command: "configure_pickpocket", settings:
+      { targetPolicy: "Yellow", inputMode: "PrecisionAttempt", redAdvanceMs: 8, yellowAdvanceMs: 12 } });
+  });
+  it.each(["Purple", "PurpleBlueWhite", "RarestFirst"] as const)("configures precision for %s without arming or starting", async (policy) => {
+    tauri.invoke.mockResolvedValue(snapshot());
+    const client = new EngineClient();
+    await client.configurePickpocket(policy, "PrecisionAttempt");
+    expect(tauri.invoke).toHaveBeenCalledExactlyOnceWith("engine_command", { command: "configure_pickpocket", settings: { targetPolicy: policy, inputMode: "PrecisionAttempt" } });
+  });
+  it("configures one-tap mode explicitly and stops without rearming", async () => {
+    tauri.invoke.mockResolvedValue(snapshot());
+    const client = new EngineClient();
+    await client.setPickpocket("observe", "Widest", "SingleAttempt");
+    expect(tauri.invoke).toHaveBeenNthCalledWith(1, "engine_command", { command: "configure_pickpocket", settings: { targetPolicy: "Widest", inputMode: "SingleAttempt" } });
+    expect(tauri.invoke).toHaveBeenNthCalledWith(2, "engine_command", { command: "start_pickpocket_observe" });
+    tauri.invoke.mockClear();
+    await client.setPickpocket("stop", "Widest", "SingleAttempt");
+    expect(tauri.invoke).toHaveBeenCalledExactlyOnceWith("engine_command", { command: "stop_pickpocket_observe" });
+  });
+  it("applies a target strategy for the global shortcut without starting observation", async () => {
+    const client = new EngineClient();
+    tauri.invoke.mockResolvedValue(snapshot());
+    await client.configurePickpocket("Blue");
+    expect(tauri.invoke).toHaveBeenCalledExactlyOnceWith("engine_command", { command: "configure_pickpocket", settings: { targetPolicy: "Blue", inputMode: "Observe" } });
+  });
+  it("configures pickpocket observation before starting and surfaces policy failures", async () => {
+    const client = new EngineClient();
+    tauri.invoke.mockResolvedValue(snapshot());
+    await client.setPickpocket("observe", "Widest");
+    expect(tauri.invoke).toHaveBeenNthCalledWith(1, "engine_command", { command: "configure_pickpocket", settings: { targetPolicy: "Widest", inputMode: "Observe" } });
+    expect(tauri.invoke).toHaveBeenNthCalledWith(2, "engine_command", { command: "start_pickpocket_observe" });
+    tauri.invoke.mockClear().mockRejectedValueOnce("Stop observation before changing its target policy.");
+    await expect(client.setPickpocket("observe", "Red")).rejects.toContain("Stop observation");
+    expect(tauri.invoke).toHaveBeenCalledTimes(1);
+    expect(client.error).toContain("Stop observation");
+  });
+
+  it("retains cooldown telemetry through stop without issuing input commands", async () => {
+    const client = new EngineClient();
+    tauri.invoke.mockResolvedValue(snapshot());
+    await client.connect();
+    const pickpocket = { observing: true, state: "Cooldown", cooldownUntilUnixMs: 180000,
+      manualSpacePressCount: 1, debug: { state: "Recording", recordsSaved: 80, recordsDropped: 0, imagesSaved: 5, imagesSkipped: 0, error: null, report: "Local timing report" } };
+    tauri.eventHandler?.({ payload: { name: "pickpocket_status", payload: pickpocket } });
+    expect(client.snapshot?.pickpocket?.cooldownUntilUnixMs).toBe(180000);
+    expect(client.snapshot?.pickpocket?.debug?.report).toBe("Local timing report");
+    expect(client.snapshot?.pickpocket?.manualSpacePressCount).toBe(1);
+    tauri.invoke.mockResolvedValue({ ...snapshot(), pickpocket: { ...pickpocket, observing: false } });
+    await client.setPickpocket("stop");
+    expect(client.snapshot?.pickpocket?.observing).toBe(false);
+    expect(client.snapshot?.pickpocket?.cooldownUntilUnixMs).toBe(180000);
+    expect(tauri.invoke).toHaveBeenLastCalledWith("engine_command", { command: "stop_pickpocket_observe" });
+    client.disconnect();
+  });
+
   it("connects from the correlated snapshot response without a ready event", async () => {
     tauri.invoke.mockResolvedValue(snapshot());
     const client = new EngineClient();

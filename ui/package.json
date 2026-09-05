@@ -1,17 +1,18 @@
 {
   "name": "cuepilot-ui",
   "private": true,
-  "version": "5.2.0",
+  "version": "5.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite --configLoader runner",
     "build": "vite build --configLoader runner",
     "check": "svelte-check --config ./svelte.config.js --tsconfig ./tsconfig.json",
     "test": "vitest run --configLoader runner",
+    "test:e2e": "playwright test",
     "engine:stage": "pwsh -NoProfile -File scripts/build-engine.ps1",
     "engine:stage:release": "pwsh -NoProfile -File scripts/build-engine.ps1 -Release",
     "tauri": "tauri",
-    "tauri:dev": "npm run engine:stage && tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:dev": "npm run engine:stage:release && tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build:portable": "npm run engine:stage:release && tauri build --no-bundle",
     "tauri:build": "pwsh -NoProfile -File ../scripts/package-velopack.ps1",
     "package:velopack": "pwsh -NoProfile -File ../scripts/package-velopack.ps1",
@@ -21,11 +22,12 @@
     "cdp:inspect": "bash scripts/cdp/c.sh inspect"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.9.0",
     "@lucide/svelte": "^1.31.0",
+    "@tauri-apps/api": "^2.9.0",
     "svelte": "^5.20.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tauri-apps/cli": "^2.9.0",
     "svelte-check": "^4.1.0",

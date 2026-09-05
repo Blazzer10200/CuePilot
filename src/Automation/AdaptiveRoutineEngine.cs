@@ -514,14 +514,16 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     {
         var clearGate = new FishingPromptClearGate(pressed);
         var clock = Stopwatch.StartNew();
+        var sampleCount = 0;
         while (!token.IsCancellationRequested && clock.Elapsed < TimeSpan.FromSeconds(3))
         {
+            sampleCount++;
             using var promptSample = CapturePrompt(out var status);
             var observation = promptSample?.Observation ?? new FishingPromptObservation(FishingPromptKind.None, 0);
             debugSession.RecordCapture("prompt_clear", status, promptSample?.Frame.Bitmap.Size);
             if (promptSample is not null)
             {
-                debugSession.RecordPrompt(pressed, observation, promptSample.Evidence, promptSample.Frame, 1);
+                debugSession.RecordPrompt(pressed, observation, promptSample.Evidence, promptSample.Frame, sampleCount);
             }
             if (status.State is FrameSourceState.TargetUnavailable or FrameSourceState.TargetMinimized or FrameSourceState.CaptureFailed)
                 throw new InvalidOperationException(status.Detail);

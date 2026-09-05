@@ -18,7 +18,8 @@ internal sealed record FrameSourceStatus(
     string Detail,
     TimeSpan FrameAge,
     double CaptureMilliseconds,
-    uint AccumulatedFrames = 1);
+    uint AccumulatedFrames = 1,
+    double? PresentationMilliseconds = null);
 
 internal sealed class FrameLease : IDisposable
 {

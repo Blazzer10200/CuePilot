@@ -24,9 +24,17 @@ An activity becomes **Ready for automatic input** only after it has:
 4. activity-specific settings and local diagnostics where needed;
 5. a complete live minigame smoke test.
 
-Until those conditions pass, the activity may expose an observation workspace but no automatic input path.
+Until those conditions pass, do not label the activity Ready. Pickpocket's user-authorized live calibration exposes an explicitly selected one-attempt test: it defaults to observation, requires a new Preparing state, sends at most one bounded tap, and disarms on completion, manual input, Stop, or error. This test mode is not a release claim of calibrated automatic input. Other activities retain their existing input gates.
 
 ## Current activities
+
+### Pickpocket — One-tap calibration
+
+The live workspace reads the current regions and marker through the .NET observer. Default selection is the widest upcoming detected region; an optional preferred color selects a region without claiming an item identity. Layouts are reacquired every popup, including uneven spacing and repeated known colors. The reference tab retains the explicitly labeled Luxury Watch recording and its local saved selection.
+
+Capture, presentation age, analysis timing, bounded evidence, and an engine-owned three-minute cooldown are connected through the bridge. A recognized grab/miss or three missing frames after Active starts cooldown; it survives stop/restart in the same engine process. Focus loss or a ten-minute limit ends the run. Two manual live grabs verified the detector, 16.8 ms sampling cadence, and complete result capture.
+
+The user authorized the next controlled automatic test. Select **One-tap test · auto Space**, choose a target, then F7 before starting a new minigame. Observation remains the startup default. The engine requires a fresh Preparing state, a verified DXGI prediction, a generous delivery margin, unchanged foreground window/bounds, and no physical Space press or cooldown. It waits no more than 16 ms before a final gate check and sends one 35 ms Space tap with owned-key release. Stop closes the gate before awaiting cleanup; cancellation/focus loss never blocks releasing owned Space. Stop preserves the selected mode, but only a new explicit F7 start arms another attempt. Actual key-delivery acceptance remains to be validated live; see `docs/pickpocket-debugging.md`.
 
 ### Fishing — Ready
 

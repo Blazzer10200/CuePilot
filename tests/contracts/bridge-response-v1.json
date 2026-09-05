@@ -1,0 +1,16 @@
+{
+  "type": "response",
+  "id": "fixture-snapshot",
+  "ok": true,
+  "result": {
+    "protocolVersion": 1,
+    "engineVersion": "fixture",
+    "routineState": "Stopped",
+    "targetValid": false,
+    "canStart": false,
+    "targetValidation": "Select a FiveM window first.",
+    "targets": [],
+    "diagnosticsDirectory": "fixture",
+    "setupVerification": null
+  }
+}

@@ -107,6 +107,7 @@ internal static class FishingMeterDetector
     private const int DarknessAngleSamples = 48;
     private static readonly (double X, double Y)[] MeterDirections = CreateDirections(AngleSamples);
     private static readonly (double X, double Y)[] DarknessDirections = CreateDirections(DarknessAngleSamples);
+    private static readonly int[] LmbAnchorRadii = [1, 2, 4, 8];
     private static readonly Lazy<LmbPromptTemplate> LmbTemplate = new(LoadLmbPromptTemplate);
 
     internal static FishingMeterObservation Analyze(Bitmap bitmap) => Analyze(bitmap, out _);
@@ -556,6 +557,7 @@ internal static class FishingMeterDetector
         // outlined LMB keycap rather than a generic count of bright pixels.
         var template = LmbTemplate.Value;
         var baseScale = Math.Min(bitmap.Width, bitmap.Height) / 259d;
+        var glyphCandidates = FindLmbGlyphCandidates(bitmap, template, centerX, centerY, meterRadius, baseScale * 1.20);
         var best = 0d;
         foreach (var scaleFactor in new[] { 0.65, 0.80, 0.90, 1d, 1.10, 1.20 })
         {
@@ -567,66 +569,133 @@ internal static class FishingMeterDetector
             var minimumY = Math.Max(0, (int)Math.Round(centerY - meterRadius * 1.30));
             var maximumY = Math.Min(bitmap.Height - height, (int)Math.Round(centerY - meterRadius * 0.24));
             if (maximumX < minimumX || maximumY < minimumY) continue;
-            for (var y = minimumY; y <= maximumY; y++)
+            var candidatePositions = new HashSet<Point>();
+            foreach (var glyph in glyphCandidates)
             {
-                for (var x = minimumX; x <= maximumX; x++)
+                foreach (var anchor in template.SearchAnchors)
                 {
-                    var foregroundMatches = 0;
-                    foreach (var point in template.Foreground)
-                    {
-                        var color = bitmap.GetPixel(
-                            x + (int)Math.Round(point.X * scale),
-                            y + (int)Math.Round(point.Y * scale));
-                        if (IsNeutral(color, 115, 70)) foregroundMatches++;
-                    }
-
-                    var glyphBackgroundMatches = 0;
-                    foreach (var point in template.GlyphBackground)
-                    {
-                        var color = bitmap.GetPixel(
-                            x + (int)Math.Round(point.X * scale),
-                            y + (int)Math.Round(point.Y * scale));
-                        if (Luminance(color) <= 115) glyphBackgroundMatches++;
-                    }
-
-                    var outerBackgroundMatches = 0;
-                    foreach (var point in template.OuterBackground)
-                    {
-                        var color = bitmap.GetPixel(
-                            x + (int)Math.Round(point.X * scale),
-                            y + (int)Math.Round(point.Y * scale));
-                        if (Luminance(color) <= 115) outerBackgroundMatches++;
-                    }
-
-                    var contrastMatches = 0;
-                    var contrastSamples = 0;
-                    foreach (var pair in template.ContrastPairs)
-                    {
-                        var foregroundX = x + (int)Math.Round(pair.Foreground.X * scale);
-                        var foregroundY = y + (int)Math.Round(pair.Foreground.Y * scale);
-                        var backgroundX = x + (int)Math.Round(pair.Background.X * scale);
-                        var backgroundY = y + (int)Math.Round(pair.Background.Y * scale);
-                        if (foregroundX == backgroundX && foregroundY == backgroundY) continue;
-                        contrastSamples++;
-                        var foreground = Luminance(bitmap.GetPixel(foregroundX, foregroundY));
-                        var background = Luminance(bitmap.GetPixel(backgroundX, backgroundY));
-                        if (foreground - background >= 35) contrastMatches++;
-                    }
-
-                    var foregroundScore = foregroundMatches / (double)template.Foreground.Length;
-                    var glyphBackgroundScore = glyphBackgroundMatches / (double)template.GlyphBackground.Length;
-                    var outerBackgroundScore = outerBackgroundMatches / (double)template.OuterBackground.Length;
-                    var contrastScore = contrastSamples == 0 ? 0 : contrastMatches / (double)contrastSamples;
-                    best = Math.Max(best,
-                        foregroundScore * 0.35
-                            + glyphBackgroundScore * 0.20
-                            + outerBackgroundScore * 0.05
-                            + contrastScore * 0.40);
+                    var x = glyph.X - (int)Math.Round(anchor.X * scale);
+                    var y = glyph.Y - (int)Math.Round(anchor.Y * scale);
+                    if (x < minimumX || x > maximumX || y < minimumY || y > maximumY) continue;
+                    candidatePositions.Add(new Point(x, y));
                 }
+            }
+
+            foreach (var candidate in candidatePositions)
+            {
+                if (!HasLmbAnchorCoverage(bitmap, template, candidate.X, candidate.Y, scale)) continue;
+                var x = candidate.X;
+                var y = candidate.Y;
+                var foregroundMatches = 0;
+                foreach (var point in template.Foreground)
+                {
+                    var color = bitmap.GetPixel(
+                        x + (int)Math.Round(point.X * scale),
+                        y + (int)Math.Round(point.Y * scale));
+                    if (IsNeutral(color, 115, 70)) foregroundMatches++;
+                }
+
+                var glyphBackgroundMatches = 0;
+                foreach (var point in template.GlyphBackground)
+                {
+                    var color = bitmap.GetPixel(
+                        x + (int)Math.Round(point.X * scale),
+                        y + (int)Math.Round(point.Y * scale));
+                    if (Luminance(color) <= 115) glyphBackgroundMatches++;
+                }
+
+                var outerBackgroundMatches = 0;
+                foreach (var point in template.OuterBackground)
+                {
+                    var color = bitmap.GetPixel(
+                        x + (int)Math.Round(point.X * scale),
+                        y + (int)Math.Round(point.Y * scale));
+                    if (Luminance(color) <= 115) outerBackgroundMatches++;
+                }
+
+                var contrastMatches = 0;
+                var contrastSamples = 0;
+                foreach (var pair in template.ContrastPairs)
+                {
+                    var foregroundX = x + (int)Math.Round(pair.Foreground.X * scale);
+                    var foregroundY = y + (int)Math.Round(pair.Foreground.Y * scale);
+                    var backgroundX = x + (int)Math.Round(pair.Background.X * scale);
+                    var backgroundY = y + (int)Math.Round(pair.Background.Y * scale);
+                    if (foregroundX == backgroundX && foregroundY == backgroundY) continue;
+                    contrastSamples++;
+                    var foreground = Luminance(bitmap.GetPixel(foregroundX, foregroundY));
+                    var background = Luminance(bitmap.GetPixel(backgroundX, backgroundY));
+                    if (foreground - background >= 35) contrastMatches++;
+                }
+
+                var foregroundScore = foregroundMatches / (double)template.Foreground.Length;
+                var glyphBackgroundScore = glyphBackgroundMatches / (double)template.GlyphBackground.Length;
+                var outerBackgroundScore = outerBackgroundMatches / (double)template.OuterBackground.Length;
+                var contrastScore = contrastSamples == 0 ? 0 : contrastMatches / (double)contrastSamples;
+                best = Math.Max(best,
+                    foregroundScore * 0.35
+                        + glyphBackgroundScore * 0.20
+                        + outerBackgroundScore * 0.05
+                        + contrastScore * 0.40);
             }
         }
 
         return best;
+    }
+
+    private static List<Point> FindLmbGlyphCandidates(
+        BitmapPixels bitmap,
+        LmbPromptTemplate template,
+        double centerX,
+        double centerY,
+        double meterRadius,
+        double maximumScale)
+    {
+        var left = Math.Max(0, (int)Math.Round(centerX + meterRadius * 1.12));
+        var right = Math.Min(bitmap.Width - 1,
+            (int)Math.Round(centerX + meterRadius * 2.08 + template.Width * maximumScale));
+        var top = Math.Max(0, (int)Math.Round(centerY - meterRadius * 1.30));
+        var bottom = Math.Min(bitmap.Height - 1,
+            (int)Math.Round(centerY - meterRadius * 0.24 + template.Height * maximumScale));
+        var candidates = new List<Point>();
+        for (var y = top; y <= bottom; y++)
+        {
+            for (var x = left; x <= right; x++)
+            {
+                if (!IsNeutral(bitmap.GetPixel(x, y), 115, 70)) continue;
+                foreach (var radius in LmbAnchorRadii)
+                {
+                    var horizontal = Luminance(bitmap.GetPixel(x - radius, y)) <= 115
+                        && Luminance(bitmap.GetPixel(x + radius, y)) <= 115;
+                    var vertical = Luminance(bitmap.GetPixel(x, y - radius)) <= 115
+                        && Luminance(bitmap.GetPixel(x, y + radius)) <= 115;
+                    if (!horizontal && !vertical) continue;
+                    candidates.Add(new Point(x, y));
+                    break;
+                }
+            }
+        }
+
+        return candidates;
+    }
+
+    private static bool HasLmbAnchorCoverage(
+        BitmapPixels bitmap,
+        LmbPromptTemplate template,
+        int x,
+        int y,
+        double scale)
+    {
+        var matches = 0;
+        foreach (var anchor in template.SearchAnchors)
+        {
+            var color = bitmap.GetPixel(
+                x + (int)Math.Round(anchor.X * scale),
+                y + (int)Math.Round(anchor.Y * scale));
+            if (IsNeutral(color, 115, 70) && ++matches >= 3) return true;
+        }
+
+        return false;
     }
 
     private static LmbPromptTemplate LoadLmbPromptTemplate()
@@ -659,7 +728,8 @@ internal static class FishingMeterDetector
             sampledForeground,
             SampleEvenly(glyphBackground, 48),
             SampleEvenly(outerBackground, 32),
-            CreateLmbContrastPairs(reference, sampledForeground));
+            CreateLmbContrastPairs(reference, sampledForeground),
+            SampleEvenly(sampledForeground, 5));
     }
 
     private static LmbContrastPair[] CreateLmbContrastPairs(
@@ -758,7 +828,8 @@ internal static class FishingMeterDetector
         Point[] Foreground,
         Point[] GlyphBackground,
         Point[] OuterBackground,
-        LmbContrastPair[] ContrastPairs);
+        LmbContrastPair[] ContrastPairs,
+        Point[] SearchAnchors);
 
     private readonly record struct LmbContrastPair(Point Foreground, Point Background);
 

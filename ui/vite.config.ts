@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tauriConfig from "./src-tauri/tauri.conf.json";
 
@@ -9,4 +9,5 @@ export default defineConfig({
   envPrefix: ["VITE_", "TAURI_"],
   define: { __APP_VERSION__: JSON.stringify(tauriConfig.version) },
   build: { target: "es2022", minify: !process.env.TAURI_ENV_DEBUG },
+  test: { exclude: ["e2e/**", "node_modules/**", "dist/**"] },
 });

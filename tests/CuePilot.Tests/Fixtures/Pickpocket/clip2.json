@@ -1,0 +1,57 @@
+[
+  {
+    "file": "clip2-01.png",
+    "presentationMs": 3400.0,
+    "expectedState": "Hidden"
+  },
+  {
+    "file": "clip2-02.png",
+    "presentationMs": 3850.0,
+    "expectedState": "Preparing"
+  },
+  {
+    "file": "clip2-03.png",
+    "presentationMs": 4200.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-04.png",
+    "presentationMs": 4900.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-05.png",
+    "presentationMs": 5200.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-06.png",
+    "presentationMs": 5300.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-07.png",
+    "presentationMs": 6150.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-08.png",
+    "presentationMs": 6800.0,
+    "expectedState": "Active"
+  },
+  {
+    "file": "clip2-09.png",
+    "presentationMs": 6900.0,
+    "expectedState": "Missed"
+  },
+  {
+    "file": "clip2-10.png",
+    "presentationMs": 7400.0,
+    "expectedState": "Missed"
+  },
+  {
+    "file": "clip2-11.png",
+    "presentationMs": 7900.0,
+    "expectedState": "Hidden"
+  }
+]

@@ -1,0 +1,4814 @@
+[
+  {
+    "sampleCount": 1,
+    "monotonicMilliseconds": 9.037799999117851,
+    "presentationMilliseconds": 0.0,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": true,
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 1792,
+        "height": 518
+      },
+      "x": 0,
+      "y": 0,
+      "width": 1792,
+      "height": 518,
+      "left": 0,
+      "top": 0,
+      "right": 1792,
+      "bottom": 518,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 9,
+    "monotonicMilliseconds": 571.5965000018477,
+    "presentationMilliseconds": 563.7354000024498,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 16,
+    "monotonicMilliseconds": 1114.9590000025928,
+    "presentationMilliseconds": 1108.0803000032902,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 23,
+    "monotonicMilliseconds": 1659.384700000286,
+    "presentationMilliseconds": 1652.8230000026524,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 26,
+    "monotonicMilliseconds": 1908.509700000286,
+    "presentationMilliseconds": 1886.3180999979377,
+    "observation": {
+      "state": "Preparing",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 346
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 346,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 346,
+        "right": 1277,
+        "bottom": 376,
+        "isEmpty": false
+      },
+      "markerX": 513,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 640,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1148,
+          "right": 1152
+        }
+      ],
+      "confidence": 0.9616055846422339,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 47
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 47,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 47,
+      "right": 1299,
+      "bottom": 463,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 30,
+    "monotonicMilliseconds": 2202.7443000003695,
+    "presentationMilliseconds": 2197.8416000045836,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 542,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 31,
+    "monotonicMilliseconds": 2222.3401000015438,
+    "presentationMilliseconds": 2213.572500001639,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 549,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 32,
+    "monotonicMilliseconds": 2236.736500002444,
+    "presentationMilliseconds": 2230.296900000423,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 553,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 33,
+    "monotonicMilliseconds": 2252.500300001353,
+    "presentationMilliseconds": 2247.7879000008106,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 561,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 34,
+    "monotonicMilliseconds": 2271.377199999988,
+    "presentationMilliseconds": 2263.5471000000834,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 568,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 35,
+    "monotonicMilliseconds": 2285.909200001508,
+    "presentationMilliseconds": 2280.243700001389,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 572,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 36,
+    "monotonicMilliseconds": 2302.7902000024915,
+    "presentationMilliseconds": 2298.0688000023365,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 581,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 37,
+    "monotonicMilliseconds": 2322.155799999833,
+    "presentationMilliseconds": 2313.5676000006497,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 587,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 38,
+    "monotonicMilliseconds": 2336.4118000008166,
+    "presentationMilliseconds": 2330.3591000027955,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 592,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 39,
+    "monotonicMilliseconds": 2352.560499999672,
+    "presentationMilliseconds": 2346.932999998331,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 598,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 40,
+    "monotonicMilliseconds": 2371.7476000003517,
+    "presentationMilliseconds": 2363.6863000020385,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 607,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 41,
+    "monotonicMilliseconds": 2386.254700001329,
+    "presentationMilliseconds": 2380.2197999991477,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 611,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 42,
+    "monotonicMilliseconds": 2402.924000002444,
+    "presentationMilliseconds": 2391.3968000002205,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 617,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 43,
+    "monotonicMilliseconds": 2421.1649000011384,
+    "presentationMilliseconds": 2413.563400000334,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 626,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 44,
+    "monotonicMilliseconds": 2437.2816000021994,
+    "presentationMilliseconds": 2430.543100003153,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 630,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 45,
+    "monotonicMilliseconds": 2453.1840000003576,
+    "presentationMilliseconds": 2441.4550999999046,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 637,
+      "bands": [
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 46,
+    "monotonicMilliseconds": 2471.993700001389,
+    "presentationMilliseconds": 2463.57139999792,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 645,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 641
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 47,
+    "monotonicMilliseconds": 2486.434500001371,
+    "presentationMilliseconds": 2480.706400003284,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 650,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 48,
+    "monotonicMilliseconds": 2502.305600002408,
+    "presentationMilliseconds": 2491.3341999985278,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 656,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 49,
+    "monotonicMilliseconds": 2521.4785000011325,
+    "presentationMilliseconds": 2513.6131999976933,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 665,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 50,
+    "monotonicMilliseconds": 2536.375300001353,
+    "presentationMilliseconds": 2530.318300001323,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 669,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 51,
+    "monotonicMilliseconds": 2552.607500001788,
+    "presentationMilliseconds": 2541.3552999980748,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 675,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 52,
+    "monotonicMilliseconds": 2571.809399999678,
+    "presentationMilliseconds": 2563.5772000029683,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 684,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 53,
+    "monotonicMilliseconds": 2586.100900001824,
+    "presentationMilliseconds": 2580.269400000572,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 688,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 54,
+    "monotonicMilliseconds": 2602.888100001961,
+    "presentationMilliseconds": 2591.473400000483,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 695,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 55,
+    "monotonicMilliseconds": 2621.154500000179,
+    "presentationMilliseconds": 2613.55890000239,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 703,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 56,
+    "monotonicMilliseconds": 2636.4041000008583,
+    "presentationMilliseconds": 2630.2543000020087,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 708,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 57,
+    "monotonicMilliseconds": 2654.109200000763,
+    "presentationMilliseconds": 2647.0551999993622,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 714,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 58,
+    "monotonicMilliseconds": 2672.0687000006437,
+    "presentationMilliseconds": 2663.5832000002265,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 723,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 59,
+    "monotonicMilliseconds": 2685.999500002712,
+    "presentationMilliseconds": 2680.3284999988973,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 727,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 60,
+    "monotonicMilliseconds": 2703.884199999273,
+    "presentationMilliseconds": 2691.3480000011623,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 733,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 61,
+    "monotonicMilliseconds": 2720.690799999982,
+    "presentationMilliseconds": 2713.5372000038624,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 742,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 62,
+    "monotonicMilliseconds": 2736.3110000006855,
+    "presentationMilliseconds": 2730.264699999243,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 746,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 63,
+    "monotonicMilliseconds": 2753.191899999976,
+    "presentationMilliseconds": 2747.238600000739,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 753,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 64,
+    "monotonicMilliseconds": 2771.1946000009775,
+    "presentationMilliseconds": 2763.570300001651,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 761,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 65,
+    "monotonicMilliseconds": 2786.1311000026762,
+    "presentationMilliseconds": 2780.252000000328,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 766,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 66,
+    "monotonicMilliseconds": 2802.4473999999464,
+    "presentationMilliseconds": 2791.34279999882,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 772,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 67,
+    "monotonicMilliseconds": 2821.114700000733,
+    "presentationMilliseconds": 2813.5415000021458,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 780,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 68,
+    "monotonicMilliseconds": 2836.390000000596,
+    "presentationMilliseconds": 2830.2561000026762,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 784,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 69,
+    "monotonicMilliseconds": 2852.9196000024676,
+    "presentationMilliseconds": 2841.314399998635,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 790,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 70,
+    "monotonicMilliseconds": 2871.770300000906,
+    "presentationMilliseconds": 2863.560800001025,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 799,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 71,
+    "monotonicMilliseconds": 2886.0738000012934,
+    "presentationMilliseconds": 2880.2641000002623,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 803,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 72,
+    "monotonicMilliseconds": 2902.348900001496,
+    "presentationMilliseconds": 2891.3114999979734,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 810,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 73,
+    "monotonicMilliseconds": 2921.106200002134,
+    "presentationMilliseconds": 2913.7285999991,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 818,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 74,
+    "monotonicMilliseconds": 2936.1046000011265,
+    "presentationMilliseconds": 2930.3018000014126,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 823,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 75,
+    "monotonicMilliseconds": 2952.8947999998927,
+    "presentationMilliseconds": 2941.3991000019014,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 829,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 76,
+    "monotonicMilliseconds": 2971.8117999993265,
+    "presentationMilliseconds": 2963.478100001812,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 838,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 77,
+    "monotonicMilliseconds": 2986.0643000006676,
+    "presentationMilliseconds": 2980.3032000027597,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 842,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 78,
+    "monotonicMilliseconds": 3002.377300001681,
+    "presentationMilliseconds": 2991.380600001663,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 849,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 79,
+    "monotonicMilliseconds": 3021.169700000435,
+    "presentationMilliseconds": 3013.755600001663,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 858,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 80,
+    "monotonicMilliseconds": 3036.6927000023425,
+    "presentationMilliseconds": 3030.294700000435,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 862,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 81,
+    "monotonicMilliseconds": 3052.4891000017524,
+    "presentationMilliseconds": 3046.9094000011683,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 869,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 82,
+    "monotonicMilliseconds": 3071.145600002259,
+    "presentationMilliseconds": 3063.5615000016987,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 877,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 83,
+    "monotonicMilliseconds": 3085.832000002265,
+    "presentationMilliseconds": 3080.241700001061,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 882,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 84,
+    "monotonicMilliseconds": 3102.1691000014544,
+    "presentationMilliseconds": 3091.343400001526,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 888,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 85,
+    "monotonicMilliseconds": 3120.860300000757,
+    "presentationMilliseconds": 3113.5879000015557,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 897,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 86,
+    "monotonicMilliseconds": 3135.851399999112,
+    "presentationMilliseconds": 3130.2721000015736,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 901,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 87,
+    "monotonicMilliseconds": 3153.011399999261,
+    "presentationMilliseconds": 3141.3419000022113,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 907,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 88,
+    "monotonicMilliseconds": 3171.386100001633,
+    "presentationMilliseconds": 3163.551500003785,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 916,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 89,
+    "monotonicMilliseconds": 3186.4316000007093,
+    "presentationMilliseconds": 3180.282300002873,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 920,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 90,
+    "monotonicMilliseconds": 3202.839500002563,
+    "presentationMilliseconds": 3191.348400000483,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 927,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 91,
+    "monotonicMilliseconds": 3221.418600000441,
+    "presentationMilliseconds": 3213.557500001043,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 935,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 92,
+    "monotonicMilliseconds": 3236.0584999993443,
+    "presentationMilliseconds": 3230.237800002098,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 940,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 93,
+    "monotonicMilliseconds": 3253.244800001383,
+    "presentationMilliseconds": 3241.328700002283,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 946,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 94,
+    "monotonicMilliseconds": 3271.651599999517,
+    "presentationMilliseconds": 3263.5822999998927,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 955,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 95,
+    "monotonicMilliseconds": 3286.433600001037,
+    "presentationMilliseconds": 3280.294800002128,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 959,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 0,
+    "inputDelivery": null,
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 96,
+    "monotonicMilliseconds": 3309.5338000021875,
+    "presentationMilliseconds": 3297.452800001949,
+    "observation": {
+      "state": "Active",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 965,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9927007299270073,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": false,
+    "automatedPressCount": 1,
+    "inputDelivery": {
+      "state": "Sent",
+      "plannedMs": 3326.95948401466,
+      "keyDownMs": 3328.425900001079,
+      "keyUpMs": 3364.9572000019252,
+      "timerWakeMs": 3327.2754000015557,
+      "validationMilliseconds": 0.1979999989271164
+    },
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 97,
+    "monotonicMilliseconds": 3372.483600001782,
+    "presentationMilliseconds": 3363.525299999863,
+    "observation": {
+      "state": "Grabbed",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 985,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9673539518900344,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 1,
+    "inputDelivery": {
+      "state": "Sent",
+      "plannedMs": 3326.95948401466,
+      "keyDownMs": 3328.425900001079,
+      "keyUpMs": 3364.9572000019252,
+      "timerWakeMs": 3327.2754000015557,
+      "validationMilliseconds": 0.1979999989271164
+    },
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 104,
+    "monotonicMilliseconds": 3916.4869000017643,
+    "presentationMilliseconds": 3907.9683000035584,
+    "observation": {
+      "state": "Grabbed",
+      "bar": {
+        "location": {
+          "isEmpty": false,
+          "x": 514,
+          "y": 345
+        },
+        "size": {
+          "isEmpty": false,
+          "width": 763,
+          "height": 30
+        },
+        "x": 514,
+        "y": 345,
+        "width": 763,
+        "height": 30,
+        "left": 514,
+        "top": 345,
+        "right": 1277,
+        "bottom": 375,
+        "isEmpty": false
+      },
+      "markerX": 985,
+      "bands": [
+        {
+          "color": "Yellow",
+          "left": 639,
+          "right": 643
+        },
+        {
+          "color": "PaleGreen",
+          "left": 776,
+          "right": 845
+        },
+        {
+          "color": "Purple",
+          "left": 966,
+          "right": 996
+        },
+        {
+          "color": "Red",
+          "left": 1149,
+          "right": 1153
+        }
+      ],
+      "confidence": 0.9673539518900344,
+      "reason": "Status header, marker, and current target intervals verified independently."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 1,
+    "inputDelivery": {
+      "state": "Sent",
+      "plannedMs": 3326.95948401466,
+      "keyDownMs": 3328.425900001079,
+      "keyUpMs": 3364.9572000019252,
+      "timerWakeMs": 3327.2754000015557,
+      "validationMilliseconds": 0.1979999989271164
+    },
+    "imageRegion": null
+  },
+  {
+    "sampleCount": 109,
+    "monotonicMilliseconds": 4307.428300000727,
+    "presentationMilliseconds": 4302.522500000894,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 1,
+    "inputDelivery": {
+      "state": "Sent",
+      "plannedMs": 3326.95948401466,
+      "keyDownMs": 3328.425900001079,
+      "keyUpMs": 3364.9572000019252,
+      "timerWakeMs": 3327.2754000015557,
+      "validationMilliseconds": 0.1979999989271164
+    },
+    "imageRegion": {
+      "location": {
+        "isEmpty": false,
+        "x": 492,
+        "y": 46
+      },
+      "size": {
+        "isEmpty": false,
+        "width": 807,
+        "height": 416
+      },
+      "x": 492,
+      "y": 46,
+      "width": 807,
+      "height": 416,
+      "left": 492,
+      "top": 46,
+      "right": 1299,
+      "bottom": 462,
+      "isEmpty": false
+    }
+  },
+  {
+    "sampleCount": 116,
+    "monotonicMilliseconds": 4849.883999999613,
+    "presentationMilliseconds": 4841.524300001562,
+    "observation": {
+      "state": "Hidden",
+      "bar": {
+        "location": {
+          "isEmpty": true,
+          "x": 0,
+          "y": 0
+        },
+        "size": {
+          "isEmpty": true,
+          "width": 0,
+          "height": 0
+        },
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "isEmpty": true
+      },
+      "markerX": 0,
+      "bands": [],
+      "confidence": 0,
+      "reason": "No verified pickpocket panel."
+    },
+    "manualSpaceDown": null,
+    "automatedPressCount": 1,
+    "inputDelivery": {
+      "state": "Sent",
+      "plannedMs": 3326.95948401466,
+      "keyDownMs": 3328.425900001079,
+      "keyUpMs": 3364.9572000019252,
+      "timerWakeMs": 3327.2754000015557,
+      "validationMilliseconds": 0.1979999989271164
+    },
+    "imageRegion": null
+  }
+]

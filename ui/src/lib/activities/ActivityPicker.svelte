@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { ChevronRight, KeyRound, Layers3, ShieldCheck, Waves } from "@lucide/svelte";
+  import { ChevronRight, Hand, KeyRound, Layers3, ShieldCheck, Waves } from "@lucide/svelte";
   import { activities, type ActivityId } from "../activities";
 
   interface Props {
@@ -13,7 +13,8 @@
   let { engineConnected, targetValid, focusActivity, onselect }: Props = $props();
   let activityCardNodes: Partial<Record<ActivityId, HTMLButtonElement>> = {};
   const readyCount = activities.filter((activity) => activity.availability === "ready").length;
-  const observeCount = activities.filter((activity) => activity.availability !== "ready").length;
+  const observeCount = activities.filter((activity) => activity.availability === "observe" || activity.availability === "calibration").length;
+  const previewCount = activities.filter((activity) => activity.availability === "preview").length;
 
   onMount(() => {
     if (focusActivity) void tick().then(() => activityCardNodes[focusActivity]?.focus());
@@ -23,12 +24,12 @@
 <section class="activity-intro" aria-labelledby="activity-heading">
   <div>
     <p class="eyebrow"><Layers3 size={14} strokeWidth={1.9} /> Activity library</p>
-    <h1 id="activity-heading">What are you running?</h1>
-    <p>Choose a focused reader. Each activity keeps its own detection flow while target selection and safety remain shared.</p>
+    <h1 id="activity-heading">Choose your activity</h1>
+    <p>Open a workspace to set up, run, or review an activity.</p>
   </div>
-  <aside class="library-status" aria-label="Activity library status">
-    <span><i></i>{engineConnected ? "Engine ready" : "Connecting engine"}</span>
-    <small>{targetValid ? "FiveM target restored" : "Choose an activity to select a target"}</small>
+  <aside class="library-status" class:offline={!engineConnected} aria-label="Activity library status" aria-live="polite">
+    <span><i aria-hidden="true"></i>{engineConnected ? "Engine connected" : "Connecting to engine…"}</span>
+    <small>{!engineConnected ? "Waiting for local connection" : targetValid ? "FiveM window selected" : "Select a FiveM window in a workspace"}</small>
   </aside>
 </section>
 
@@ -37,18 +38,21 @@
     <button
       class:ready={activity.availability === "ready"}
       class:observe={activity.availability === "observe"}
+      class:calibration={activity.availability === "calibration"}
+      class:preview={activity.availability === "preview"}
       class="activity-card"
       data-activity={activity.id}
       bind:this={activityCardNodes[activity.id]}
       onclick={() => onselect(activity.id)}
-      aria-describedby={`activity-description-${activity.id}`}
+      aria-label={`Open ${activity.shortName}`}
+      aria-describedby={`activity-status-${activity.id} activity-description-${activity.id}`}
     >
       <span class="activity-card__topline">
-        <span class="activity-card__number">0{index + 1}</span>
-        <span class="activity-card__status"><i></i>{activity.statusLabel}</span>
+        <span class="activity-card__number" aria-hidden="true">0{index + 1}</span>
+        <span class="activity-card__status" id={`activity-status-${activity.id}`}><i aria-hidden="true"></i>{activity.statusLabel}</span>
       </span>
       <span class="activity-card__icon" aria-hidden="true">
-        {#if activity.id === "fishing"}<Waves size={25} strokeWidth={1.65} />{:else}<KeyRound size={25} strokeWidth={1.65} />{/if}
+        {#if activity.id === "fishing"}<Waves size={25} strokeWidth={1.65} />{:else if activity.id === "pickpocket"}<Hand size={25} strokeWidth={1.65} />{:else}<KeyRound size={25} strokeWidth={1.65} />{/if}
       </span>
       <span class="activity-card__copy">
         <small>{activity.eyebrow}</small>
@@ -70,5 +74,5 @@
 
 <footer class="status-footer activity-home__footer">
   <div class="safety-summary"><ShieldCheck size={15} strokeWidth={1.9} /><p><strong>Local by design</strong><i></i>No gameplay imagery leaves this PC</p></div>
-  <div class="system-status" aria-label="Activity availability"><span><i></i>{readyCount} automation ready</span><b aria-hidden="true"></b><span>{observeCount} observe-only</span></div>
+  <div class="system-status" aria-label="Activity availability"><span><i></i>{readyCount} automation ready</span><b aria-hidden="true"></b><span>{observeCount} in calibration</span>{#if previewCount}<b aria-hidden="true"></b><span>{previewCount} preview</span>{/if}</div>
 </footer>

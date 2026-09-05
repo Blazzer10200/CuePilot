@@ -166,7 +166,7 @@ internal static class FishingPromptDetector
         var brightSearchRegion = usePromptRegion
             ? GameViewportGeometry.AdaptiveHudSearchRegion(frameBounds, 0.25, 0.55, 0.88, 1)
             : new Rectangle(0, 0, pixels.Width, pixels.Height);
-        var brightPoints = pixels.FindNeutralPoints(200, 35, brightSearchRegion);
+        var brightPoints = pixels.FindPromptAnchorCandidates(200, 35, brightSearchRegion);
         var templates = Templates.Value;
         var matches = new PromptMatch[templates.Length];
         Parallel.For(0, templates.Length, index =>
@@ -727,7 +727,7 @@ internal static class FishingPromptDetector
             return bytes[offset + 2] * 0.2126 + bytes[offset + 1] * 0.7152 + bytes[offset] * 0.0722;
         }
 
-        internal List<Point> FindNeutralPoints(int minimumBrightness, int maximumSpread, Rectangle region)
+        internal List<Point> FindPromptAnchorCandidates(int minimumBrightness, int maximumSpread, Rectangle region)
         {
             region = Rectangle.Intersect(new Rectangle(0, 0, Width, Height), region);
             var points = new List<Point>();
@@ -735,11 +735,38 @@ internal static class FishingPromptDetector
             {
                 for (var x = region.Left; x < region.Right; x++)
                 {
-                    if (IsNeutralAt(x, y, minimumBrightness, maximumSpread)) points.Add(new Point(x, y));
+                    if (IsNeutralAt(x, y, minimumBrightness, maximumSpread)
+                        && HasOpposingDarkNeighbors(x, y))
+                    {
+                        points.Add(new Point(x, y));
+                    }
                 }
             }
 
             return points;
+        }
+
+        private bool HasOpposingDarkNeighbors(int x, int y)
+        {
+            // Every prompt template is anchored on the bright E/X glyph inside
+            // a dark keycap. Rejecting bright scene pixels that lack dark pixels
+            // on both sides prevents every template scale from rescanning water,
+            // sky, and railings while preserving the keycap at supported UI scales.
+            for (var radius = 1; radius <= 16; radius *= 2)
+            {
+                if (x - radius >= 0 && x + radius < Width
+                    && IsDarkAt(x - radius, y, 110) && IsDarkAt(x + radius, y, 110))
+                {
+                    return true;
+                }
+                if (y - radius >= 0 && y + radius < Height
+                    && IsDarkAt(x, y - radius, 110) && IsDarkAt(x, y + radius, 110))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public void Dispose()
