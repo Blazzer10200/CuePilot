@@ -1,4 +1,11 @@
-use std::{fs, process::Command, sync::Arc, sync::Mutex, thread};
+use std::{
+    fs,
+    io::{Read, Seek, SeekFrom},
+    process::Command,
+    sync::Arc,
+    sync::Mutex,
+    thread,
+};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
@@ -15,6 +22,54 @@ use update_service::UpdateService;
 // always available through the Diagnostics folder.
 const MAX_DEBUG_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_SINGLE_DEBUG_IMAGE_BYTES: usize = 6 * 1024 * 1024;
+const MAX_RECENT_DIAGNOSTIC_TEXT_BYTES: u64 = 256 * 1024;
+
+fn read_limited(reader: impl Read, byte_limit: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    reader
+        .take((byte_limit as u64).saturating_add(1))
+        .read_to_end(&mut bytes)
+        .ok()?;
+    (bytes.len() <= byte_limit).then_some(bytes)
+}
+
+fn read_tail_lines(path: &std::path::Path, byte_limit: u64, line_limit: usize) -> Vec<String> {
+    let Ok(mut file) = fs::File::open(path) else {
+        return vec![];
+    };
+    let Ok(length) = file.metadata().map(|metadata| metadata.len()) else {
+        return vec![];
+    };
+    let truncated = length > byte_limit;
+    if file
+        .seek(SeekFrom::Start(length.saturating_sub(byte_limit)))
+        .is_err()
+    {
+        return vec![];
+    }
+    let mut reader = file.take(byte_limit.saturating_add(1));
+    let mut bytes = Vec::new();
+    if reader.read_to_end(&mut bytes).is_err() {
+        return vec![];
+    }
+    let truncated = truncated || bytes.len() > byte_limit as usize;
+    bytes.truncate(byte_limit as usize);
+    let text = String::from_utf8_lossy(&bytes);
+    let complete_lines = if truncated {
+        text.split_once('\n').map_or("", |(_, rest)| rest)
+    } else {
+        &text
+    };
+    complete_lines
+        .lines()
+        .rev()
+        .take(line_limit)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(str::to_owned)
+        .collect()
+}
 
 #[derive(Default)]
 pub(crate) struct OverlayState {
@@ -84,16 +139,11 @@ fn diagnostics_snapshot() -> Result<serde_json::Value, String> {
     fs::create_dir_all(&directory)
         .map_err(|error| format!("Create diagnostics directory: {error}"))?;
 
-    let recent_samples = fs::read_to_string(directory.join("last-fishing.csv"))
-        .unwrap_or_default()
-        .lines()
-        .rev()
-        .take(60)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+    let recent_samples = read_tail_lines(
+        &directory.join("last-fishing.csv"),
+        MAX_RECENT_DIAGNOSTIC_TEXT_BYTES,
+        60,
+    );
 
     let latest_sample = fs::read_dir(&directory)
         .map_err(|error| format!("Read diagnostics directory: {error}"))?
@@ -154,16 +204,14 @@ fn latest_debug_session(diagnostics: &std::path::Path) -> Option<serde_json::Val
         return None;
     }
     let manifest = serde_json::from_slice::<serde_json::Value>(&manifest_bytes).ok()?;
-    let recent_events = fs::read_to_string(directory.join("events.jsonl"))
-        .unwrap_or_default()
-        .lines()
-        .rev()
-        .take(120)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .collect::<Vec<_>>();
+    let recent_events = read_tail_lines(
+        &directory.join("events.jsonl"),
+        MAX_RECENT_DIAGNOSTIC_TEXT_BYTES,
+        120,
+    )
+    .iter()
+    .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+    .collect::<Vec<_>>();
     let mut included_image_bytes = 0usize;
     let frames = manifest
         .get("frames")
@@ -180,18 +228,22 @@ fn latest_debug_session(diagnostics: &std::path::Path) -> Option<serde_json::Val
             {
                 return None;
             }
-            let image_bytes = fs::read(directory.join(image_name)).ok()?;
+            let image_path = directory.join(image_name);
+            let image_bytes = fs::metadata(&image_path).ok()?.len();
             let metadata = fs::read_to_string(directory.join(metadata_name))
                 .ok()
                 .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok());
-            let can_embed = image_bytes.len() <= MAX_SINGLE_DEBUG_IMAGE_BYTES
-                && included_image_bytes.saturating_add(image_bytes.len()) <= MAX_DEBUG_IMAGE_BYTES;
+            let available_bytes = MAX_DEBUG_IMAGE_BYTES.saturating_sub(included_image_bytes);
+            let embed_limit = MAX_SINGLE_DEBUG_IMAGE_BYTES.min(available_bytes);
+            let can_embed = image_bytes <= embed_limit as u64;
             let image_data = if can_embed {
-                included_image_bytes += image_bytes.len();
-                Some(format!(
-                    "data:image/png;base64,{}",
-                    BASE64.encode(image_bytes)
-                ))
+                fs::File::open(&image_path)
+                    .ok()
+                    .and_then(|file| read_limited(file, embed_limit))
+                    .map(|bytes| {
+                        included_image_bytes += bytes.len();
+                        format!("data:image/png;base64,{}", BASE64.encode(bytes))
+                    })
             } else {
                 None
             };
@@ -201,7 +253,7 @@ fn latest_debug_session(diagnostics: &std::path::Path) -> Option<serde_json::Val
                 "elapsedMilliseconds": frame.get("elapsedMilliseconds"),
                 "imageName": image_name,
                 "imageData": image_data,
-                "imageAvailable": can_embed,
+                "imageAvailable": image_data.is_some(),
                 "metadata": metadata,
             }))
         })
@@ -393,7 +445,27 @@ fn shortcut_profile_owns_hotkeys(identifier: &str) -> bool {
 #[cfg(test)]
 mod diagnostics_tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        cell::Cell,
+        io,
+        rc::Rc,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    struct CountingReader {
+        remaining: usize,
+        bytes_read: Rc<Cell<usize>>,
+    }
+
+    impl io::Read for CountingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            let count = self.remaining.min(buffer.len());
+            buffer[..count].fill(b'x');
+            self.remaining -= count;
+            self.bytes_read.set(self.bytes_read.get() + count);
+            Ok(count)
+        }
+    }
 
     #[test]
     fn all_profiles_attempt_to_register_global_shortcuts() {
@@ -436,6 +508,67 @@ mod diagnostics_tests {
 
         assert_eq!(snapshot["manifest"]["sessionId"], "test");
         assert_eq!(snapshot["recentEvents"][0]["eventName"], "start");
+        fs::remove_dir_all(root).expect("temporary diagnostics should be removed");
+    }
+
+    #[test]
+    fn tail_reader_bounds_input_and_keeps_complete_recent_lines() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be valid")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cuepilot-tail-test-{unique}.jsonl"));
+        let content = (0..200)
+            .map(|index| format!("{{\"sequence\":{index},\"detail\":\"{}\"}}", "x".repeat(64)))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, format!("{content}\n")).expect("trace should be written");
+
+        let lines = read_tail_lines(&path, 512, 5);
+
+        assert_eq!(lines.len(), 5);
+        assert!(lines
+            .iter()
+            .all(|line| serde_json::from_str::<serde_json::Value>(line).is_ok()));
+        assert!(lines[0].contains("\"sequence\":195"));
+        assert!(lines[4].contains("\"sequence\":199"));
+        fs::remove_file(path).expect("temporary trace should be removed");
+    }
+
+    #[test]
+    fn limited_reader_never_consumes_more_than_overflow_sentinel() {
+        let bytes_read = Rc::new(Cell::new(0));
+        let reader = CountingReader {
+            remaining: 4096,
+            bytes_read: Rc::clone(&bytes_read),
+        };
+
+        assert!(read_limited(reader, 128).is_none());
+        assert_eq!(bytes_read.get(), 129);
+    }
+
+    #[test]
+    fn latest_debug_session_skips_oversized_image_without_reading_it() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be valid")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("cuepilot-large-image-test-{unique}"));
+        let session = root.join("sessions").join("20260813-220000-test");
+        fs::create_dir_all(&session).expect("session directory should be created");
+        fs::write(
+            session.join("session.json"),
+            r#"{"frames":[{"imageName":"large.png","metadataName":"frame.json"}]}"#,
+        )
+        .expect("manifest should be written");
+        fs::File::create(session.join("large.png"))
+            .and_then(|file| file.set_len(MAX_SINGLE_DEBUG_IMAGE_BYTES as u64 + 1))
+            .expect("large placeholder should be created");
+
+        let snapshot = latest_debug_session(&root).expect("debug session should load");
+
+        assert_eq!(snapshot["frames"][0]["imageAvailable"], false);
+        assert!(snapshot["frames"][0]["imageData"].is_null());
         fs::remove_dir_all(root).expect("temporary diagnostics should be removed");
     }
 }

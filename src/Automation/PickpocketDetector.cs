@@ -31,9 +31,15 @@ internal static class PickpocketDetector
         using var pixels = new Pixels(frame);
         var bounds = Rectangle.Intersect(new Rectangle(0, 0, frame.Width, frame.Height),
             search ?? new Rectangle(0, frame.Height / 2, frame.Width, frame.Height - frame.Height / 2));
+        var best = ScanStems(pixels, bounds, previous, 36) ?? ScanStems(pixels, bounds, previous, 3);
+        return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
+    }
+
+    private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap)
+    {
         PickpocketObservation? best = null;
         var searchWork = new HeaderSearch();
-        var candidates = 0;
+        var stems = new List<(int X, int Top, int Length, double Density)>();
         // The protruding green stem is longer than the colored bands. Scan columns
         // without copying a full-screen buffer or performing template-pyramid searches.
         for (var x = bounds.Left; x < bounds.Right; x++)
@@ -51,21 +57,30 @@ internal static class PickpocketDetector
                     continue;
                 }
                 if (start < 0) continue;
-                if (y < bounds.Bottom && y - last <= 36) continue;
+                if (y < bounds.Bottom && y - last <= maximumGap) continue;
                 var length = last - start + 1;
                 if (hits >= 14 && length >= 26 && length <= 100)
                 {
-                    if (++candidates > 16) return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
-                    var candidate = InspectStem(pixels, x, start, length, previous, searchWork);
-                    if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) best = candidate;
-                    if (searchWork.Exhausted) return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing with
-                        { Reason = "Header search budget reached; waiting for a fresh frame." }, previous);
+                    var middle = start + length / 2;
+                    if (!IsMarker(pixels.At(x - 6, middle)) && !IsMarker(pixels.At(x + 6, middle)))
+                        stems.Add((x, start, length, hits / (double)length));
                 }
                 start = -1;
                 hits = 0;
             }
         }
-        return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
+        // Keep the occluded-marker path first. If scenery joins it into a long
+        // green column, recover with short gaps and rank solid stems before
+        // spending a separate bounded header budget. Neither path skips identity checks.
+        var candidates = maximumGap == 36 ? stems.AsEnumerable()
+            : stems.OrderByDescending(stem => stem.Density).ThenByDescending(stem => stem.Length);
+        foreach (var stem in candidates.Take(16))
+        {
+            var candidate = InspectStem(pixels, stem.X, stem.Top, stem.Length, previous, searchWork);
+            if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) best = candidate;
+            if (searchWork.Exhausted) break;
+        }
+        return best;
     }
 
     internal static PickpocketObservation StabilizeMarkerOcclusion(PickpocketObservation observation, PickpocketObservation? previous)

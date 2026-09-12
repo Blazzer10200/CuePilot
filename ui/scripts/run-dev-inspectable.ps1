@@ -5,22 +5,13 @@
 [CmdletBinding()]
 param(
     [switch]$WaitForCdp,
-    [switch]$NoKill
+    [switch]$NoKill,
+    [switch]$DefinitionsOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $uiRoot = Split-Path -Parent $PSScriptRoot
 $repoRoot = Split-Path -Parent $uiRoot
-$cdpPort = 9322
-$launchStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$profilePath = Join-Path $repoRoot "tmp\webview-dev-profile-$launchStamp"
-$cargoTargetPath = Join-Path $repoRoot 'tmp\cargo-dev'
-$batchPath = Join-Path $env:TEMP 'cuepilot-inspect-dev.bat'
-$taskName = 'CuePilotInspectDev'
-$stdoutPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.out.log"
-$stderrPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.err.log"
-[System.IO.Directory]::CreateDirectory((Split-Path -Parent $stdoutPath)) | Out-Null
-$env:CARGO_TARGET_DIR = $cargoTargetPath
 
 function Test-Elevated {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -29,7 +20,10 @@ function Test-Elevated {
 }
 
 function Test-CuePilotDevExecutable {
-    param([string]$ExecutablePath)
+    param(
+        [string]$ExecutablePath,
+        [string]$CargoTargetPath
+    )
 
     if ([string]::IsNullOrWhiteSpace($ExecutablePath)) {
         return $false
@@ -43,13 +37,9 @@ function Test-CuePilotDevExecutable {
         return $true
     }
 
-    if ($normalized -match '(?i)\\cargo-targets\\debug\\cuepilot-ui\.exe$') {
-        return $true
-    }
-
-    if ($env:CARGO_TARGET_DIR) {
+    if ($CargoTargetPath) {
         $configuredTargets = @(
-            (Join-Path $env:CARGO_TARGET_DIR 'debug\cuepilot-ui.exe')
+            (Join-Path $CargoTargetPath 'debug\cuepilot-ui.exe')
         )
         if ($configuredTargets | Where-Object { $normalized.Equals($_, [System.StringComparison]::OrdinalIgnoreCase) }) {
             return $true
@@ -57,6 +47,72 @@ function Test-CuePilotDevExecutable {
     }
 
     return $false
+}
+
+function Test-CuePilotDevSidecarExecutable {
+    param(
+        [string]$ExecutablePath,
+        [string]$CargoTargetPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ExecutablePath)) {
+        return $false
+    }
+
+    $normalized = $ExecutablePath.Replace('/', '\')
+    $repoSidecar = Join-Path $uiRoot 'src-tauri\target\debug\resources\engine\CuePilot.exe'
+    if ($normalized.Equals($repoSidecar, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    return $CargoTargetPath -and $normalized.Equals(
+        (Join-Path $CargoTargetPath 'debug\resources\engine\CuePilot.exe'),
+        [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Test-CuePilotTauriDevProcess {
+    param(
+        [object]$Process,
+        [string]$UiRoot
+    )
+
+    if ($Process.Name -ne 'node.exe' -or [string]::IsNullOrWhiteSpace($Process.CommandLine)) {
+        return $false
+    }
+
+    $tauriCliPath = [regex]::Escape((Join-Path $UiRoot 'node_modules\@tauri-apps\cli\tauri.js'))
+    $normalizedCommand = $Process.CommandLine.Replace('/', '\')
+    $pattern = '(?i)(?:^|["\s])"?' + $tauriCliPath + '"?\s+dev(?:\s|$)'
+    return $normalizedCommand -match $pattern
+}
+
+function Get-CuePilotDevOwnedProcessIds {
+    param(
+        [object[]]$Processes,
+        [string]$UiRoot,
+        [string]$CargoTargetPath
+    )
+
+    $ownedIds = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($process in $Processes) {
+        if (($process.Name -eq 'cuepilot-ui.exe' -and (Test-CuePilotDevExecutable $process.ExecutablePath $CargoTargetPath)) -or
+            (Test-CuePilotTauriDevProcess -Process $process -UiRoot $UiRoot)) {
+            [void]$ownedIds.Add([int]$process.ProcessId)
+        }
+    }
+
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+        foreach ($process in $Processes) {
+            if ($ownedIds.Contains([int]$process.ParentProcessId) -and -not $ownedIds.Contains([int]$process.ProcessId)) {
+                [void]$ownedIds.Add([int]$process.ProcessId)
+                $changed = $true
+            }
+        }
+    }
+
+    Write-Output -NoEnumerate $ownedIds
 }
 
 function Stop-StaleCuePilotDev {
@@ -67,41 +123,11 @@ function Stop-StaleCuePilotDev {
         Write-Warning '[cdp:dev] Windows process inventory is unavailable; skipping stale-process cleanup.'
         return
     }
-    $devApps = @($processes | Where-Object {
-        $_.Name -eq 'cuepilot-ui.exe' -and (Test-CuePilotDevExecutable $_.ExecutablePath)
-    })
-
-    $ownedIds = [System.Collections.Generic.HashSet[int]]::new()
-    foreach ($app in $devApps) {
-        [void]$ownedIds.Add([int]$app.ProcessId)
-    }
-
-    $changed = $true
-    while ($changed) {
-        $changed = $false
-        foreach ($process in $processes) {
-            if ($ownedIds.Contains([int]$process.ParentProcessId) -and -not $ownedIds.Contains([int]$process.ProcessId)) {
-                [void]$ownedIds.Add([int]$process.ProcessId)
-                $changed = $true
-            }
-        }
-    }
+    $ownedIds = Get-CuePilotDevOwnedProcessIds -Processes $processes -UiRoot $uiRoot -CargoTargetPath $cargoTargetPath
 
     $stopped = 0
-    foreach ($processId in @($ownedIds)) {
+    foreach ($processId in $ownedIds) {
         Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
-        $stopped++
-    }
-
-    $uiNeedle = $uiRoot.ToLowerInvariant()
-    $devNodeProcesses = @($processes | Where-Object {
-        $_.Name -eq 'node.exe' -and
-        $_.CommandLine -and
-        $_.CommandLine.ToLowerInvariant().Contains($uiNeedle) -and
-        ($_.CommandLine -match '(?i)(tauri\.js.*\bdev\b|vite(?:\.js)?\b)')
-    })
-    foreach ($process in $devNodeProcesses) {
-        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
         $stopped++
     }
 
@@ -119,8 +145,7 @@ function Stop-StaleCuePilotDev {
         $_.Name -eq 'CuePilot.exe' -and
         $_.ExecutablePath -and
         $_.CommandLine -match '(?i)--ui-bridge' -and
-        ($_.ExecutablePath -match '(?i)\\cargo-targets\\debug\\resources\\engine\\CuePilot\.exe$' -or
-            $_.ExecutablePath.StartsWith((Join-Path $uiRoot 'src-tauri\target\debug'), [System.StringComparison]::OrdinalIgnoreCase))
+        (Test-CuePilotDevSidecarExecutable $_.ExecutablePath $cargoTargetPath)
     })
     foreach ($process in $debugSidecars) {
         Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
@@ -149,6 +174,21 @@ function Stop-StaleCuePilotDev {
         Write-Output '[cdp:dev] no stale CuePilot development processes found.'
     }
 }
+
+if ($DefinitionsOnly) {
+    return
+}
+
+$cdpPort = 9322
+$launchStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$profilePath = Join-Path $repoRoot "tmp\webview-dev-profile-$launchStamp"
+$cargoTargetPath = Join-Path $repoRoot 'tmp\cargo-dev'
+$batchPath = Join-Path $env:TEMP 'cuepilot-inspect-dev.bat'
+$taskName = 'CuePilotInspectDev'
+$stdoutPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.out.log"
+$stderrPath = Join-Path $repoRoot "tmp\cdp-dev-$launchStamp.err.log"
+[System.IO.Directory]::CreateDirectory((Split-Path -Parent $stdoutPath)) | Out-Null
+$env:CARGO_TARGET_DIR = $cargoTargetPath
 
 if (-not $NoKill) {
     Stop-StaleCuePilotDev

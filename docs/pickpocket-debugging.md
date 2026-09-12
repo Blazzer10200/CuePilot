@@ -1,113 +1,90 @@
 # Pickpocket debugging
 
-Debug recording starts automatically with F7. Current build: 5.3.2. Use the official **CuePilot** desktop shortcut. In Run, choose **Precision · all target sizes** and **Rarest → Common**, or your custom order. Existing saved selections are preserved. The last observed Yellow trial was 17 ms and missed before center; 14 ms was proposed but is not a validated setting. Confirm the saved value before another live trial. Release artifacts live in `release/velopack/` after consolidation.
+This is the maintained operating guide for Pickpocket. The engine records
+bounded local diagnostics whenever an F7 run starts. Observe is the default;
+automatic modes are explicit, one-tap calibration tools. A sent key is not by
+itself proof that the game accepted the action.
 
-## Current controls and preview
+The 2026-09-07 verified snapshot used Yellow 12 ms and Red 8 ms. Those values
+describe that checked build and session, not permanent preferences: confirm the
+saved Timing values and the selected attempt's report before drawing conclusions
+from a later run. The 5.3.5 detector recovery, retained in 5.3.6, fixes the recorded
+active-grass false-Hidden case. Check `HANDOFF.md` for the build and the latest
+investigation before changing settings.
 
-- **Run:** mode and target dropdowns. **Rarest → Common** uses Yellow → Red → Purple → Blue → White across the entire detected bar. Within the best color, choose the widest region; wait for the return if it has passed. Newly revealed higher colors need3fresh confirmations before promotion. Green remains a separate exact-color choice. Purple → Blue → Common remains available as an alternative. Choosing a policy does not arm input.
-- **Timing:** independent Red/Yellow early adjustments from0–20ms. Red8 retains its native Ruby success. Larger values advance the planned press; for example,17→14 presses3ms later. Wider targets retain their normal timing. The control shows the saved value instead of labeling a hardcoded current trial.
-- **Priority:** rank up to six color groups; omit unwanted colors with Skip. A change activates My priority order. Duplicate colors swap positions instead of creating duplicate entries.
-- **Items:**12 distinct recorded names, grouped by color. Choose a color and rank its items: for example Ring before Luxury Watch. Selection swaps positions and saves automatically. Color priority is applied first, then recognized item priority within that color. Unreadable cards rank last; identical or unknown ties use the wider region. Widest mode intentionally selects width instead of item rank.
-- Recorded card labels are sampled relative to each band's center and detected panel scale; there are no fixed item slots. Two matching reads confirm a name. Reads are confined to the first260ms of a stable Active panel, with confirmed names cached for the timing pass. Same-color duplicates wait for this short mapping window before input can schedule. Unknown names are never invented. Retained1080p/1440p cards and shuffled two-purple frames pass offline tests; native same-color priority still needs a live trial.
-- Preferences save automatically and restore after restart without arming input. **Shortcuts & window** opens the shared settings drawer; F8 remains reserved for FiveM.
-- **Result / Diagnostics:** last-five-results dropdown, outcome, target width and direction-relative center offset, or capture/timing counters. Center offset is measured from the result image and is not input latency. Completion saves the remaining180-second cooldown and five results to `%LOCALAPPDATA%/CuePilot/pickpocket-state.json`; restart restores them without arming. Save/restore errors appear in the footer. A missing result is marked Result not seen, with no invented offset.
-- Latest native TNT Recipe miss: `20260904-045807-79ec7f7822344613b13a1a9870a0a029`, engine5.2.2 from2318 preview, Yellow8,4px target809–813, frozen marker805 (leftward travel:6px past center).1auto/0manual, key-down36997625.856ms, host lateness0.537ms, speed384.08px/s,200records/59PNGs without loss. Current20ms replay schedules one pair about12ms earlier. A constant-motion estimate shifts the result4.6px toward the target; this is not a recorded hit or measured input latency. Next live yellow run must confirm.
-- Latest validation: 435 .NET tests, 42 UI tests, 14 Rust tests, clean Svelte check/build, Rust format and Clippy, and five Playwright scenarios. The live 1180×760 Pickpocket workspace fits without a document scrollbar. TNT replay preserves the actual Missed result and compares 8/14/17/20 ms timing plans; older synthetic 16 ms-delay fixtures explicitly retain their 8 ms yellow setup.
+## Run controls
 
-Earlier calibration notes below preserve the evidence and assumptions at each stage; the controls and startup behavior above are current.
+- **Run mode:** `Manual · observe only` never sends Space. `Automatic · wide
+  targets` and `Precision · all target sizes` can arm at most one owned Space
+  tap per new run. Selecting a mode or policy alone does not start capture or
+  arm input.
+- **Target policy:** `Widest` chooses by width. Color and priority policies
+  choose the best detected color first, then use the applicable ranking and
+  width. Unknown card names are not invented.
+- **Timing:** Red and Yellow accept independent values from 0 through 20 ms.
+  A larger advance schedules the planned press earlier. Change timing only
+  against a retained diagnostic session; do not infer game-receipt latency from
+  a result-frame offset.
+- **Safety:** F7 starts or stops a Pickpocket run. A new run must see Preparing
+  before input can arm. Focus loss, a manual Space press, Stop, an error, or a
+  cooldown closes the input gate. Pause / Break is the emergency stop and
+  releases a Space key CuePilot owns.
 
-## Controlled automatic test
+## History and diagnostics
 
-Yellow preparation after first red success: session `20260904-035736-f09a19fa9dd6494e94539b146e147810` sent1 native Space/0 manual and frame186 shows **GRABBED RUBY**. Red979–983, frozen marker981 exactly at detected center; planned/down/up33366283.097/33366284.498/33366321.321ms, hostlate1.402ms, wake0.272ms, validation0.193ms. Active cadence16.68/max17.44ms, analysis0.84ms;173 records/50 PNGs without loss. Last item is Lucky Charm/Yellow1149–1153, the same4px width as red in this layout; earlier yellow clips have3px regions. Retained `Live/automatic-ruby.json` and184/185/186 PNGs. The existing8ms early sliver correction and survey pattern already apply to Yellow; no additional lead was introduced. New3/4px model tests, actual recorded Yellow crossing and constructed Yellow pixel/engine replay pass under the provisional16ms total-delay assumption. This is not a native yellow grab. Debug reports now preserve shot-time geometry and report result, width and direction-relative stopped-marker center offset, even when the result obscures the selected band. Visual offset is explicitly not input latency.175 focused backend cases pass; next configuration is PrecisionAttempt/Yellow.
+The **History** tab retains up to 1,000 completed attempts across restarts and
+shows five attempts per page. Filter by outcome, select an attempt, then copy
+its report or open its linked evidence when available. It preserves the timing,
+mode, target policy, build identity, and result information recorded for that
+attempt. The compact result panel in Live is only a recent-attempt view; use
+History for the retained record.
 
-Current red timing trial: first real red run `20260904-035325-4179f6446abd4e1a884ed269b06a2341` correctly surveyed and fired once on the return, but MISSED. Red1149–1153, frozen marker1147 moving left at385px/s: about2px beyond entry into the miss side,4px beyond center. Host lateness1.304ms, wake0.140ms, validation0.198ms, Active interval16.68/max17.58ms;145 records/44 images, no loss. Retained `Live/automatic-red-miss.json` and162/163/164 PNGs. Thin-region experimental center shots now add a provisional8ms early correction to the prior nominal8ms delay. Wider targets keep existing timing. Real-engine replay verifies the new single press is8ms earlier than the failed plan; the historical Missed frame remains a miss and is not proof of a counterfactual hit. Synthetic sliver checks now explicitly assume16ms total delay; this is not a measured game-delay calibration.167 focused backend tests pass. Next live test is PrecisionAttempt/Red with the first-sweep pattern retained.
+The Diagnostics view identifies observer state, capture and analysis duration,
+image age, marker speed, candidate count, manual Space observations, and the
+one-tap counter. Its `Saved`, `Limited`, and `Error` states matter: preserve a
+limited or failed session before rerunning, because missing frames cannot be
+reconstructed later. Use **Open logs** to open the local evidence directory.
 
-Thin-target pattern: Precision mode now surveys the first sweep before attempting a region at most6 scaled pixels wide (the recorded4px red/yellow slivers qualify; the successful purple Ring does not). The survey needs at least24 moving samples across60% of the bar, reaching an edge, followed by3 fresh samples moving back at least6 scaled pixels. Mid-bar zigzags, repeated timestamps, large jumps and skipped captures cannot count as a completed survey. The current-direction motion fit still resets at the bounce and must stabilize independently; the outward velocity is never reused across a turnaround. A late/unstable opportunity can wait for another sweep, but only one Space press is allowed and completion/Stop still disarms. No fixed10-second guess or last-second forced press is added. Saved third-run observations qualify within3 seconds of Active; constructed fifth-layout pixels through the full engine skip the first red crossing and emit one nominal8ms-delay shot on the return. First-pass-only red fixture emits zero.166 focused backend cases and Svelte check/build pass. **Prefer red / Precision** is the next test configuration; red live accuracy remains unverified.
+## Failure triage
 
-Further evidence and refinement: session `20260904-032318-ffada789981342e1855321c575ea8dc4` ran PrecisionAttempt/PurpleBlueWhite, sent one native Space pair with zero manual presses, and frame97 shows **GRABBED RING**. Purple x966–996, frozen marker985 (4px right of center). Host lateness1.466ms, timer wake lateness0.316ms, final validation0.198ms, hold36.531ms. Active cadence16.68ms, max17.19ms, analysis1.15ms, no evidence loss (77 records/25 PNGs). Retained `Live/automatic-ring.json` plus95/96/97 PNGs. Full-engine offline replay reproduces one tap within1ms of its recorded plan; it does not invent movement after the real grab. The existing precision fit improves paired held-out Ring marker MAE1.043→0.923px across121 forecasts.
+1. Stop the run with F7 or Pause / Break. Do not change timing while a run is
+   active.
+2. Open the saved evidence and establish the observed sequence: Preparing,
+   Active, predicted candidate or rejection reason, key count, and final
+   Grabbed/Missed/Ended state.
+3. For a classification failure, retain one decisive active frame and a nearby
+   no-minigame frame. For an input or timing failure, retain the trace, selected
+   attempt report, and result frame. Treat a result-frame marker position as
+   visual evidence only.
+4. Replay the saved fixture before modifying detector thresholds or timing. Add
+   a regression only when the retained evidence gives a stable expected state.
+5. Read `HANDOFF.md` before a new live calibration run. It distinguishes the
+   latest verified result from historical proposals and records applicable
+   release checks.
 
-Pickpocket now consumes the original DXGI QPC presentation time, carried in an optional capture-status field, instead of reconstructing it from an age measured before resource cleanup and frame-health checks. A synthetic20ms capture-return delay reproduced the old20ms timestamp error; direct timestamp regression passes. This removes that source of timestamp bias, but20ms is the injected test delay, not a measured live cleanup cost. Other capture consumers retain their existing behavior. Priority can also promote an initially hidden higher color after three fresh Active confirmations; it withholds the lower shot during confirmation and rejects one-frame flicker/repeated timestamps. All162 focused backend cases pass. Existing UI32-test/check/build results remain valid because there are no frontend changes in this batch.
+## Offline replay
 
-Current requested target order: **Purple → Blue → Common** (`PurpleBlueWhite`), with Common meaning White. It chooses the highest-priority color present anywhere on the Active bar and the widest region of that color. A passed purple target stays preferred for the return sweep; it does not downgrade just because blue is upcoming. Three fresh Active samples confirm the target, Preparing pixels are ignored, and marker occlusion preserves a confirmed choice. If none of these colors is detected, it waits. Other named-color options still require their exact color. The priority is selectable independently of the run mode; use **Precision · small targets** for the current test. Verified: 155 focused backend tests, 32 UI tests, Svelte check and UI build. This verifies selection and regressions, not a new live hit rate.
+Replay reads images and reports hypothetical scheduling only; it never creates
+an input sender or changes an observed result.
 
-The first actual automatic grab is verified: session `20260904-024532-c35a4cdf10df4ffcada54d7765371bfc` sent one Space tap with no manual Space, followed by `GRABBED ROPE`. White was x927–1035; the stopped marker was x985. Host key-down was 2.101 ms after the planned time and held for 36.948 ms. Active analysis averaged 0.91 ms; sampling averaged 16.82 ms. This establishes successful wide-target delivery, not a calibrated narrow-target latency distribution.
+```powershell
+dotnet run --project .\CuePilot.csproj -- --replay-pickpocket <manifest.json> --target-color Yellow --advance-ms 12
+pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.json>
+```
 
-For small targets choose **Precision · small targets**, then **Prefer purple** or **Prefer red**. F7 arms one shot before a new Preparing state. A selected color must be present; there is no silent fallback to another item. Precision keeps normal interval timing when its delay/error envelope fits. Otherwise, after at least six stable samples over 75 ms, it attempts the predicted center using a provisional 8 ms nominal game delay. A tiny-red shot is experimental: the whole 0–16 ms envelope does not fit a roughly 10 ms target window. Precision separates the 35 ms key hold from the key-down window, waits at most 28 ms, requires the planned image age at most 36 ms, and retains the final 40 ms age/focus/geometry/manual-Space/stop/cooldown checks. Experimental shots expire no later than 4 ms after their planned time (or half the target window if smaller). Missing or late candidates wait for another sweep; a blocked delivery consumes the run. No automatic repeat after a tap.
+`--target-color` accepts `White`, `Purple`, `Red`, `PaleGreen`, `Blue`, or
+`Yellow`; `--advance-ms` accepts 0 through 20. The manifest must have strictly
+increasing presentation timestamps. Replay output labels its 0–16 ms simulated
+delivery envelope and reports detector timing, state mismatches, and at most one
+hypothetical press. It is evidence for detector and prediction behavior, not
+proof of live input acceptance.
 
-Precision verification: 141 focused backend cases plus the added recorder case passed; 31 UI tests, Svelte check and production UI build passed. Tests cover purple timing, constructed red pixels through the engine, stale scheduled images, scheduler oversleep, failed validation, Stop during wait, and preparation requirements. Tiny-red assertions cover the nominal delay only and explicitly do not claim every delay fits. The UI is verified without scrolling at 1180×760 and 760×620. Reports now distinguish host key-down lateness/key hold from unknown game receipt latency.
+## Historical material
 
-Timing refinement after the user's request to focus on precision: Precision mode fits up to 16 samples/280 ms of the current sweep, while SingleAttempt retains 8/140 ms. Reversal, gaps, geometry changes and excessive residuals still invalidate predictions. Paired future-marker checks at 16/32 ms reduced mean absolute pixel error on the same held-out samples: second run 1.022→0.939 (350 forecasts), third 1.035→0.897 (892), fourth 0.912→0.896 (406), and Rope 1.200→1.088 (129). These isolate motion fitting using fixed target geometry; they are not native hit rates.
-
-Final key-down validation now checks the captured handle, PID, visibility, foreground, minimization and exact capture bounds directly instead of enumerating desktop windows again. A read-only benchmark accepted the unchanged foreground window and rejected five changed-target cases: 100 checks averaged 0.016 ms versus 0.132 ms for full resolution. The input timer no longer inherits the capture timer's 1 ms minimum yield. At a 0.25 ms requested wait, 80 checks per method measured mean lateness 0.229 ms versus 1.264 ms; no native game input was sent. Capture pacing still yields on overruns. Timer cancellation/deadline tests passed for both methods; the 147-case focused gate plus the new input-timer case passed. Reports now record timer-wake lateness and final validation duration to distinguish these from native-send and game-receipt delays.
-
-1. In CuePilot Pickpocket Preview → Pickpocket → Live observation → Run, select **Precision · all target sizes** and **Rarest → Common**. This follows Yellow → Red → Purple → Blue → White. Exact-color and older priority options remain available.
-2. Return to FiveM and press **F7 before opening the pickpocket minigame**. The engine must observe a new Preparing state; starting halfway through deliberately skips input.
-3. Start the pickpocket and let CuePilot press Space. A manual Space press cancels automatic input for that run. Narrow/uncertain windows are skipped.
-4. After the result, press F7 to stop and save the report. Pause / Break also stops and releases owned Space immediately. Respect the three-minute game cooldown.
-5. Stop disarms input but keeps the selected run mode. Each new F7 start explicitly arms one new attempt; there is no automatic retry. App restart restores preferences while remaining unarmed. The UI shows whether a tap is armed and how many were sent. Selecting a mode alone does not start capture or send a key.
-
-This is a controlled calibration test, not verified unattended automation. Input uses the provisional 0–16 ms delay envelope, with at least 35 ms between the proposed press and latest safe delivery. The final wait is at most 16 ms, the frame must remain no older than 40 ms, and the foreground window/geometry, physical Space state, cancellation and cooldown are checked before sending. Key-down/up timestamps record host calls, not game receipt. A failed evidence writer disarms the test. Schema 4 adds input mode, armed state, automated press count and delivery details to trace/summary/report.
-
-Third live run (`20260904-003029-3f3ca7c3edda481a876914deab0a67cb`) was actually Observe, with no manual or automatic presses, and ended with the visible `TOO SLOW` header. Independently, marker occlusion shortened the green target's edge and repeatedly reset the timing fit. A regression reproduced zero taps before the correction; retaining a uniquely matched prior edge only while the marker covers it produces one green tap with the simulated 0/8/16 ms delivery positions inside the recorded target. Current checks: 119 focused backend tests, 30 UI tests, clean Svelte check/build. The first actual automatic delivery remains unverified.
-
-Fourth run (`20260904-004425-44854428de3a4d358c4f8880447ff036`) was SingleAttempt, but preparation selected a false White interval x1003–1147 from fade-in/background pixels. All 217 Active samples then waited for that vanished target. A manual press near the end produced Grabbed; it did not cause the earlier selection failure. The new target tracker ignores Preparing regions, confirms a candidate across three fresh Active samples, and reacquires a vanished target after confirmation while preserving marker-occlusion and preferred-color protections. Trace reasons now distinguish confirmation and temporary obscuration.
-
-Verification now replays all four live recordings through the actual `PickpocketObserverEngine`, including selection, timing, input controller and diagnostics. A virtual clock preserves recorded times and keyboard calls are intercepted. Run four reproduced zero presses before the fix; all four now emit exactly one down/up pair inside the selected recorded region at simulated 0/8/16 ms delivery delays. This exercises more of the production path than the earlier isolated timing replays, but still does not prove physical game receipt. 127 focused backend cases pass, including pixel evidence and vanished/occluded target recovery tests.
-
-## Fifth-run detector correction
-
-Fifth run (`20260904-023205-6c6e9900fe4a4ac2b0e4abc077f5f276`) was armed correctly but sent no input: frame 31 took 406 ms and frame 32 took 8,143 ms to analyze. The latter still visibly showed Active with 7.5 s remaining, but was classified Hidden. Bright background pixels contaminated the header's negative mask, causing repeated broad searches. Only three Active samples were processed before the timeout; the missing frames cannot be recovered from that trace.
-
-The detector now evaluates both 145 and 200 brightness thresholds, always requiring both positive glyph and negative background evidence at the same threshold. Header masks are packed for population-count matching; results are cached only within one frame and limited to 96 distinct locations/scales. Pixel dimensions are cached instead of calling GDI+ per pixel. Dev now stages the optimized Release engine while retaining the development UI/CDP shell. Threshold acceptance scores, focus/age checks and one-tap ownership rules are unchanged.
-
-Verification: 130 focused backend tests pass. The retained fifth-run PNG sequence now classifies Preparing/Active/Active/Active/Missed/Hidden correctly; frame 32 measured 2.19 ms in the Release sequence, with a 1.52 ms mean in the repeated tracked-frame check. Erased white/gray/black headers are rejected with bounded search. A **constructed** marker progression using the retained fifth-run layout and difficult header reaches the actual pixel detector, engine, selector, predictor and intercepted keyboard: one down/up pair, 35 ms hold, within White x579–702 at simulated 0/8/16 ms delivery delays. This is not recovered video or proof of native game receipt. All three complete source-clip replays also pass: 146/547/430 frames, zero state mismatches, one hypothetical candidate each. Actual automatic game acceptance remains the next live check.
-
-## Next test
-
-1. Confirm the saved Yellow value in Timing. The last observed17ms trial missed before center;14ms is only the proposed next value.
-2. Choose **Precision · all target sizes** and the intended target policy. This selects the mode but does not arm it.
-3. Keep FiveM foreground and press F7 before a new attempt. Precision mode may send one Space pair, then disarms. Observe mode always keeps Space manual.
-4. After the result, press F7 to stop. In History, select the dated attempt to copy its settings/report or open its matching evidence. Switching away from FiveM also stops and records focus loss.
-
-The status reads Recording while the recorder is running, Saved after successful finalization, Limited if entries were skipped, or Error if writing failed. An engine disconnection is shown separately. A report can be copied during observation, but the completed report on disk has the final stop reason and counters.
-
-The report separates Active-only capture/analysis cost from actual Active sample intervals (mean/max and count above 24 ms, against the 16 ms target). Only consecutive Active samples contribute to interval statistics, excluding the slower acquisition/idle transitions. It explicitly notes when a preferred color was never detected during Active play. These counters continue to update even if the evidence queue drops records.
-
-## Evidence
-
-Each session lives under `%LOCALAPPDATA%/CuePilot/diagnostics/pickpocket/<UTC timestamp>-<id>/`:
-
-| File | Purpose |
-| --- | --- |
-| `REPORT.md` | Readable outcome, timing decisions, latency measurements, evidence health and exception context |
-| `summary.json` | Final observer status, last observation, counters and structured debug report |
-| `session.json` | Schema version, engine/OS version, selected process/policy, start time and evidence limits |
-| `trace.jsonl` | Active-frame decisions; slower idle samples; geometry, marker position, prediction deadlines, capture bounds/backend/detail, accumulated frames, image age, sample interval and sampled Space state |
-| `frames.jsonl` | Mapping from lossless PNGs to sample IDs, monotonic/presentation times, and `imageRegion` crop coordinates |
-| `frame-*.png` | Lossless minigame-panel crops; the whole captured region is used before the panel is located |
-
-No `summary.json` means finalization did not finish cleanly: inspect the flushed trace and session metadata. The final summary is written separately from the capped trace, so reaching the trace limit does not erase the stop reason. No files are uploaded or automatically deleted.
-
-Schema 3 preserves observation coordinates relative to the original capture. Subtract `imageRegion.x/y` to locate them in the saved PNG. The crop includes the header, item cards, bar, and Space prompt; the last panel crop is retained through disappearance when capture dimensions stay unchanged.
-
-## Timing and limits
-
-- Record every analyzed Active frame. Outside Active, record transitions and at most one periodic entry per 500 ms. The UI still updates at roughly 100 ms intervals rather than driving capture.
-- Request images on state transitions, candidates, completion, sampled Space edges, every 50 ms during Active, and every five seconds otherwise. Images are snapshots, not a complete video; use the trace for intermediate decisions.
-- Encoding and file writes run on a background worker. A full 128-entry queue drops evidence instead of blocking capture. At most four raw image copies may be pending.
-- Per session: 12,000 trace entries/32 MiB of trace and 128 PNGs/64 MiB of images. Sixteen image slots and 16 MiB are reserved for critical events. Every skipped record/image is surfaced in the report and UI; the summary continues collecting the statuses passed to the recorder after its trace cap.
-- Active sampling targets 16 ms with a cancellable Windows high-resolution waitable timer. It does not change global timer resolution or spin; overruns yield for at least 1 ms. Waiting/cooldown polling remains slower.
-- Space is polled only during recognized Active play, with a foreground-window check. Held keys are not counted once per frame. The recorded edge is the first observed down sample, not exact physical key delivery; very brief presses may be missed.
-- Prediction uses the existing simulated 0–16 ms input-delay envelope. Detector speed, a timing candidate, or a recorded Space edge does not prove live game acceptance. Actual automatic input latency remains uncalibrated.
-
-## Verified locally — 2026-09-03
-
-89 focused .NET pickpocket/bridge tests and 29 UI tests passed; Svelte check and production UI build passed. Tests cover saved crop pixels/coordinates, live observation replay, timer cancellation, final stop/focus-loss reasons, sampled Space presses, capture startup failure, unavailable storage, writer failure, and queue saturation.
-
-The first user-run live session (`20260903-234424-170fd25ae509469d8499234b952b3896`) recorded a manual grab in the blue region, one sampled Space press, and no candidates because Prefer purple was selected while no purple region existed. Active samples averaged 31.37 ms apart with about 9.25 ms of processing. Thirty full-region PNGs filled the 64 MiB budget and 26 images were skipped, including the ending.
-
-After the fixes, a bounded pacing benchmark with 9 ms simulated processing averaged 26.27 ms using the old wait and 16.36 ms using the new timer. This is not a new live capture measurement. The retained live frame crops from 1792×518 to 807×416; 56 copies of its 723,039-byte PNG would occupy 38.61 MiB. Real frames vary in size, so the critical-event reserve remains necessary. Replay of the saved live observations yields one Blue candidate, one Widest candidate on the return pass, and zero Purple candidates. Next: repeat one manual attempt with Automatic selected, then compare live cadence and evidence completeness.
-
-Offline follow-up: seven focused recorder tests pass, including two new checks for idle/acquisition exclusion, duplicate/missing samples, and absent/visible preferred colors. Three live-policy replay cases also pass stronger assertions: subsequent sampled positions place Blue/Widest delivery inside their selected regions at simulated delays of 0, 8, and 16 ms. This does not measure real key acceptance. These report additions are included in the refreshed one-tap development build.
-
-One-tap batch: 116 focused engine/bridge/worker tests passed, followed by one additional Stop-before-start regression. Thirty UI tests, Svelte check (zero errors/warnings), and production build passed. Tests cover one down/up pair, release after cancellation, failed release retry, expired/future/stale timing rejection, final validation failure, manual disarming, Observe sending nothing, and starting mid-attempt sending nothing. Keyboard output is mocked in behavioral tests; scan-code construction is checked without sending native keys. UI mode selection is verified through the development bridge without starting capture.
+The detailed 2026-09-04 calibration chronology, including session identifiers,
+older timing proposals, and contemporaneous test counts, is preserved in
+[history/pickpocket-calibration-2026-09-04.md](history/pickpocket-calibration-2026-09-04.md).
+Read [pickpocket-evidence.md](pickpocket-evidence.md) for the dated clip and
+live-session archive, and
+[history/pickpocket-plan-2026-09-03.md](history/pickpocket-plan-2026-09-03.md)
+for the original implementation plan.

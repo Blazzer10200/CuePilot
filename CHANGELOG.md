@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.3.6 - 2026-09-12 - Verification and development reliability
+
+- Organize current documentation, source navigation, and dated design/calibration records so setup and debugging guidance are easier to find.
+- Preserve independent production builds during development-launcher cleanup and restrict cleanup to the current checkout's development processes.
+- Include browser interaction tests in the full verification gate, check all six version files, and identify staged changes and deleted files in verification receipts.
+- Report the local package matching the source version, including its location, instead of defaulting to an older release mirror.
+- Limit diagnostics log reads and avoid loading screenshots that exceed the display budget, reducing disk and memory work when reviewing large sessions.
+- Preserve settings backups, replay evidence, and compiler caches during default workspace cleanup.
+
+## 5.3.5 - 2026-09-07 - Pickpocket detection recovery
+
+- Fixed visible Pickpocket bars going undetected against green scenery after starting with F7. A bounded recovery scan separates the marker from surrounding grass while preserving recognition of partly covered markers and verifying the status header.
+- Explain when capture fallback prevents automatic timing, and distinguish an already-visible bar from waiting for a new minigame. Keep the preparation, fresh-frame, foreground, cooldown, and one-tap safety gates.
+- Added regression coverage from a failed live session, including the matching scene without a minigame and a missing-header rejection. Saved timing and item priorities are unchanged.
+
 ## 5.3.4 - 2026-09-04 - Public release validation
 
 - Includes the Pickpocket, History, Support Center, and workspace improvements from 5.3.0 through 5.3.3 in the public release channel.

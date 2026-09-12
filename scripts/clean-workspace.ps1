@@ -22,12 +22,10 @@ if (-not ($BuildOutputs -or $StaleReleaseArtifacts -or $ReleaseArtifacts -or $De
 $targets = [System.Collections.Generic.List[string]]::new()
 if ($BuildOutputs) {
     @(
-        "tmp",
         "bin",
         "obj",
         "ui/dist",
-        "ui/src-tauri/resources/engine",
-        "ui/src-tauri/target"
+        "ui/src-tauri/resources/engine"
     ) | ForEach-Object { $targets.Add((Join-Path $repoRoot $_)) }
 
     Get-ChildItem -LiteralPath $repoRoot -Directory -Filter "publish*" -ErrorAction SilentlyContinue |
@@ -155,6 +153,7 @@ if (-not $Apply) {
     Write-Host "The current release is preserved unless -ReleaseArtifacts is supplied."
     Write-Host "Use -StaleReleaseArtifacts to select smoke and audit packages without selecting release/velopack."
     Write-Host "Dependency caches are preserved unless -Dependencies is supplied."
+    Write-Host "tmp/ is preserved because it may contain user-data backups, replay evidence, and the development Cargo cache."
     Write-Host "Cargo dependency caches are preserved; -CargoAppArtifacts selects only runnable CuePilot binaries and legacy installers."
     return
 }

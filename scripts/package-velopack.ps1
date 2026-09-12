@@ -6,6 +6,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'project-version.ps1')
 
 $repoRoot = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
 $outputRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDirectory))
@@ -18,12 +19,9 @@ if (-not $staging.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)
     throw "Unsafe staging path: $staging"
 }
 
-$tauriConfig = Get-Content -Raw (Join-Path $repoRoot 'ui\src-tauri\tauri.conf.json') | ConvertFrom-Json
-$npmPackage = Get-Content -Raw (Join-Path $repoRoot 'ui\package.json') | ConvertFrom-Json
-$cargoVersion = (Select-String -Path (Join-Path $repoRoot 'ui\src-tauri\Cargo.toml') -Pattern '^version = "([^"]+)"$').Matches[0].Groups[1].Value
-$dotnetVersion = (Select-String -Path (Join-Path $repoRoot 'CuePilot.csproj') -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
-if (-not $Version) { $Version = [string]$tauriConfig.version }
-$versions = @(@($tauriConfig.version, $npmPackage.version, $cargoVersion, $dotnetVersion, $Version) | Sort-Object -Unique)
+$versionInfo = Get-ProjectVersionInfo -RepositoryRoot $repoRoot
+if (-not $Version) { $Version = [string]$versionInfo.tauri }
+$versions = @(@($versionInfo.values + $Version) | Sort-Object -Unique)
 if ($versions.Count -ne 1) {
     throw "CuePilot versions are not synchronized: $($versions -join ', ')"
 }

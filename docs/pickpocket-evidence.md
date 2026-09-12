@@ -1,6 +1,13 @@
 # Pickpocket video evidence
 
-## Current evidence — 2026-09-03
+> This is a dated evidence archive. It preserves source clips, live-session
+> measurements, and their contemporaneous validation counts. Current operating
+> guidance is in [pickpocket-debugging.md](pickpocket-debugging.md), while the
+> active build and latest recovery result are in `HANDOFF.md`. Historical claims
+> that automatic input was unavailable or unverified describe their listed date
+> and do not override later verified automatic grabs.
+
+## Evidence index — 2026-09-03 onward
 
 User clarification after the UI review: item identities and positions are randomized on each attempt, and additional clips will show different items/layouts. Treat every popup as a new layout. The observed four colors, item order, spacing, and item-to-color mapping are properties of this recording only. Whether card slots themselves stay evenly spaced and how colors map across items still require more footage; do not assume either is invariant.
 

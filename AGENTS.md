@@ -19,6 +19,8 @@
 - `tests/` = xUnit engine/bridge test suite and fixture assets
 - `assets/` = model/vision helper assets
 - `docs/development.md` = canonical setup, verification, inspection, and release workflow
+- `docs/README.md` = documentation index and maintenance conventions
+- `docs/history/` = completed plans and acceptance records, not current instructions
 - `docs/activities.md` = activity boundary and readiness contract
 - `docs/code-map.md` = task-oriented call paths, edit points, and search recipes
 
@@ -55,6 +57,7 @@
 ## Search and navigation defaults
 - Use `rg` for code search.
 - Start unfamiliar or resumed work with `pwsh -NoProfile -File scripts/project-status.ps1`, then follow `HANDOFF.md` and `docs/code-map.md`.
+- Use `docs/README.md` to find maintained guides; run `pwsh -NoProfile -File scripts/verify.ps1 -Docs` after documentation/tooling edits.
 - `tmp/` is noise output from sessions and should be treated as non-source.
 - Generated Tauri schemas, dependency locks, build output, and CDP captures are excluded by `.rgignore`; address them explicitly when the task actually concerns them.
 - Preview repository cleanup with `pwsh -NoProfile -File scripts/clean-workspace.ps1`; dependency caches are opt-in and should normally be preserved for faster iteration.

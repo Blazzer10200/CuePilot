@@ -17,8 +17,13 @@ npm run cdp:serve
 ```
 
 The launcher uses a separate WebView profile and handles elevated shells by
-starting the dev app at medium integrity. It stops only development processes
-whose executable path belongs to CuePilot's Cargo target.
+starting the dev app at medium integrity. Cleanup targets the repository's
+development executable and explicit Tauri development process tree. Independent
+Vite production builds are preserved. Run the synthetic ownership regressions
+with `pwsh -NoProfile -File scripts/run-dev-inspectable.Tests.ps1` from `ui/`.
+
+See the [documentation index](../../../docs/README.md) for the broader workflow
+and the [development guide](../../../docs/development.md) for verification gates.
 
 ## Core workflow
 

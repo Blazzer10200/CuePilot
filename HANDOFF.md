@@ -1,65 +1,73 @@
-# Handoff — CuePilot — 2026-09-04 20:37 CDT
+# Handoff — CuePilot 5.3.6 — 2026-09-12
 
 ## Current Objective
 
-- CuePilot 5.3.4 is published as the latest stable GitHub release. Source, public downloads, update feed, release notes, and local release copies are verified. No further publication work remains.
+The documentation, verification, diagnostics, local installation, and cleanup batch is complete. Start with [docs/README.md](docs/README.md), the [code map](docs/code-map.md), and [current backlog](docs/product-backlog.md).
 
 ## Current State
 
-- Source manifests and public packages are 5.3.4, tagged at `6f569db7a867cbe114fd39de50d4c8e275556e04` on GitHub `main`. Release: https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.4.
-- Public installer, full/delta updater packages, portable ZIP, feed, checksums, and manifest are mirrored in `release/velopack/`. A hash-verified `CuePilot-5.3.4-Setup.exe` is on the Desktop.
-- The installed app remains the previously verified 5.3.3 build; publication did not reinstall it. Its Desktop shortcut points to `%LOCALAPPDATA%/CuePilotDesktop/current/cuepilot-ui.exe`. It can update to public 5.3.4 through the update center.
-- Windows inspection previously verified the installed 5.3.3 UI showing Local Engine Online and Idle · input off. The 5.3.4 patch changes test isolation, CI failure handling, documentation, and version metadata; runtime detection/input behavior is unchanged.
-- Settings and `pickpocket-state.json` SHA-256 hashes matched their pre-install values.
-- Fishing remains accepted and parked. Lockpicking remains observe-only. Saved Pickpocket timing remains unchanged; Yellow 14 ms is still an unverified proposal.
+- Source versions are 5.3.6 across all six release files, including both root npm lockfile fields and the exact Cargo lockfile application entry.
+- CuePilot 5.3.6 is installed in the normal Windows user session. The previous registered 5.3.5 installation was uninstalled. One 5.3.6 registration remains, and the duplicate Codex-redirected 5.3.5 payload was removed.
+- The installed shell and engine hashes match the new full package. Headless self-test and a protocol-1 stopped/disarmed bridge snapshot passed. A normal visible launch produced a responsive CuePilot window and its owned installed engine.
+- Settings remained byte-for-byte unchanged. All 126 pre-install history entries remained unchanged; a new post-launch attempt increased History to 127. Do not restore the older backup over new activity.
+- Current installer and full package: `release/velopack-5.3.6/`. Install and startup proof: `release/velopack-5.3.6/installed-verification.json`.
+- The batch includes the previously uncommitted 5.3.5 recovery and the subsequent documentation/tooling work. The user authorized committing and pushing the complete batch to the configured `origin/main` destination; no release tag or public installer publication was requested.
 
 ## Recent Relevant Changes
 
-- Shared FiveM window, Settings, and Diagnostics toolbar across activities, with active-run guards, safe stop before navigation, and dialog focus restoration.
-- Compact readable Home rows, larger descriptions and labels, amber calibration styling, and truthful disconnected indicators.
-- Explicit Pickpocket idle/observing/armed/tap-sent/cooldown/disconnected states; dated saved results, save feedback across controls, and secondary technical measurements.
-- Diagnostics initially selects the current activity. Lockpicking setup guidance stays in its workspace.
-- Responsive regression coverage includes 760×620, 820×700, 900×700, and 1180×760, plus shared tools, state labels, save failures, and keyboard focus.
+- Organized maintained documentation, linked source navigation, a short actionable backlog, and dated design/calibration history. Original plan URLs remain as compatibility landing pages.
+- Receipts now identify staged, unstaged, deleted, and untracked content, retain the dirty-tree fingerprint fields, and separately record index identity. Fixtures cover mixed changes, Unicode paths, repeat stability, and safe temporary cleanup.
+- A shared six-file version reader serves project status, packaging, and the release tag gate. Package status shows the matching versioned manifest rather than an older mirror.
+- `verify.ps1 -Browser` runs the existing Edge/Playwright suite; default and `-All` include it. Both GitHub workflows now run documentation/tooling and browser checks.
+- Launcher cleanup requires the exact checkout Tauri `dev` command and owned process descendants or exact development executable paths; independent Vite builds and other installations are preserved.
+- Diagnostics use a bounded 256 KiB log tail. Screenshot reads enforce the existing per-image/aggregate budgets on actual bytes, including growth after metadata inspection.
+- Default workspace cleanup preserves `tmp/`, user-data backups, replay evidence, and Cargo caches.
 
 ## Verification
 
-- Full local `scripts/verify.ps1 -All` passed on 5.3.4: 435 .NET tests, headless self-test, 42 UI unit tests, zero Svelte diagnostics, production frontend build, Rust format/Clippy, and 14 Rust tests. All 20 Playwright scenarios passed again.
-- GitHub Build run `33935668623` and Release run `33935825378` succeeded at the tagged source. The published release is stable and latest.
-- All eight public assets were downloaded without authentication and matched their GitHub SHA-256 digests. Installer/full-package manifest hashes, full/delta feed SHA-256/SHA-1 hashes, sizes, and packaged executable versions matched. The downloaded engine self-test passed.
-- Local verification and publication receipts are in `release/velopack/verification-receipt.json` and `release/velopack/publication-receipt.json`.
-- Public Setup SHA-256: `4b0a6cc977839464cee3975e451d07cd94ac4bba073ddfd3fa99e2932cbb6c42`.
-- Public full package SHA-256: `79edf5e156416a146cb17121e4fada648473f15eab048fef17ed8e5d96683338`.
+- Full `scripts/verify.ps1 -All` passed in about 153 seconds.
+- .NET Release build: zero warnings/errors; 438 tests passed; headless self-test passed.
+- Frontend: 42 unit tests; zero Svelte errors/warnings; production build passed.
+- Browser: all 20 Playwright scenarios passed, including compact/intermediate layouts, History, settings, focus, disconnected states, and save failures.
+- Rust: format and Clippy with warnings denied passed; all 17 tests passed.
+- Docs/tooling: local links, 4 link-checker tests, 4 package-selection scenarios, 5 version assertions, 16 receipt assertions, and 11 launcher assertions passed. Final receipt regressions also cover empty/single-file array shape.
+- Native development WebView: rendered 5.3.6, engine online, no console errors, Home/Pickpocket fitting at 1180×760, idle/input-off state, and Detection Review opening successfully.
+- Saved grass-scene replay: two frames, zero mismatches, zero hypothetical presses. No gameplay input was sent by this task.
+- Packaging passed; installed payload/registration/self-test/bridge checks passed. The installed release was not inspected using computer-use automation.
+- Bounded code review found no remaining actionable findings in the changed engine, diagnostics, launcher, verification, and CI paths. Regression images were visually checked for unrelated private overlays.
+- Local logs and receipts are under `tmp/host-536/`; GitHub workflow results should be checked against the release commit.
 
-## Known Problems
+## Cleanup
 
-- An initial hidden launch hung before starting the engine. Restarting the exact hung shell with a normal visible launch restored the engine; bringing the window forward made the app visible over FiveM. No source change was needed for this recovery.
-- Automatic approval review rejected the combined old-release deletion/promotion command with “blocked by policy.” No deletion occurred. The new artifacts were copied into the official release directory instead.
-- Old 5.3.2/5.3.3 full packages, duplicate 5.3.3 staging under `release/velopack-next/`, and disposable development executables remain. No cleanup deletion was retried during publication.
-- The 5.3.3 tag remains as the failed publication attempt: parallel detector suites exceeded wall-clock timing budgets in CI. The 5.3.4 tests isolate Fishing suites without changing the 60 ms meter or 250 ms prompt limits; both GitHub jobs then passed.
-- The public release remains unsigned. Item identity is the planned target; inventory acquisition is not independently verified.
+- Removed 21 inspected obsolete package/profile/install targets: about 785 MiB.
+- Removed about 324 MiB of disposable build outputs: total recovery approximately 1.08 GiB.
+- Retained the 5.3.6 installer/feed/full package, small historical receipts, diagnostic evidence, settings backups, dependency/compiler caches, and source.
+- Older release directories retain historical metadata but no longer contain their installer/package payloads. Do not treat those old manifests as available installers.
+- The supported installed Desktop shortcut remains. Temporary installation/inventory/launch tasks and the inspection wrapper were removed/stopped.
+
+## Known Problems / Limits
+
+- The first background shortcut launch did not remain healthy; a normal visible relaunch recovered a responsive window and engine. A Windows AppHang event was recorded. If it recurs, investigate startup/WebView evidence rather than changing gameplay timing.
+- Narrow-target Pickpocket timing and occasional DXGI capture failure still need fresh live-session evidence. This batch preserved calibration and input safety gates.
+- Lockpicking remains observe-only; Fishing remains accepted and parked.
+- Stage/package before starting development watchers to avoid transient engine-resource locks.
+- Codex MSIX redirection can mislead installer checks. Use normal-user host verification for installations.
 
 ## Next Actions
 
-1. No further UI or GitHub release work is required for this batch.
-2. Remove retained old/staged build artifacts only when a permitted deletion path is available. Preserve source, settings, gameplay evidence, and dependency caches.
-3. Gameplay calibration remains separate work. The installed 5.3.3 app may use the published update to 5.3.4 when desired.
-
-## Relevant Files
-
-- `ui/src/App.svelte`, `ui/src/app.css`, `ui/src/lib/SupportCenter.svelte`.
-- `ui/src/lib/activities/ActivityPicker.svelte`, `LockpickingWorkspace.svelte`, `PickpocketWorkspace.svelte`, `PickpocketLiveWorkspace.svelte`.
-- `ui/src/dev/scenarios.ts`, `ui/e2e/ui-polish.spec.ts`, `ui/e2e/workspaces.spec.ts`.
-- `CHANGELOG.md`, `docs/development.md`, `docs/code-map.md`, `docs/product-backlog.md`.
+1. Use the installed CuePilot shortcut. Preserve any new failed diagnostic session before changing detector thresholds or timing.
+2. Keep documentation/tooling gates current; use the full gate for runtime releases.
+3. Build outputs were cleaned after verification; rebuild before running source-tree engine executables.
+4. Use GitHub run status for this commit to distinguish local verification from hosted CI.
 
 ## Canonical Commands
 
-- `pwsh -NoProfile -File scripts/verify.ps1 -All`
-- `npm --prefix ui run test:e2e`
-- `pwsh -NoProfile -File scripts/package-velopack.ps1`
-- `pwsh -NoProfile -File scripts/project-status.ps1 -AsJson`
+- Orientation: `pwsh -NoProfile -File scripts/project-status.ps1`
+- Docs/tooling: `pwsh -NoProfile -File scripts/verify.ps1 -Docs`
+- Browser only: `pwsh -NoProfile -File scripts/verify.ps1 -Browser`
+- Full gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
 
 ## Important Decisions
 
-- .NET remains authoritative for capture, detection, input, safety, and persisted facts.
-- Only the official installed shortcut is the user launch path; development and raw build outputs are not replacement shortcuts.
-- Prior snapshot preserved at `C:/Users/BLAZZER/.codex/archive/handoffs/WorkflowLooper/HANDOFF-20260904-203637-before-github-534.md`.
+- No Windows computer-use automation; source, CLI, and the local development bridge remain the inspection routes.
+- Previous snapshot preserved under `$CODEX_HOME/archive/handoffs/WorkflowLooper/HANDOFF-20260912-before-release536-6d9cc7412e2042aea743f07649512d46.md`.

@@ -24,7 +24,12 @@ An activity becomes **Ready for automatic input** only after it has:
 4. activity-specific settings and local diagnostics where needed;
 5. a complete live minigame smoke test.
 
-Until those conditions pass, do not label the activity Ready. Pickpocket's user-authorized live calibration exposes an explicitly selected one-attempt test: it defaults to observation, requires a new Preparing state, sends at most one bounded tap, and disarms on completion, manual input, Stop, or error. This test mode is not a release claim of calibrated automatic input. Other activities retain their existing input gates.
+Until those conditions pass, do not label the activity Ready. Pickpocket remains
+calibration-only: it defaults to observation and its explicitly selected
+one-attempt modes require a new Preparing state, send at most one bounded tap,
+and disarm on completion, manual input, Stop, or error. Successful automatic
+wide-target delivery is evidenced, but that does not make narrow-target timing
+generally calibrated. Other activities retain their existing input gates.
 
 ## Current activities
 
@@ -32,9 +37,17 @@ Until those conditions pass, do not label the activity Ready. Pickpocket's user-
 
 The live workspace reads the current regions and marker through the .NET observer. Default selection is the widest upcoming detected region; an optional preferred color selects a region without claiming an item identity. Layouts are reacquired every popup, including uneven spacing and repeated known colors. The reference tab retains the explicitly labeled Luxury Watch recording and its local saved selection.
 
-Capture, presentation age, analysis timing, bounded evidence, and an engine-owned three-minute cooldown are connected through the bridge. A recognized grab/miss or three missing frames after Active starts cooldown; it survives stop/restart in the same engine process. Focus loss or a ten-minute limit ends the run. Two manual live grabs verified the detector, 16.8 ms sampling cadence, and complete result capture.
+Capture, presentation age, analysis timing, bounded evidence, and an engine-owned three-minute cooldown are connected through the bridge. A recognized grab/miss or three missing frames after Active starts cooldown; the persisted cooldown survives app restart when its state can be saved and restored. Focus loss or a ten-minute limit ends the run. Two manual live grabs verified the detector, 16.8 ms sampling cadence, and complete result capture.
 
-The user authorized the next controlled automatic test. Select **One-tap test · auto Space**, choose a target, then F7 before starting a new minigame. Observation remains the startup default. The engine requires a fresh Preparing state, a verified DXGI prediction, a generous delivery margin, unchanged foreground window/bounds, and no physical Space press or cooldown. It waits no more than 16 ms before a final gate check and sends one 35 ms Space tap with owned-key release. Stop closes the gate before awaiting cleanup; cancellation/focus loss never blocks releasing owned Space. Stop preserves the selected mode, but only a new explicit F7 start arms another attempt. Actual key-delivery acceptance remains to be validated live; see `docs/pickpocket-debugging.md`.
+Observation remains the startup default. The selected automatic mode requires a
+fresh Preparing state, verified DXGI prediction, unchanged foreground window
+and bounds, no physical Space press, and no cooldown. It performs a final gate
+check before one owned 35 ms Space tap; Stop, cancellation, or focus loss closes
+the gate and releases that key. Stop preserves the selected mode, but only a
+new explicit F7 start arms another attempt. Use
+[Pickpocket debugging](pickpocket-debugging.md) for current operating guidance;
+the historical plan and evidence remain under `docs/history/` and
+[pickpocket-evidence.md](pickpocket-evidence.md).
 
 ### Fishing — Ready
 

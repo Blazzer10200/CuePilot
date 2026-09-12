@@ -1,7 +1,9 @@
 param(
     [switch]$DotNet,
     [switch]$Ui,
+    [switch]$Browser,
     [switch]$Rust,
+    [switch]$Docs,
     [switch]$All
 )
 
@@ -17,13 +19,33 @@ function Assert-NativeSuccess {
 if ($All) {
     $DotNet = $true
     $Ui = $true
+    $Browser = $true
     $Rust = $true
+    $Docs = $true
 }
 
-if (-not ($DotNet -or $Ui -or $Rust)) {
+if (-not ($DotNet -or $Ui -or $Browser -or $Rust -or $Docs)) {
     $DotNet = $true
     $Ui = $true
+    $Browser = $true
     $Rust = $true
+    $Docs = $true
+}
+
+if ($Docs) {
+    Write-Host 'docs: local links and repository-tool regressions'
+    node scripts/check-docs.cjs
+    Assert-NativeSuccess
+    node --test scripts/check-docs.test.cjs
+    Assert-NativeSuccess
+    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'project-package.test.ps1')
+    Assert-NativeSuccess
+    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'project-status.test.ps1')
+    Assert-NativeSuccess
+    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'write-verification-receipt.test.ps1')
+    Assert-NativeSuccess
+    & pwsh -NoProfile -File (Join-Path $repoRoot 'ui/scripts/run-dev-inspectable.Tests.ps1')
+    Assert-NativeSuccess
 }
 
 if ($DotNet) {
@@ -59,6 +81,23 @@ if ($Ui) {
     npm run build
     Assert-NativeSuccess
     Pop-Location
+}
+
+if ($Browser) {
+    Write-Host 'browser: Playwright end-to-end scenarios (installed Microsoft Edge)'
+    Push-Location (Join-Path $repoRoot 'ui')
+    try {
+        if (-not (Test-Path 'node_modules')) {
+            Write-Host 'node_modules missing: npm install'
+            npm install
+            Assert-NativeSuccess
+        }
+        npm run test:e2e
+        Assert-NativeSuccess
+    }
+    finally {
+        Pop-Location
+    }
 }
 
 if ($Rust) {

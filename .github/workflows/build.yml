@@ -28,6 +28,10 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - name: Documentation and developer-tool checks
+        shell: pwsh
+        run: pwsh -NoProfile -File .\scripts\verify.ps1 -Docs
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -64,6 +68,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           npm test
           npm run check
+          npm run test:e2e
 
       - name: Rust format and bridge tests
         run: |

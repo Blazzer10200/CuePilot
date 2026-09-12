@@ -135,7 +135,10 @@ public sealed class PickpocketSessionStateTests
             Prediction = PickpocketTimingPrediction.Wait("Target center has already passed.", 400) };
         Assert.Contains("first sweep for yellow", PickpocketProgress.Describe(status, true, false));
         Assert.Equal("Waiting for yellow on the return.", PickpocketProgress.Describe(status, true, true));
-        Assert.Contains("start a new pickpocket", PickpocketProgress.Describe(status, false, false));
+        Assert.Contains("Bar detected", PickpocketProgress.Describe(status, false, false));
+        Assert.Contains("start a new pickpocket", PickpocketProgress.Describe(status with { Observation = PickpocketObservation.Missing }, false, false));
+        Assert.Contains("capture is using the fallback", PickpocketProgress.Describe(status with { CaptureBackend = "Desktop GDI" }, true, false));
+        Assert.Contains("Space stays manual", PickpocketProgress.Describe(status with { InputMode = "Observe", CaptureBackend = "Desktop GDI" }, true, false));
         Assert.Contains("Space sent", PickpocketProgress.Describe(status with { InputDelivery = new("Sent", "Internal detail") }, true, true));
         Assert.Equal("Window changed; shot skipped.", PickpocketProgress.Describe(status with { InputDelivery = new("Skipped", "Window changed; shot skipped.") }, true, true));
         Assert.Contains("cooldown", PickpocketProgress.Describe(status with { State = "Cooldown" }, true, true));

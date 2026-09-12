@@ -10,7 +10,9 @@ CuePilot has three runtime layers. Keep their responsibilities separate so UI wo
 
 The layers communicate through the versioned newline-JSON bridge. A bridge change is complete only when its .NET command/response, Rust transport, Svelte client, and focused tests agree.
 
-Use the task-oriented [code map](code-map.md) before broad searches. It lists the Fishing, Lockpicking, bridge, UI, and packaging call paths plus their matching tests.
+Use the [documentation index](README.md) to choose a guide and the task-oriented
+[code map](code-map.md) before broad searches. It lists the Fishing, Lockpicking,
+Pickpocket, bridge, UI, and packaging call paths plus their matching tests.
 
 ## Prerequisites
 
@@ -42,6 +44,17 @@ Run the complete local gate before handing off a batch:
 pwsh -NoProfile -File .\scripts\verify.ps1 -All
 ```
 
+For documentation and repository-tool changes, use the bounded gate:
+
+```powershell
+pwsh -NoProfile -File .\scripts\verify.ps1 -Docs
+```
+
+This checks local Markdown file/heading links and developer-tool regressions.
+It needs Node.js and PowerShell, but no frontend dependencies or running app.
+The default/full gate and both CI workflows include it. External URLs and plain-text source references
+are outside the link check; inspect those when their subject changes.
+
 After a gate, write a machine-readable receipt tied to the exact dirty content:
 
 ```powershell
@@ -49,8 +62,11 @@ pwsh -NoProfile -File .\scripts\write-verification-receipt.ps1 -Output .\tmp\ver
 pwsh -NoProfile -File .\scripts\project-status.ps1 -AsJson
 ```
 
-Use the measured duration when available. A later content change produces a
-different fingerprint, making the earlier receipt visibly stale.
+Use the measured duration when available. A later staged, unstaged, untracked,
+or deleted content change produces a different dirty-tree fingerprint. Receipts
+also retain separate staged, unstaged, and untracked path lists. Receipts are
+written by the explicit command above;
+project status does not automatically validate an earlier receipt.
 
 For a focused edit, use the matching gate first:
 
@@ -99,7 +115,7 @@ All activity pages share the FiveM window, Settings, and Diagnostics toolbar in 
 
 Pickpocket's status badge describes current input state independently of its selected run mode and saved result. Completed results carry a timestamp. Recording measurements are secondary to the next action and result; recording errors remain visible.
 
-Run `npm --prefix ui run test:e2e` for deterministic browser checks with no native gameplay input. The suite covers Home at 760×620, 820×700, 900×700, and 1180×760, activity layouts at minimum and intermediate sizes, settings and target focus, save failures, activity-specific diagnostics, and idle/observing/armed/tap-sent/cooldown/disconnected states. Browser scenarios do not establish native capture or gameplay accuracy; also inspect the development WebView before release.
+Run `npm --prefix ui run test:e2e` for deterministic browser checks with no native gameplay input. `scripts/verify.ps1 -Browser`, the default gate, and `-All` include the same Playwright scenarios using installed Microsoft Edge. The suite covers Home at 760×620, 820×700, 900×700, and 1180×760, activity layouts at minimum and intermediate sizes, settings and target focus, save failures, activity-specific diagnostics, and idle/observing/armed/tap-sent/cooldown/disconnected states. Browser scenarios do not establish native capture or gameplay accuracy; also inspect the development WebView before release.
 
 ## Brand assets
 
@@ -117,7 +133,7 @@ The script uses deterministic local resizing and rounded-corner masking; it does
 - Regression fixtures belong under `tests/CuePilot.Tests/Fixtures/` and should be limited to the visual evidence required by the test.
 - Review new fixtures for personal information, chat text, identifiers, and unrelated overlays before committing them.
 - Runtime traces and annotated evidence under `%LOCALAPPDATA%\CuePilot\diagnostics\` are local artifacts, not repository content.
-- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. The current release is preserved by default; `-StaleReleaseArtifacts` selects updater smoke/audit output and packaging staging while `-ReleaseArtifacts` selects the entire release directory. Dependency caches are preserved unless `-Dependencies` is supplied, `-Captures` selects generated CDP screenshots, and `-CargoAppArtifacts` removes only runnable CuePilot binaries and legacy installers from the configured Cargo target directory while preserving its dependency cache.
+- Use `pwsh -NoProfile -File .\scripts\clean-workspace.ps1` to preview disposable build directories. Add `-Apply` only when those exact paths are safe to remove. The default preserves `tmp/`, including user-data backups, replay evidence, and the development Cargo cache. The current release is preserved by default; `-StaleReleaseArtifacts` selects updater smoke/audit output and packaging staging while `-ReleaseArtifacts` selects the entire release directory. Dependency caches are preserved unless `-Dependencies` is supplied, `-Captures` selects generated CDP screenshots, and `-CargoAppArtifacts` removes only runnable CuePilot binaries and legacy installers from the configured Cargo target directory while preserving its dependency cache.
 
 ### Instrumented Fishing sessions
 
@@ -151,11 +167,16 @@ Before promoting another vehicle class, capture its own complete numbered and SP
 
 ## Release gate
 
-Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, `ui/src-tauri/Cargo.lock`, and `ui/src-tauri/tauri.conf.json`. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
+Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, both root metadata fields in `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, the exact `cuepilot-ui` package entry in `ui/src-tauri/Cargo.lock`, and `ui/src-tauri/tauri.conf.json`. The status and packaging guards enforce these fields. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
 
 Fishing detector tests use the nonparallel `Fishing timing` collection so wall-clock assertions do not measure contention with unrelated replay suites. The 60 ms tracked-meter and 250 ms prompt budgets remain enforced. Combined GitHub PowerShell validation steps enable native-command failure propagation so an earlier failure cannot be hidden by a later successful command.
 
-Public release 5.3.4 is tagged at `6f569db7a867cbe114fd39de50d4c8e275556e04`. Both GitHub workflows passed, and all eight public assets were downloaded and checked against GitHub digests, manifest hashes, updater feed hashes/sizes, and packaged executable versions. The downloaded engine self-test passed. The public packages are mirrored under `release/velopack/` with verification and publication receipts. The earlier 5.3.3 tag was not published; its CI timing failures were resolved in 5.3.4 without changing detector or input behavior.
+Use [CHANGELOG.md](../CHANGELOG.md) for release history and the current
+[handoff](../HANDOFF.md) for local package/install receipts. These historical
+receipts do not establish today's public feed state. `project-status.ps1` prefers
+a package matching the source version under `release/velopack-<version>/` or
+`release/velopack/`, and prints its manifest path; a fallback package is explicitly
+marked when its version differs from source.
 
 After the full automated gate and activity-specific live smoke test pass, build the same artifacts used by CI:
 

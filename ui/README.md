@@ -20,13 +20,15 @@ npm install
 npm run tauri:dev
 ```
 
-`tauri:dev` stages the current Debug engine before starting Tauri, preventing a
-stale sidecar. Run `npm test`, `npm run check`, and
+`tauri:dev` stages the current Release engine before starting Tauri, preventing
+a stale sidecar. Run `npm test`, `npm run test:e2e`, `npm run check`, and
 `cargo fmt --manifest-path src-tauri\Cargo.toml -- --check`,
 `cargo clippy --manifest-path src-tauri\Cargo.toml --all-targets -- -D warnings`,
 and `cargo test --manifest-path src-tauri\Cargo.toml` for the focused frontend and bridge gates.
 The root [development guide](../docs/development.md) documents the complete
-cross-layer verification and release workflow.
+cross-layer verification and release workflow. Current product status and
+historical design records are organized in the
+[documentation index](../docs/README.md).
 
 ## Focus-safe UI inspection
 

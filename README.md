@@ -79,7 +79,11 @@ dotnet run --project .\CuePilot.csproj -c Release -- --input-probe FiveM_b3258_G
 dotnet run --project .\CuePilot.csproj -c Release -- --replay-fishing .\tests\CuePilot.Tests\Fixtures\Fishing
 ```
 
-## Development
+## Documentation and development
+
+Use the [documentation index](docs/README.md) to find current guides, source
+routes, evidence, and completed design records. For the current checkout and
+next actions, read [HANDOFF.md](HANDOFF.md).
 
 From the repository root, install dependencies with `npm --prefix ui install` and run the desktop app with `npm --prefix ui run tauri:dev`. The complete local gate is:
 
@@ -92,7 +96,7 @@ See the [development guide](docs/development.md) for focused checks, architectur
 ## Project structure
 
 - `src/Application` — headless engine startup, persistence, and the versioned stdin/stdout bridge.
-- `src/Automation` — fishing and lockpicking detectors, temporal trackers, class profiles, controllers, and state machines.
+- `src/Automation` — Fishing, Lockpicking, and Pickpocket detectors, temporal trackers, class profiles, controllers, and state machines.
 - `src/Capture` — visible-desktop frame capture.
 - `src/Input` — foreground-only physical input delivery and safety checks.
 - `src/Platform` — Windows target resolution and interop.
@@ -100,7 +104,7 @@ See the [development guide](docs/development.md) for focused checks, architectur
 - `ui/src/lib/activities` — activity picker and minigame-specific workspaces.
 - `ui/src-tauri` — Tauri window, sidecar lifecycle, global shortcut, diagnostics access, and Velopack update service.
 - `scripts/package-velopack.ps1` — allowlisted release staging, Velopack packaging, checksums, and release manifest generation.
-- `tests/CuePilot.Tests` — fishing, lockpicking, migration, input, capture, and bridge contracts.
+- `tests/CuePilot.Tests` — Fishing, Lockpicking, Pickpocket, migration, input, capture, and bridge contracts.
 - `docs` — activity architecture, development workflow, and operator-facing project references.
 
 For task-oriented entry points and search recipes, use the [code map](docs/code-map.md).

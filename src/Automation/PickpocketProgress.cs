@@ -8,6 +8,10 @@ internal static class PickpocketProgress
         if (status.State == "Cooldown") return "Waiting for the three-minute cooldown. Input is off.";
         if (status.InputDelivery?.State == "Sent") return "Space sent. Waiting for the game result.";
         if (status.InputDelivery is { } delivery) return delivery.Detail;
+        if (status.InputMode != "Observe" && status.CaptureBackend == "Desktop GDI")
+            return "Precision timing unavailable: capture is using the fallback. Stop and restart Pickpocket; if it persists, use Borderless Windowed and check Diagnostics.";
+        if (status.InputMode != "Observe" && !preparationSeen && status.Observation.State == PickpocketVisualState.Active)
+            return "Bar detected, but the start of this minigame was not seen. Stop, then arm before opening the next pickpocket.";
         if (status.InputMode != "Observe" && !preparationSeen) return "Waiting for you to start a new pickpocket.";
         if (status.Observation.State == PickpocketVisualState.Preparing) return "Pickpocket starting. Watching for the moving bar.";
         if (status.Observation.State == PickpocketVisualState.Hidden) return "Waiting for the pickpocket bar.";
