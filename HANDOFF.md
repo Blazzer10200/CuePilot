@@ -10,7 +10,7 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | --- | --- |
 | Branch | `codex/release-complete` |
 | Source version | 5.3.10, synchronized across all six release files |
-| Published | Requested by the owner 2026-09-22: tag `v5.3.10` pushed, `.github/workflows/release.yml` publishes the GitHub release |
+| Published | **v5.3.10 public**, 2026-09-23 03:12 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.10), run 35812371777 green; Setup, Portable, full + delta nupkg, feed, manifest, sha256 all present |
 | Installed locally | **5.3.10**, installed 2026-09-22 with Setup `--silent` over a running 5.3.9 (stopped by exact install path), then relaunched at medium integrity; shell and sidecar came up |
 | Package | `release/velopack/` — 5.3.10 built 2026-09-22 21:55: Setup 45.6 MB, full 41.3 MB, delta from 5.3.9 1.9 MB |
 | Last full gate | `verify.ps1 -All` green 2026-09-22: docs 23 files / 163 links, dotnet 448, vitest 51, svelte-check 0/0, Playwright 23, clippy `-D warnings`, cargo 28 |
