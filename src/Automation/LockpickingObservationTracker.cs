@@ -189,8 +189,12 @@ internal sealed class LockpickingObservationTracker
         }
     }
 
-    private static double TargetDistance(LockpickingTargetObservation first, LockpickingTargetObservation second) =>
-        Math.Sqrt(Math.Pow(first.CenterX - second.CenterX, 2) + Math.Pow(first.CenterY - second.CenterY, 2));
+    private static double TargetDistance(LockpickingTargetObservation first, LockpickingTargetObservation second)
+    {
+        var dx = first.CenterX - second.CenterX;
+        var dy = first.CenterY - second.CenterY;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
 
     private LockpickingTargetObservation UpdateTrack(
         TargetTrack track,

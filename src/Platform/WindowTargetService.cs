@@ -102,6 +102,14 @@ internal static class WindowTargetService
         && !string.IsNullOrWhiteSpace(target.ProcessName)
         && target.ProcessName.StartsWith("FiveM", StringComparison.OrdinalIgnoreCase);
 
+    // Every capture sample and every input edge resolves the target. A full enumeration
+    // opens the process behind every visible window (FiveM alone runs dozens of browser
+    // helpers), so a confirmed match is remembered and revalidated with cheap window
+    // calls plus one process lookup, and the full scan runs only when that fails.
+    private sealed record CachedMatch(string ProcessName, int ConfiguredProcessId, string ConfiguredTitle, IntPtr Handle, uint ProcessId);
+
+    private static volatile CachedMatch? cachedMatch;
+
     internal static bool TryResolve(WindowTargetSettings target, out ResolvedWindowTarget resolved, out string detail)
     {
         if (!target.IsConfigured)
@@ -111,6 +119,78 @@ internal static class WindowTargetService
             return false;
         }
 
+        var match = TryCachedMatch(target);
+        if (match == IntPtr.Zero)
+        {
+            match = FindMatch(target, out var strongMatch);
+            cachedMatch = strongMatch && NativeMethods.GetWindowThreadProcessId(match, out var matchedProcessId) != 0
+                ? new CachedMatch(target.ProcessName, target.ProcessId, target.WindowTitle ?? string.Empty, match, matchedProcessId)
+                : null;
+        }
+
+        if (match == IntPtr.Zero || !NativeMethods.IsWindow(match) || !TryGetCaptureBounds(match, out var bounds))
+        {
+            cachedMatch = null;
+            resolved = default!;
+            detail = $"{target.ProcessName} is not running or has no captureable window.";
+            return false;
+        }
+
+        if (NativeMethods.GetWindowThreadProcessId(match, out var processId) == 0 || processId == 0)
+        {
+            cachedMatch = null;
+            resolved = default!;
+            detail = $"{target.ProcessName} window no longer has a valid process.";
+            return false;
+        }
+
+        resolved = new ResolvedWindowTarget(
+            match,
+            (int)processId,
+            target.ProcessName,
+            GetTitle(match),
+            bounds,
+            match == NativeMethods.GetForegroundWindow(),
+            NativeMethods.IsIconic(match));
+        detail = resolved.IsMinimized
+            ? $"{target.ProcessName} is minimized."
+            : $"Resolved {target.ProcessName} window 0x{match.ToInt64():X}.";
+        return bounds.Width > 0 && bounds.Height > 0;
+    }
+
+    private static IntPtr TryCachedMatch(WindowTargetSettings target)
+    {
+        var cached = cachedMatch;
+        if (cached is null
+            || !cached.ProcessName.Equals(target.ProcessName, StringComparison.OrdinalIgnoreCase)
+            || cached.ConfiguredProcessId != target.ProcessId
+            || !cached.ConfiguredTitle.Equals(target.WindowTitle ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            || !NativeMethods.IsWindow(cached.Handle)
+            || !NativeMethods.IsWindowVisible(cached.Handle)
+            || NativeMethods.GetWindowThreadProcessId(cached.Handle, out var processId) == 0
+            || processId != cached.ProcessId)
+        {
+            return IntPtr.Zero;
+        }
+
+        try
+        {
+            // Guards against the window's process exiting and its id being reused.
+            using var process = Process.GetProcessById((int)processId);
+            return process.ProcessName.Equals(target.ProcessName, StringComparison.OrdinalIgnoreCase)
+                ? cached.Handle
+                : IntPtr.Zero;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+            return IntPtr.Zero;
+        }
+    }
+
+    // Preference order: the configured process id, then the configured title, then the
+    // first window of the named process. Only the first two are stable enough to cache.
+    private static IntPtr FindMatch(WindowTargetSettings target, out bool strongMatch)
+    {
         IntPtr processMatch = IntPtr.Zero;
         IntPtr titleMatch = IntPtr.Zero;
         IntPtr fallbackMatch = IntPtr.Zero;
@@ -166,38 +246,12 @@ internal static class WindowTargetService
             }
         }, IntPtr.Zero);
 
-        var match = processMatch != IntPtr.Zero
+        strongMatch = processMatch != IntPtr.Zero || titleMatch != IntPtr.Zero;
+        return processMatch != IntPtr.Zero
             ? processMatch
             : titleMatch != IntPtr.Zero
                 ? titleMatch
                 : fallbackMatch;
-
-        if (match == IntPtr.Zero || !NativeMethods.IsWindow(match) || !TryGetCaptureBounds(match, out var bounds))
-        {
-            resolved = default!;
-            detail = $"{target.ProcessName} is not running or has no captureable window.";
-            return false;
-        }
-
-        if (NativeMethods.GetWindowThreadProcessId(match, out var processId) == 0 || processId == 0)
-        {
-            resolved = default!;
-            detail = $"{target.ProcessName} window no longer has a valid process.";
-            return false;
-        }
-
-        resolved = new ResolvedWindowTarget(
-            match,
-            (int)processId,
-            target.ProcessName,
-            GetTitle(match),
-            bounds,
-            match == NativeMethods.GetForegroundWindow(),
-            NativeMethods.IsIconic(match));
-        detail = resolved.IsMinimized
-            ? $"{target.ProcessName} is minimized."
-            : $"Resolved {target.ProcessName} window 0x{match.ToInt64():X}.";
-        return bounds.Width > 0 && bounds.Height > 0;
     }
 
     internal static bool IsTargetForeground(WindowTargetSettings target) =>
@@ -211,18 +265,6 @@ internal static class WindowTargetService
         && !NativeMethods.IsIconic(captured.Handle) && NativeMethods.GetForegroundWindow() == captured.Handle
         && NativeMethods.GetWindowThreadProcessId(captured.Handle, out var processId) != 0
         && processId == captured.ProcessId && TryGetCaptureBounds(captured.Handle, out var bounds) && bounds == captured.Bounds;
-
-    internal static bool TryGetHandle(WindowTargetSettings target, out IntPtr handle, out string detail)
-    {
-        if (TryResolve(target, out var resolved, out detail))
-        {
-            handle = resolved.Handle;
-            return true;
-        }
-
-        handle = IntPtr.Zero;
-        return false;
-    }
 
     private static bool Prefer(FiveMWindowTarget candidate, FiveMWindowTarget existing)
     {

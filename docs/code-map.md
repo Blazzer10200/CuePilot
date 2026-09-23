@@ -1,7 +1,17 @@
 # CuePilot code map
 
 Use this map to enter the repository by task instead of scanning the whole tree.
-See the [documentation index](README.md) for maintained guides and historical records.
+See the [documentation index](README.md) for maintained guides and historical
+records, [HANDOFF.md](../HANDOFF.md) for the current state of the checkout, and
+the [backlog](product-backlog.md) for the open-issue table.
+
+Routes below: [Fishing](#fishing-detection-or-timing) ·
+[Lockpicking](#vehicle-lockpicking) · [Engine/UI contract](#engineui-contract) ·
+[Pickpocket](#pickpocket-history-timing-and-evidence) ·
+[Shortcuts and notifications](#shortcuts-and-desktop-notifications) ·
+[Desktop UI](#desktop-ui) · [Updates and releases](#updates-and-releases) ·
+[Windows integration](#windows-integration-and-packaging) ·
+[Maintenance tools](#repository-maintenance-tools)
 
 For a ten-second orientation pass (branch, version sync, handoff, package, and
 working tree), run:
@@ -28,9 +38,14 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 
 1. [src/Automation/AdaptiveRoutineEngine.cs](../src/Automation/AdaptiveRoutineEngine.cs) — Cast → meter → collect orchestration and safety gates.
 2. [src/Automation/FishingPromptDetector.cs](../src/Automation/FishingPromptDetector.cs) — Cast and Keep Fish prompt recognition.
-3. [src/Automation/FishingMeterDetector.cs](../src/Automation/FishingMeterDetector.cs) — meter identity, tracking, feedback, and numeric diagnostics.
-4. [src/Diagnostics/FishingDebugSession.cs](../src/Diagnostics/FishingDebugSession.cs) — bounded session evidence.
+3. [src/Automation/FishingMeterDetector.cs](../src/Automation/FishingMeterDetector.cs) — meter identity, tracking, feedback, numeric diagnostics, and `FishingTensionController` (pulse timing, scaled to the measured sample cadence).
+4. [src/Diagnostics/FishingDebugSession.cs](../src/Diagnostics/FishingDebugSession.cs) — bounded session evidence, including per-sample `captureMilliseconds`.
 5. [tests/CuePilot.Tests/FishingPromptTests.cs](../tests/CuePilot.Tests/FishingPromptTests.cs) and `FishingMeterTests.cs` — regressions and live fixtures.
+
+If taps feel sparse, check sample latency before touching controller tuning:
+[src/Capture/DxgiFrameSource.cs](../src/Capture/DxgiFrameSource.cs) (region copy,
+GPU priority) and [src/Platform/WindowTargetService.cs](../src/Platform/WindowTargetService.cs)
+(cached target resolve) set it. `--capture-probe` measures it.
 
 ### Vehicle lockpicking
 
@@ -78,6 +93,16 @@ foreach ($advance in 8, 14, 17, 20) {
 pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.json>
 ```
 
+### Shortcuts and desktop notifications
+
+1. [ui/src/lib/hotkeys.ts](../ui/src/lib/hotkeys.ts) — key naming, the supported-code table, keyboard/mouse capture outcomes, and conflict detection (vitest in `hotkeys.test.ts`).
+2. [ui/src/lib/HotkeyCapture.svelte](../ui/src/lib/HotkeyCapture.svelte) — the click-to-capture Settings field; calls `shortcut_capture` so the shell releases its keys while listening.
+3. [ui/src-tauri/src/mouse_shortcuts.rs](../ui/src-tauri/src/mouse_shortcuts.rs) — Windows low-level mouse hook for Mouse 4 / Mouse 5 / middle bindings; bound presses are swallowed.
+4. [ui/src-tauri/src/engine_bridge.rs](../ui/src-tauri/src/engine_bridge.rs) — keyboard slot registration, mouse routing, capture suspension, and shortcut labels.
+5. [ui/src-tauri/src/notifications.rs](../ui/src-tauri/src/notifications.rs) — readiness and shortcut-confirmation popups, preferences, sound, and the click-through notification window pump.
+6. [ui/src/lib/NotificationSettings.svelte](../ui/src/lib/NotificationSettings.svelte) and [ui/src/Overlay.svelte](../ui/src/Overlay.svelte) — preferences with previews, and the popup presentation.
+7. [src/Application/AppSettings.cs](../src/Application/AppSettings.cs) — engine-side binding validation and display text; [ui/e2e/hotkeys.spec.ts](../ui/e2e/hotkeys.spec.ts) and [ui/e2e/notifications.spec.ts](../ui/e2e/notifications.spec.ts) cover the Settings flows.
+
 ### Desktop UI
 
 1. [ui/src/App.svelte](../ui/src/App.svelte) — shared activity navigation and target/settings/diagnostics toolbar, Fishing workspace, and dialogs with focus restoration.
@@ -85,7 +110,7 @@ pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.jso
 3. [ui/src/lib/activities/ActivityPicker.svelte](../ui/src/lib/activities/ActivityPicker.svelte) — launch library.
 4. [ui/src/lib/activities/LockpickingWorkspace.svelte](../ui/src/lib/activities/LockpickingWorkspace.svelte) — Lockpicking controls and live telemetry.
 5. [ui/src/app.css](../ui/src/app.css) — shared product styling.
-6. [.agents/skills/cuepilot-ui/SKILL.md](../.agents/skills/cuepilot-ui/SKILL.md) and `ui/scripts/cdp/` — focus-safe live inspection.
+6. [.agents/skills/cuepilot-ui/SKILL.md](../.agents/skills/cuepilot-ui/SKILL.md) and `ui/scripts/cdp/` — focus-safe live inspection. The Claude-side copy is the untracked `.claude/skills/cuepilot-ui/SKILL.md`; both drive the same `c.sh`.
 7. [ui/e2e/ui-polish.spec.ts](../ui/e2e/ui-polish.spec.ts) and [ui/e2e/workspaces.spec.ts](../ui/e2e/workspaces.spec.ts) — responsive layout, shared controls, live-state wording, save feedback, and keyboard-focus regressions using isolated scenarios.
 
 ### Updates and releases
@@ -97,6 +122,12 @@ pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.jso
 5. [.github/workflows/release.yml](../.github/workflows/release.yml) — tag gate, prior delta baseline, publication, and public asset/feed verification.
 6. [scripts/test-velopack-update.ps1](../scripts/test-velopack-update.ps1) — disposable installed 5.2.0 → 5.2.1 delta/apply/relaunch/cleanup test under a separate package identity.
 7. [ui/src/lib/updates.svelte.test.ts](../ui/src/lib/updates.svelte.test.ts) and Rust tests in `update_service.rs` — focused updater contracts.
+
+### Launch and startup timing
+
+- [ui/src-tauri/src/lib.rs](../ui/src-tauri/src/lib.rs) — `record_startup_phase` and the ordered markers it writes (`velopack_done`, `builder_ready`, `plugins_ready`, `setup_begin`, `notifications_ready`, `setup_end`, `ui_first_command`). Read them from the `startup` lines in `%LOCALAPPDATA%\CuePilot\diagnostics\shell.jsonl`; this is the only launch instrumentation a release build has, since there is no CDP.
+- [ui/src-tauri/src/splash.rs](../ui/src-tauri/src/splash.rs) — the Win32/GDI window covering the seconds before WebView2 paints. Shown right after Velopack, hidden on the webview's first command, and bounded by a lifetime timer. It draws no web content on purpose: the browser engine is what the launch is waiting on.
+- [ui/src-tauri/tauri.conf.json](../ui/src-tauri/tauri.conf.json) — the main window's `backgroundColor`, which is all that shows behind the splash.
 
 ### Windows integration and packaging
 

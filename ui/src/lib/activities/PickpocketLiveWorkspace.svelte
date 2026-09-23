@@ -23,7 +23,7 @@
   function setWorkspace(history: boolean) { historyOpen = history; window.scrollTo({ top: 0 }); }
   let view = $state<"Run" | "Timing" | "Items" | "Priority">("Run");
   let showMeasurements = $state(false);
-  let redAdvanceMs = $state(8);
+  let redAdvanceMs = $state(11);
   let yellowAdvanceMs = $state(20);
   let customPriority = $state<PickpocketColor[]>([...defaultPriority]);
   let selectedHistoryId = $state("");
@@ -42,7 +42,7 @@
     if (!pending && status) {
       policy = status.targetPolicy;
       inputMode = status.inputMode ?? "Observe";
-      redAdvanceMs = status.redAdvanceMs ?? 8;
+      redAdvanceMs = status.redAdvanceMs ?? 11;
       yellowAdvanceMs = status.yellowAdvanceMs ?? 20;
       customPriority = [...(status.customPriority ?? defaultPriority)];
       itemPriority = [...(status.itemPriority ?? defaultItemPriority)];
@@ -139,11 +139,12 @@
     <div class="strategy"><span>{inputMode === "Observe" ? "Manual Space" : "One automatic press"}</span><span>{inputMode === "PrecisionAttempt" ? "Thin targets · survey first" : inputMode === "SingleAttempt" ? "Wide windows only" : "Input stays off"}</span><span>{policy === "Widest" ? "Widest ignores item rank" : "Color rank → known item rank → width"}</span></div>
     {:else if view === "Timing"}
       <div class="run-options">
-        <div><label for="pp-red-advance">Red · earlier by</label><select id="pp-red-advance" bind:value={redAdvanceMs} onchange={changePolicy} disabled={observing || pending || !connected}>{#each Array.from({length:21}, (_, i) => i) as ms}<option value={ms}>{ms} ms{ms === 8 ? " · red-tested" : ""}</option>{/each}</select></div>
+        <div><label for="pp-red-advance">Red · earlier by</label><select id="pp-red-advance" bind:value={redAdvanceMs} onchange={changePolicy} disabled={observing || pending || !connected}>{#each Array.from({length:21}, (_, i) => i) as ms}<option value={ms}>{ms} ms{ms === 11 ? " · default" : ms === 8 ? " · red-tested" : ""}</option>{/each}</select></div>
         <div><label for="pp-yellow-advance">Yellow · earlier by</label><select id="pp-yellow-advance" bind:value={yellowAdvanceMs} onchange={changePolicy} disabled={observing || pending || !connected}>{#each Array.from({length:21}, (_, i) => i) as ms}<option value={ms}>{ms} ms</option>{/each}</select></div>
       </div>
       <div class="run-options timing-actions">{#each ["red", "yellow"] as color}<div><button onclick={() => adjust(color as "red" | "yellow", "later")} disabled={observing || pending || !connected || (color === "red" ? redAdvanceMs : yellowAdvanceMs) === 0} aria-label={`${color} press later`}>Press later −1</button><button onclick={() => adjust(color as "red" | "yellow", "earlier")} disabled={observing || pending || !connected || (color === "red" ? redAdvanceMs : yellowAdvanceMs) === 20} aria-label={`${color} press earlier`}>Press earlier +1</button></div>{/each}</div>
       <p class="explanation">Higher values press earlier: 17 → 14 ms presses 3 ms later. Wider targets retain their normal timing.</p>
+      {#if status?.calibration}<p class="explanation">{status.calibration}</p>{/if}
     {:else if view === "Priority"}
       <div class="priority-order">{#each [0,1,2,3,4,5] as index}<div>
         <label for={`pp-priority-${index}`}>{index === 0 ? "1 · First choice" : `${index + 1} · Next choice`}</label>
@@ -215,7 +216,7 @@
 {/if}
 
 <style>
-  .timing-actions { margin-top:8px; } .timing-actions > div { display:flex; gap:4px; } .timing-actions button { padding:6px; font-size:10px; } .save-feedback { font-size:10px; color:var(--accent); margin:0; }
+  .timing-actions { margin-top:8px; } .timing-actions > div { display:flex; gap:4px; } .timing-actions button { padding:6px; font-size:10px; } .save-feedback { font-size:10px; color:var(--accent); margin:8px 0 0; }
   .workspace-tabs,.inspector-tabs { display:flex; gap:4px; padding:3px; border:1px solid var(--line); border-radius:9px; margin-bottom:10px; }
   .workspace-tabs button,.inspector-tabs button { flex:1; justify-content:center; border:0; padding:7px 10px; color:var(--text-muted); }
   .workspace-tabs button.active,.inspector-tabs button.active { background:var(--line); color:var(--accent); }
@@ -257,7 +258,7 @@
   .readout { padding:18px 0; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
   .reader-top > span:last-child { color:var(--text-muted); font-size:11px; }
   .scale { display:flex; justify-content:space-between; color:var(--text-muted); font-size:9px; letter-spacing:.1em; margin:16px 0 13px; }
-  .track { position:relative; height:25px; border-radius:5px; background:#202a2b; }
+  .track { position:relative; height:25px; border-radius:5px; background:#353331; }
   .region { position:absolute; top:0; height:100%; border-radius:2px; }
   .region.selected { outline:2px solid var(--accent); outline-offset:5px; }
   .marker { position:absolute; top:-9px; height:43px; width:3px; background:#bbf944; transform:translateX(-50%); box-shadow:0 0 10px #bafa4450; }
@@ -272,10 +273,10 @@
   .regions b { font-weight:400; color:var(--text-muted); }
   .controls { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin-top:22px; }
   button { display:flex; gap:8px; align-items:center; background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:11px 14px; font:inherit; font-size:12px; cursor:pointer; }
-  .run { color:#082924; background:var(--accent); border-color:var(--accent); font-weight:600; }
+  .run { color:#fff8f3; background:var(--accent); border-color:var(--accent); font-weight:600; }
   .run.stop { color:#ffcecb; border-color:#af615e; background:#4a282c; }
   kbd { font:10px "Cascadia Code",Consolas,monospace; border:1px solid var(--line-strong); border-radius:4px; padding:2px 5px; white-space:nowrap; }
-  .run kbd { border-color:#0b584450; margin-left:4px; }
+  .run kbd { border-color:rgba(255, 255, 255, 0.3); margin-left:4px; }
   .run.stop kbd { border-color:#ffcecb60; }
   .input-badge.armed { color:var(--warning); border-color:var(--warning); background:var(--muted-warning); }
   .input-badge.paused { color:var(--warning); }
@@ -285,12 +286,12 @@
   .target-ready { font-size:11px; color:var(--text-muted); }
   .pp-live-detail { margin:12px 0 20px; }
   .cooldown, .pp-live-telemetry { padding:24px; }
-  .cooldown { border-bottom:1px solid var(--line); background:linear-gradient(135deg,#25423950,transparent); }
+  .cooldown { border-bottom:1px solid var(--line); background:linear-gradient(135deg,rgba(217, 119, 87, 0.1),transparent); }
   .cooldown strong { display:block; font-size:43px; letter-spacing:-1.5px; margin:20px 0 10px; font-weight:500; font-variant-numeric:tabular-nums; }
   .counting { color:var(--accent); }
   aside p { margin:0; font-size:11px; }
   dl { margin:16px 0; } dl div { display:flex; gap:12px; justify-content:space-between; padding:9px 0; font-size:11px; } dt { color:var(--text-muted); } dd { margin:0; font-variant-numeric:tabular-nums; }
-  footer { display:flex; gap:9px; color:var(--text-muted); margin-top:10px; padding:0; } footer > :global(svg) { flex-shrink:0; color:var(--accent); margin-top:2px; } footer > div { min-width:0; } footer p { margin:0; font-size:11px; } .evidence { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  footer { display:flex; gap:9px; color:var(--text-muted); margin-top:auto; padding:10px 0 0; border-top:1px solid rgba(255, 255, 255, 0.1); } footer > :global(svg) { flex-shrink:0; color:var(--accent); margin-top:2px; } footer > div { min-width:0; } footer p { margin:0; font-size:11px; } .evidence { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pp-live-detail.live-error { color:#ffabab; border-left:2px solid #ec7171; padding-left:9px; overflow-wrap:anywhere; }
   .debug-caption { flex:1; }
   .debug-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
@@ -331,6 +332,8 @@
     .cooldown,.pp-live-telemetry { padding:14px; }
     .cooldown strong { font-size:34px; margin:10px 0 5px; }
     footer { display:none; }
+    .legend { display:none; }
+    .track { margin-top:8px; }
   }
   @media(min-width:620px) and (min-height:651px) and (max-height:800px) {
     .live-heading { margin:0 0 8px; }

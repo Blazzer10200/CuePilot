@@ -39,8 +39,11 @@ public sealed class PickpocketPrecisionTests
         var input = new PickpocketInputController(up => keys.Add((up, time)), () => time);
         input.BeginRun();
         PickpocketTimingPrediction? sent = null;
+        // Mirror the observer loop: the hold ends from the loop, not inside TryTap.
+        void ReleaseHold() { if (input.ReleaseDueMs is double due) { time = Math.Max(time, due); input.ReleaseIfDue(); } }
         for (var t = 0; t <= 400; t += 16)
         {
+            ReleaseHold();
             time = Math.Max(time, t + 4);
             var observation = new PickpocketObservation(PickpocketVisualState.Active, new Rectangle(0, 100, 576, 23), 100 + .4 * t,
                 [new(color, 208 - width / 2, 208 + width / 2)], 1, "Controlled narrow-target motion");
@@ -48,6 +51,7 @@ public sealed class PickpocketPrecisionTests
             input.TryTap(prediction, t, () => true, (deadline, _) => time = Math.Max(time, deadline), CancellationToken.None, precision: true);
             if (input.PressCount > 0 && sent is null) { sent = prediction; predictor.MarkAttempted(); }
         }
+        ReleaseHold();
         Assert.Equal(1, input.PressCount);
         Assert.Equal(2, keys.Count);
         Assert.False(keys[0].Up);
@@ -69,7 +73,11 @@ public sealed class PickpocketPrecisionTests
         var input = new PickpocketInputController(up => keys.Add((up, now)), () => now);
         input.BeginRun();
         input.TryTap(new(true, 120, 124, 400, 2, "Narrow center"), 95, () => true,
-            (deadline, _) => now = keys.Count == 0 ? deadline + 2 : deadline, CancellationToken.None, precision: true);
+            (deadline, _) => now = deadline + 2, CancellationToken.None, precision: true);
+        // The hold is measured from the actual key-down, not the planned time.
+        Assert.Equal(157, input.ReleaseDueMs);
+        now = 157;
+        Assert.True(input.ReleaseIfDue());
         Assert.Equal([(false, 122d), (true, 157d)], keys);
         Assert.True(input.Stop());
     }

@@ -5,6 +5,7 @@ import { defaultItemPriority, defaultPriority } from "../lib/activities/pickpock
 export function installScenario(name: string) {
   if (!import.meta.env.DEV) throw new Error("Scenarios are development-only.");
   mockWindows("main");
+  let notificationPreferences = { popups: true, sound: true, shortcuts: true };
   const hotkey = (key: string) => ({ key, control: false, alt: false, shift: false });
   const attempts: PickpocketRecentAttempt[] = Array.from({ length: 12 }, (_, index) => ({
     id: `fixture-${index}`, endedAtUnixMs: 1788494400000 - index * 200000, outcome: index % 3 === 0 ? "Grabbed" : index % 3 === 1 ? "Missed" : "Ended",
@@ -27,6 +28,14 @@ export function installScenario(name: string) {
   }
   mockIPC(async (command, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
+    if (command === "notification_settings") return { ...notificationPreferences };
+    if (command === "save_notification_settings") {
+      if (name === "save-error") throw new Error("Fixture: notification save failed.");
+      notificationPreferences = payload.settings as typeof notificationPreferences;
+      return null;
+    }
+    if (command === "preview_notification") return null;
+    if (command === "shortcut_capture") return null;
     if (command === "engine_command") {
       if (name === "disconnected") throw new Error("Fixture engine disconnected.");
       const action = payload.command;

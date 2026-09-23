@@ -48,8 +48,8 @@ Every LMB hold is independently capped at 35–90 ms by the feedback controller.
 - Controller settings and local detection evidence are available in focused secondary panels.
 - Each activity shares FiveM window selection, Settings, and Diagnostics. The Support Center provides local build health, recorded sessions, and text report export.
 - Pickpocket uses `F7` for Start / Stop by default. `F8` is reserved for the FiveM console.
-- The Fishing Start / Stop shortcut is configurable from `F6` through `F12` and works while FiveM remains focused.
-- The reserved Lockpicking shortcut defaults to `F9` and is independently configurable from `F6` through `F12`; it cannot enable Class C input until the evidence gate passes.
+- The Fishing Start / Stop shortcut is rebound by clicking its field in Settings and pressing any key or combo (`Ctrl`/`Shift`/`Alt` plus a key), or a side or middle mouse button (Mouse 4, Mouse 5, middle click). It works while FiveM remains focused. `F8`, `Escape`, the Windows key, and the left and right mouse buttons cannot be bound.
+- The reserved Lockpicking shortcut defaults to `F9` and is rebound the same way; it cannot enable Class C input until the evidence gate passes.
 - `Pause / Break` is the global emergency stop and releases held input.
 - Fishing stops if FiveM stops being the active visible window.
 

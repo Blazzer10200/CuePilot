@@ -30,6 +30,26 @@ public sealed class PickpocketSweepTests
     }
 
     [Fact]
+    public void CruiseIsConfirmedAfterTwelveSamplesAndAQuarterBarBeforeTheFirstPassEnds()
+    {
+        var tracker = new PickpocketSweepTracker();
+        for (var i = 0; i <= 23; i++)
+        {
+            tracker.Observe(Frame(20 + i * 6), i * 16);
+            Assert.False(tracker.CruiseConfirmed); // 23 steps = 138 px < 144 px
+        }
+        tracker.Observe(Frame(20 + 24 * 6), 24 * 16);
+        Assert.True(tracker.CruiseConfirmed);
+        Assert.False(tracker.FirstPassComplete);
+        tracker.Observe(Frame(20 + 25 * 6), 25 * 16 + 200); // capture gap resets the measurement
+        Assert.False(tracker.CruiseConfirmed);
+        tracker = new();
+        for (var i = 0; i <= 11; i++) tracker.Observe(Frame(20 + i * 6), i * 16);
+        for (var i = 1; i <= 12; i++) tracker.Observe(Frame(86 - i * 6), (11 + i) * 16);
+        Assert.False(tracker.CruiseConfirmed); // a zigzag never covers a quarter of the bar
+    }
+
+    [Fact]
     public void MidBarZigzagAndSkippedFramesDoNotQualifyAsASurvey()
     {
         var tracker = new PickpocketSweepTracker();

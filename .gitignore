@@ -15,3 +15,7 @@ ui/src-tauri/target/
 ui/src-tauri/resources/engine/*.exe
 ui/scripts/cdp/.tmp/
 tmp/
+
+# Claude Code harness (local, mirrors rift-tauri convention; AGENTS.md stays tracked)
+.claude/
+/CLAUDE.md

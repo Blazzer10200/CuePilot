@@ -703,6 +703,7 @@ internal static class FishingPromptDetector
 
         internal bool IsNeutralAt(int x, int y, int minimumBrightness, int maximumSpread)
         {
+            if ((uint)x >= Width || (uint)y >= Height) return false;
             var row = data.Stride >= 0 ? y : Height - 1 - y;
             var offset = row * Math.Abs(data.Stride) + x * 4;
             var blue = bytes[offset];
@@ -715,6 +716,7 @@ internal static class FishingPromptDetector
 
         internal bool IsDarkAt(int x, int y, int maximumBrightness)
         {
+            if ((uint)x >= Width || (uint)y >= Height) return false;
             var row = data.Stride >= 0 ? y : Height - 1 - y;
             var offset = row * Math.Abs(data.Stride) + x * 4;
             return (bytes[offset] + bytes[offset + 1] + bytes[offset + 2]) / 3 <= maximumBrightness;

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -386,7 +387,7 @@ internal static class LockpickingDetector
         {
             for (var x = left; x <= right; x += step)
             {
-                var distance = Math.Sqrt(Math.Pow(x - hud.X, 2) + Math.Pow(y - hud.Y, 2));
+                var distance = Distance(x, y, hud.X, hud.Y);
                 if (distance < hud.Radius * 0.24 || distance > hud.Radius * 0.76)
                 {
                     continue;
@@ -499,15 +500,16 @@ internal static class LockpickingDetector
         int samples = CircleSamples)
     {
         var strong = 0d;
+        var directions = Directions(samples);
         for (var index = 0; index < samples; index++)
         {
-            var angle = index * Math.PI * 2 / samples;
+            var (cos, sin) = directions[index];
             var best = 0d;
             for (var offset = -tolerance; offset <= tolerance; offset += Math.Max(1, tolerance))
             {
                 var sampleRadius = radius + offset;
-                var x = (int)Math.Round(centerX + Math.Cos(angle) * sampleRadius);
-                var y = (int)Math.Round(centerY + Math.Sin(angle) * sampleRadius);
+                var x = (int)Math.Round(centerX + cos * sampleRadius);
+                var y = (int)Math.Round(centerY + sin * sampleRadius);
                 best = Math.Max(best, pixels.GreenStrength(x, y));
             }
             strong += Math.Min(1, best * 1.45);
@@ -605,27 +607,41 @@ internal static class LockpickingDetector
         return total == 0 ? 0 : signal / total;
     }
 
+    // The HUD search evaluates thousands of rings per frame; the angles never change.
+    private static readonly ConcurrentDictionary<int, (double Cos, double Sin)[]> DirectionCache = new();
+
+    private static (double Cos, double Sin)[] Directions(int samples) =>
+        DirectionCache.GetOrAdd(samples, count => Enumerable.Range(0, count)
+            .Select(index => index * Math.PI * 2 / count)
+            .Select(angle => (Math.Cos(angle), Math.Sin(angle)))
+            .ToArray());
+
     private static double InteriorDarkness(LockpickingPixels pixels, double centerX, double centerY, double radius)
     {
         var inside = 0d;
         var outside = 0d;
         var samples = 32;
+        var directions = Directions(samples);
         for (var index = 0; index < samples; index++)
         {
-            var angle = index * Math.PI * 2 / samples;
+            var (cos, sin) = directions[index];
             inside += pixels.Luminance(
-                (int)Math.Round(centerX + Math.Cos(angle) * radius * 0.72),
-                (int)Math.Round(centerY + Math.Sin(angle) * radius * 0.72));
+                (int)Math.Round(centerX + cos * radius * 0.72),
+                (int)Math.Round(centerY + sin * radius * 0.72));
             outside += pixels.Luminance(
-                (int)Math.Round(centerX + Math.Cos(angle) * radius * 1.08),
-                (int)Math.Round(centerY + Math.Sin(angle) * radius * 1.08));
+                (int)Math.Round(centerX + cos * radius * 1.08),
+                (int)Math.Round(centerY + sin * radius * 1.08));
         }
         var difference = outside / samples - inside / samples;
         return Math.Clamp((difference + 8) / 58, 0, 1);
     }
 
-    private static double Distance(double x1, double y1, double x2, double y2) =>
-        Math.Sqrt(Math.Pow(x1 - x2, 2) + Math.Pow(y1 - y2, 2));
+    private static double Distance(double x1, double y1, double x2, double y2)
+    {
+        var dx = x1 - x2;
+        var dy = y1 - y2;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
 
     private sealed record HudCandidate(double X, double Y, double Radius, double Score, int Width, int Height);
     private sealed record TargetCandidate(

@@ -1,5 +1,59 @@
 # Changelog
 
+## 5.3.10 - 2026-09-22 - Fishing rhythm restored
+
+- Fix Fishing losing fish with only an occasional tap. Each sample had grown from about 54 ms to about 194 ms between the end of one pulse and the next read, while pulses stayed 35–90 ms, so tension starved between taps. Three causes are fixed below; the tuned rhythm (targets, thresholds, the 40 ms sample wait) is unchanged.
+- Copy only the captured region on the GPU instead of the whole desktop. Under a GPU-bound game the full-desktop copy queued behind the game's frames and stretched a sample past 150 ms. The staging texture is sized to the region and reused.
+- Raise CuePilot's GPU scheduling priority when capture starts, the same approach OBS uses, so reading a frame does not wait behind the game's rendering. It needs the elevation CuePilot already runs with and is best-effort: without it capture still works, only slower under load.
+- Remember the resolved game window between samples. A stale saved process id forced a full scan of every window, opening the process behind each one, on every sample and every input edge. The match is now cached and revalidated cheaply, with a full scan only when that fails.
+- Scale pulse length to the measured sample cadence as a safety net. If capture slows down anyway, pulses stretch in proportion (up to 225 ms) instead of leaving tension to drop between reads. At a healthy cadence pulses stay in the tuned 35–90 ms envelope.
+- Record capture time per sample in the Fishing debug log and status line, and add it to `--capture-probe`, which now reports cold, steady median, and steady maximum times plus whether GPU priority was raised.
+- Buffer the per-sample Fishing CSV instead of flushing every row to disk between a capture and the next input edge.
+- Read Pickpocket item labels from locked bitmap memory instead of about 3,000 `GetPixel` calls per band inside the timing window.
+- Cache the Lockpicking ring sample directions instead of recomputing sine and cosine for every sample of every candidate ring.
+- Publish Lockpicking status to the interface at most every 50 ms while input samples at 60 Hz; state, action, and spin changes still publish immediately.
+- Pause looping interface animations while the window is hidden or unfocused, and move the rail and stepper pulses from `box-shadow` repaints to transform and opacity.
+- Kill the engine process if its pipes cannot be opened instead of leaving it running, skip idle notification ticks early, and drop two unused window permissions.
+
+## 5.3.9 - 2026-09-20 - Faster launch and steadier Pickpocket tracking
+
+- Show a small "CuePilot — Starting…" window with a progress bar while the app loads, instead of leaving a blank rectangle on screen for several seconds. It is drawn directly by the shell rather than as web content, so it appears about a tenth of a second after launch — the browser engine that would render an HTML loading screen is itself the thing being waited on. It never takes focus, closes the moment the real interface reports in, and closes on its own if a launch fails.
+- Redesign the desktop notification. The card is about 38% smaller (300×80 rather than 372×104), with a lighter border and tighter type, and the success and warning variants no longer carry their own border colour.
+- Fix the dark rectangle that appeared around the notification over bright backgrounds. The card's drop shadow needed roughly 60 px to fade out but had 4 px before the window edge, and a transparent window still clips, so the blur was being cut into a hard-edged box. The card now sits inside an 18 px transparent gutter with a shadow that cannot reach past it.
+- Replace the notification sound. It was `SystemAsterisk`, the Windows alert ding; it is now a soft two-note chime generated in memory, with a gentle attack and a decay that fades rather than stops. It still follows the system notification volume, and no audio file is shipped.
+- Paint the main window in the app's own dark background from the moment it appears, so the area behind the loading window is CuePilot's surface colour rather than white.
+- Stop building the Velopack update manager while the app is starting. It reads the installed package from disk, which delayed the first window; it is now created the first time an update check actually needs it.
+- Record named startup phases (`velopack_done`, `builder_ready`, `plugins_ready`, `setup_begin`, `notifications_ready`, `setup_end`, `ui_first_command`) in the shell diagnostics log, so a slow launch can be attributed to a specific stage instead of guessed at. Measured on an installed build, every phase CuePilot itself controls completes within about two milliseconds; the remaining delay is inside WebView2 window creation.
+- Track the Pickpocket marker locally between frames. While a panel is already being followed, only the columns the marker can reach are scanned, and anything unexpected falls back to the full scan, so nothing that was detectable before stops being detected. Mean analysis time for a tracked frame drops from about 0.96 ms to about 0.50 ms, leaving more of the frame-age budget for the press itself.
+- Share one bounded header search across every scan pass in a frame. The recovery pass now reuses the first pass's header results instead of starting a second budget; the worst measured missing-header frame drops from about 37 ms to about 20 ms.
+- Separate the Pickpocket motion-reset cases so each reports what actually happened: an out-of-order timestamp, a capture gap, a stopped or repeated frame, and a genuine reversal. Reversal detection now ignores sub-pixel centroid noise, so jitter no longer discards a good sweep. A frozen or repeated capture still invalidates the fit and can never schedule a press.
+- Judge the motion fit on its second-worst frame once at least six samples are in hand. A single bad frame used to both veto the shot and inflate the uncertainty that sizes the target window.
+- Run every test that reads a real clock without competing suites. The Pickpocket latency, input, and live-evidence suites join the existing Fishing timing collection, now named "Detector timing"; suites that inject their own timestamps stay parallel.
+
+## 5.3.8 - 2026-09-18 - Neutral theme, any-key shortcuts, and shortcut confirmations
+
+- Restyle the shell in a warm neutral dark-gray palette with a single terracotta accent, replacing the teal/navy look, ambient glows, and per-activity accent colors. Neutral scrollbars, light text on accent buttons, and the notification popup follow the same palette.
+- Add a persistent left activity rail (Home, Pickpocket, Fishing, Lockpicking) with the running-activity indicator, and drop the title-bar drag label; the bar itself drags the window.
+- Move desktop alert settings below the activity controls in Settings, label the idle save button "Apply changes", and hide scrollbar arrows in drawers.
+- Rebalance the Fishing workspace: the status hero sits at its natural height and the body splits into two columns, with the game-target card and telemetry on the left and a vertical routine stepper with the Start button on the right. Spare height is shared instead of pooling above the controls. Narrow or short windows stack the columns and return the stepper to a single row.
+- Replace the F6–F12 shortcut dropdowns in Settings with a key-capture field: click it, then press any key or modifier combo, or a side or middle mouse button (Mouse 4, Mouse 5, middle click). The field shows the binding as key caps, refuses keys already used by another control or reserved (`F8`, `Escape`, the Windows key, left and right click), and offers a one-click reset to the default. While it listens, the shell releases its registered keys so the current binding can be pressed too.
+- Serve mouse-button shortcuts through a low-level mouse hook in the shell; a bound press is consumed so the game does not also see it. Keyboard shortcuts still use the global-shortcut plugin. The engine accepts the new key names (`KeyA`, `Digit1`, `MouseX1`, …), rejects game-owned buttons and bare modifiers, and prints readable labels (`CTRL + MOUSE 4`) in its own status text.
+- Confirm the pickpocket shortcut from in-game: pressing it shows a short desktop popup, "Pickpocket started" with the armed mode and the key to press again, or "Pickpocket stopped". A new "Shortcut confirmations" toggle and a "Preview shortcut" button sit under Readiness notifications; existing preference files keep it on.
+- Keep the Pickpocket Timing view within the minimum window height by hiding the bar legend below 650 px.
+- Extend the development WebView bridge with `state`, `nav`, `tour`, `console`, and `reload` commands; tours now close an open drawer before each stop. Documented in `ui/scripts/cdp/README.md`.
+- Remove the redirect-only `docs/pickpocket-plan.md` and `docs/app-debugging-roadmap.md` stubs; the dated records under `docs/history/` are linked from the documentation index.
+- Pickpocket thin-target accuracy: each precision run now shifts the saved Red/Yellow advance by the median stop offset of the last twenty thin-target shots for that color (after six shots, at most ±6 ms), stores marker speed and the applied advance with every history entry, and shows the result in the Timing view and the debug report. The default Red advance is 11 ms; saved values are unchanged.
+- Space is held for 35 ms without blocking capture, so the frames around the press are recorded and the release lands on time from the capture loop.
+- Thin targets can be shot on the first pass once the marker has cruised a quarter of the bar in one direction; a full sweep is no longer required.
+- The marker position is reported at the hit-weighted center of its stem columns instead of a whole pixel column.
+
+## 5.3.7 - 2026-09-12 - Readiness notifications
+
+- Show a brief top-right desktop popup with the Windows notification sound when the Pickpocket cooldown ends or a new Fishing cast starts.
+- Keep alerts click-through and non-activating, with display scaling and native timers that continue while CuePilot is minimized.
+- Add immediately saved popup and sound preferences plus Pickpocket and Fishing preview buttons in Settings.
+- Restore pending Pickpocket cooldown alerts from engine snapshots and prevent repeated telemetry from producing duplicate notifications.
+
 ## 5.3.6 - 2026-09-12 - Verification and development reliability
 
 - Organize current documentation, source navigation, and dated design/calibration records so setup and debugging guidance are easier to find.

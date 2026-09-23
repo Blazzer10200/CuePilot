@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Reflection;
 using System.Text.Json;
 
@@ -64,13 +65,7 @@ internal sealed class PickpocketItemReader
         var scale = bar.Width / 576d;
         if (scale < .6 || scale > 3 || band.Center - 54 * scale < 0 || band.Center + 54 * scale >= frame.Width
             || bar.Top - 80 * scale < 0 || bar.Top - 45 * scale >= frame.Height) return null;
-        var mask = new byte[104 * 30];
-        for (var y = 0; y < 30; y++) for (var x = 0; x < 104; x++)
-        {
-            var c = frame.GetPixel((int)Math.Round(band.Center + (x - 52) * scale), (int)Math.Round(bar.Top + (y - 78) * scale));
-            var min = Math.Min(c.R, Math.Min(c.G, c.B));
-            if (min >= 170 && Math.Max(c.R, Math.Max(c.G, c.B)) - min <= 40) mask[y * 104 + x] = 1;
-        }
+        var mask = ReadLabelMask(frame, bar, band, scale);
         var count = mask.Count(value => value != 0);
         if (count < 30 || count > 1500) return null;
         var scores = Templates.Value.Where(t => Items[t.Name] == band.Color)
@@ -78,6 +73,30 @@ internal sealed class PickpocketItemReader
             .Select(g => (Name: g.Key, Score: g.Max(t => t.Score))).OrderByDescending(t => t.Score).ToArray();
         return scores.Length > 0 && scores[0].Score >= .72 && (scores.Length == 1 || scores[0].Score - scores[1].Score >= .10)
             ? scores[0].Name : null;
+    }
+
+    // 3,120 samples per band inside the timing window: read the locked bits, not GetPixel.
+    private static unsafe byte[] ReadLabelMask(Bitmap frame, Rectangle bar, PickpocketBand band, double scale)
+    {
+        var mask = new byte[104 * 30];
+        var data = frame.LockBits(new Rectangle(0, 0, frame.Width, frame.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var scan0 = (byte*)data.Scan0;
+            for (var y = 0; y < 30; y++) for (var x = 0; x < 104; x++)
+            {
+                var px = Math.Clamp((int)Math.Round(band.Center + (x - 52) * scale), 0, frame.Width - 1);
+                var py = Math.Clamp((int)Math.Round(bar.Top + (y - 78) * scale), 0, frame.Height - 1);
+                var p = scan0 + (long)py * data.Stride + px * 4;
+                var min = Math.Min(p[2], Math.Min(p[1], p[0]));
+                if (min >= 170 && Math.Max(p[2], Math.Max(p[1], p[0])) - min <= 40) mask[y * 104 + x] = 1;
+            }
+        }
+        finally
+        {
+            frame.UnlockBits(data);
+        }
+        return mask;
     }
 
     private static double Score(byte[] actual, int count, byte[] template)

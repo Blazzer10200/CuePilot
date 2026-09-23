@@ -31,14 +31,61 @@ internal static class PickpocketDetector
         using var pixels = new Pixels(frame);
         var bounds = Rectangle.Intersect(new Rectangle(0, 0, frame.Width, frame.Height),
             search ?? new Rectangle(0, frame.Height / 2, frame.Width, frame.Height - frame.Height / 2));
-        var best = ScanStems(pixels, bounds, previous, 36) ?? ScanStems(pixels, bounds, previous, 3);
+        // While the marker is already tracked, scan the columns it can reach
+        // instead of the whole region. Shorter analysis leaves more of the frame
+        // age budget for the press, and any failure falls back to the full scan
+        // below, so this narrows work without narrowing what can be detected.
+        // One search per frame, shared by every pass below. The budget bounds the
+        // header work for the whole image, so a localized pass that falls back to
+        // the full scan cannot spend it twice.
+        var searchWork = new HeaderSearch();
+        if (TrackedBounds(bounds, previous) is Rectangle near)
+        {
+            var tracked = ScanStems(pixels, near, previous, 36, searchWork) ?? ScanStems(pixels, near, previous, 3, searchWork);
+            if (IsTrackedContinuation(tracked, previous))
+                return StabilizeMarkerOcclusion(tracked!, previous);
+        }
+        var best = ScanStems(pixels, bounds, previous, 36, searchWork) ?? ScanStems(pixels, bounds, previous, 3, searchWork);
         return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
     }
 
-    private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap)
+    /// <summary>
+    /// Columns the marker can occupy on the next frame, or null when there is no
+    /// usable previous observation. Padded well past one frame of travel and past
+    /// the adjacent columns <see cref="StemCentroid"/> needs on either side.
+    /// </summary>
+    private static Rectangle? TrackedBounds(Rectangle bounds, PickpocketObservation? previous)
+    {
+        if (previous is not { State: PickpocketVisualState.Active } prior || prior.Bar.Width <= 0) return null;
+        if (!double.IsFinite(prior.MarkerX) || prior.MarkerX < bounds.Left || prior.MarkerX > bounds.Right) return null;
+        // 12% of the bar covers several frames of the fastest travel observed in
+        // the recorded evidence, plus the centroid's own +/-3 column reach.
+        var reach = Math.Max(24, prior.Bar.Width * 0.12) + 4;
+        var left = (int)Math.Floor(prior.MarkerX - reach);
+        var right = (int)Math.Ceiling(prior.MarkerX + reach);
+        var window = Rectangle.Intersect(bounds, Rectangle.FromLTRB(left, bounds.Top, right, bounds.Bottom));
+        // A window that is not actually narrower would only add a second scan.
+        return window.Width > 0 && window.Width < bounds.Width * 0.75 ? window : null;
+    }
+
+    /// <summary>
+    /// True when a localized scan found the same panel it was tracking. Anything
+    /// else (lost marker, moved or resized bar, a different state) must be
+    /// confirmed by the full scan so scenery cannot capture the tracker.
+    /// </summary>
+    private static bool IsTrackedContinuation(PickpocketObservation? candidate, PickpocketObservation? previous)
+    {
+        if (candidate is not { State: PickpocketVisualState.Active } found || previous is not { } prior) return false;
+        if (found.Bar.Width <= 0) return false;
+        var tolerance = Math.Max(2.0, found.Bar.Width / 576d * 3);
+        return Math.Abs(found.Bar.Left - prior.Bar.Left) <= tolerance
+            && Math.Abs(found.Bar.Top - prior.Bar.Top) <= tolerance
+            && Math.Abs(found.Bar.Width - prior.Bar.Width) <= tolerance;
+    }
+
+    private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap, HeaderSearch searchWork)
     {
         PickpocketObservation? best = null;
-        var searchWork = new HeaderSearch();
         var stems = new List<(int X, int Top, int Length, double Density)>();
         // The protruding green stem is longer than the colored bands. Scan columns
         // without copying a full-screen buffer or performing template-pyramid searches.
@@ -74,13 +121,32 @@ internal static class PickpocketDetector
         // spending a separate bounded header budget. Neither path skips identity checks.
         var candidates = maximumGap == 36 ? stems.AsEnumerable()
             : stems.OrderByDescending(stem => stem.Density).ThenByDescending(stem => stem.Length);
+        (int X, int Top, int Length, double Density)? bestStem = null;
         foreach (var stem in candidates.Take(16))
         {
             var candidate = InspectStem(pixels, stem.X, stem.Top, stem.Length, previous, searchWork);
-            if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) best = candidate;
+            if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) { best = candidate; bestStem = stem; }
             if (searchWork.Exhausted) break;
         }
-        return best;
+        // Identity checks ran on one integer column. Report the marker at the
+        // hit-weighted centre of its adjacent stem columns so the motion fit and
+        // the result offset are not quantised to whole pixels.
+        return best is not null && bestStem is { } anchor ? best with { MarkerX = StemCentroid(stems, anchor) } : best;
+    }
+
+    private static double StemCentroid(List<(int X, int Top, int Length, double Density)> stems, (int X, int Top, int Length, double Density) anchor)
+    {
+        double weight = anchor.Length * anchor.Density, sum = anchor.X * weight;
+        for (var side = -1; side <= 1; side += 2)
+        for (var x = anchor.X + side; Math.Abs(x - anchor.X) <= 3; x += side)
+        {
+            var column = stems.FirstOrDefault(s => s.X == x && Math.Abs(s.Top - anchor.Top) <= 4 && Math.Abs(s.Length - anchor.Length) <= 8);
+            if (column.Length == 0) break; // Contiguous stem columns only.
+            var hits = column.Length * column.Density;
+            weight += hits;
+            sum += x * hits;
+        }
+        return weight > 0 ? sum / weight : anchor.X;
     }
 
     internal static PickpocketObservation StabilizeMarkerOcclusion(PickpocketObservation observation, PickpocketObservation? previous)
@@ -340,6 +406,7 @@ internal static class PickpocketDetector
         }
         internal bool MarkerAt(int x, int y)
         {
+            if ((uint)x >= Width || (uint)y >= Height) return false;
             var p = (byte*)data.Scan0 + y * data.Stride + x * 4;
             return p[1] > 150 && p[1] * 100 > p[2] * 122 && p[1] * 100 > p[0] * 145;
         }

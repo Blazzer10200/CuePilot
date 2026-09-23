@@ -234,7 +234,7 @@ case "$cmd" in
         ;;
     esac
     look_params="$(jq -nc --arg selector "$look_selector" 'if $selector=="" then {} else {selector:$selector} end')"
-    body="$(jq -nc --argjson operation "$operation" --argjson settle "$settle_ms" --argjson look "$look_params" '{operations:[$operation,{op:"settle",params:{quietMs:140,maxMs:$settle}},{op:"look",params:$look}]}')"
+    body="$(jq -nc --argjson operation "$operation" --argjson settle "$settle_ms" --argjson look "$look_params" '{operations:[$operation,{op:"settle",params:{quietMs:260,maxMs:$settle}},{op:"look",params:$look}]}')"
     response="$(post batch "$body")"
     printf '%s' "$response" | render_action
     printf '%s' "$response" | jq -c '.results[2]' | render_look
@@ -293,6 +293,116 @@ case "$cmd" in
     post shutdown '{}' | jq
     ;;
 
+  state)
+    # state [full] — live engine/UI state as TEXT via the dev-only window.__cuepilot
+    # hook (App.svelte onMount, DEV builds only). No screenshot, no navigation.
+    #   c.sh state        -> compact summary (connection, activity, panels, routine, target, pickpocket, lockpicking)
+    #   c.sh state full   -> the entire engine snapshot as JSON
+    mode="${1:-}"
+    if [ "$mode" = "full" ]; then
+      js='(() => { const c = window.__cuepilot; return JSON.stringify(c ? { connected: c.connected, activity: c.activity, panels: c.panels, error: c.error, status: c.status, snapshot: c.snapshot } : { error: "__cuepilot hook missing (dev build only; reload after editing App.svelte)" }); })()'
+      post eval "$(jq -nc --arg expression "$js" '{expression:$expression}')" | jq '(.value // .) | if type=="string" then fromjson else . end'
+    else
+      js='(() => { const c = window.__cuepilot; if (!c) return JSON.stringify({ error: "__cuepilot hook missing (dev build only; reload after editing App.svelte)" }); const s = c.snapshot || {}; const r = (s.settings && s.settings.routine) || {}; return JSON.stringify({ connected: c.connected, activity: c.activity, panels: c.panels, error: c.error, status: c.status, engineVersion: s.engineVersion, routineState: s.routineState, canStart: s.canStart, targetValid: s.targetValid, target: r.targetWindow || null, inputMode: r.inputMode, pickpocket: s.pickpocket ? { state: s.pickpocket.state, observing: s.pickpocket.observing, inputArmed: s.pickpocket.inputArmed, inputMode: s.pickpocket.inputMode, cooldownUntilUnixMs: s.pickpocket.cooldownUntilUnixMs, detail: s.pickpocket.detail } : null, lockpicking: s.lockpicking ? { state: s.lockpicking.state, observing: s.lockpicking.observing, inputEnabled: s.lockpicking.inputEnabled, detail: s.lockpicking.detail } : null }); })()'
+      post eval "$(jq -nc --arg expression "$js" '{expression:$expression}')" | jq -r '
+        ((.value // .) | if type=="string" then fromjson else . end) as $s |
+        if $s.error and ($s.connected == null) then "[state] ERROR: " + ($s.error|tostring)
+        else
+          "[state] engine=" + (if $s.connected then "connected" else "DISCONNECTED" end)
+            + " v" + ($s.engineVersion // "?")
+            + " · activity=" + ($s.activity // "home")
+            + " · routine=" + ($s.routineState // "?")
+            + " · status=" + ($s.status.state // "?") + " (" + ($s.status.detail // "") + ")",
+          "[target] " + (if $s.targetValid then "valid" else "NOT VALID" end)
+            + (if $s.target then " · " + ($s.target.processName // "?") + " pid=" + (($s.target.processId // 0)|tostring) + " \"" + ($s.target.windowTitle // "") + "\"" else " · none selected" end)
+            + " · input=" + ($s.inputMode // "?") + " · canStart=" + (($s.canStart // false)|tostring),
+          "[panels] " + ([$s.panels | to_entries[] | select(.value) | .key] | if length == 0 then "none open" else join(", ") end),
+          (if $s.pickpocket then "[pickpocket] " + $s.pickpocket.state + (if $s.pickpocket.observing then " observing" else "" end) + (if $s.pickpocket.inputArmed then " ARMED" else "" end) + " · mode=" + ($s.pickpocket.inputMode // "?") + (if ($s.pickpocket.cooldownUntilUnixMs // 0) > 0 then " · cooldownUntil=" + ($s.pickpocket.cooldownUntilUnixMs|tostring) else "" end) + " · " + ($s.pickpocket.detail // "") else empty end),
+          (if $s.lockpicking then "[lockpicking] " + $s.lockpicking.state + (if $s.lockpicking.observing then " observing" else "" end) + " · inputEnabled=" + (($s.lockpicking.inputEnabled // false)|tostring) + " · " + ($s.lockpicking.detail // "") else empty end),
+          (if $s.error then "[error] " + ($s.error|tostring) else empty end)
+        end'
+    fi
+    ;;
+
+  console)
+    # console [level] [limit] [--all] — raw console ring buffer for the current page
+    # generation (errors + warnings + logs). `errors` is the error-only shorthand.
+    all=""; args=()
+    for a in "$@"; do if [ "$a" = "--all" ]; then all="&all=true"; else args+=("$a"); fi; done
+    level="${args[0]:-}"; limit="${args[1]:-40}"
+    suffix="?limit=$limit$all"
+    [ -n "$level" ] && suffix="$suffix&level=$level"
+    get "console$suffix" | jq -r '
+      "[console] " + (.count|tostring) + " current" + (if (.stale // 0) > 0 then " · " + (.stale|tostring) + " stale hidden (add --all)" else "" end),
+      (.logs[]? | "  " + (if .kind == "error" or .kind == "exception" then "✗" elif .kind == "warning" then "!" else "·" end) + " [" + (.kind // "?") + "/g" + ((.generation // 0)|tostring) + "] " + ((.text // "?")|tostring|.[0:360]))'
+    ;;
+
+  nav)
+    # nav <home|fishing|pickpocket|lockpicking|settings|diagnostics|close> [look-selector] [settle-ms]
+    # One round-trip: (go home if in a workspace) -> click destination -> settle -> look.
+    # Activity cards only exist on Home, so activity targets always route through Home.
+    # Settings only exists inside a workspace, so `settings` opens the Fishing card first when on Home
+    # (the miss is reported as "workspace:already" when a workspace is open; opening one never starts input).
+    # `close` presses Escape and waits for the drawer's 220ms fly-out. A literal CSS selector passes through.
+    dest="${1:-}"; look_selector="${2:-}"; settle_ms="${3:-400}"
+    [ -n "$dest" ] || { echo "usage: $0 nav <home|fishing|pickpocket|lockpicking|settings|diagnostics|close|<selector>> [look-selector] [settle-ms]" >&2; exit 2; }
+    home_sel='nav[aria-label="Activity navigation"] button'
+    case "$dest" in
+      home|activities|library) ops="$(jq -nc --arg s "$home_sel" '[{op:"click",params:{selector:$s}}]')" ;;
+      fishing|pickpocket|lockpicking)
+        label="$(printf '%s' "$dest" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+        ops="$(jq -nc --arg h "$home_sel" --arg s "[aria-label=\"Open $label\"]" --argjson ms "$settle_ms" '[{op:"click",params:{selector:$h}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:$s}}]')" ;;
+      settings)    ops="$(jq -nc --argjson ms "$settle_ms" '[{op:"click",params:{selector:"[aria-label=\"Open Fishing\"]"}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:"[aria-label=\"Workspace tools\"] button:nth-of-type(2)"}}]')" ;;
+      diagnostics|about) ops="$(jq -nc '[{op:"click",params:{selector:"[aria-label=\"About and diagnostics\"]"}}]')" ;;
+      close|escape) ops="$(jq -nc --arg e '!document.querySelector("[role=\"dialog\"]")' '[{op:"key",params:{key:"Escape"}},{op:"wait",params:{expression:$e,timeoutMs:1500}}]')" ;;
+      *)           ops="$(jq -nc --arg s "$dest" '[{op:"click",params:{selector:$s}}]')" ;;
+    esac
+    look_params="$(jq -nc --arg selector "$look_selector" 'if $selector=="" then {} else {selector:$selector} end')"
+    body="$(jq -nc --argjson ops "$ops" --argjson settle "$settle_ms" --argjson look "$look_params" '{operations:($ops + [{op:"settle",params:{quietMs:260,maxMs:$settle}},{op:"look",params:$look}])}')"
+    response="$(post batch "$body")"
+    printf '%s' "$response" | jq -r --arg d "$dest" '
+      .results as $r | ($r | length) as $n |
+      "[nav:" + $d + "] " + ([ $r[0:($n-2)][] | if .error then (if (.error|tostring|test("Activity navigation")) then "home:already" elif (.error|tostring|test("Open Fishing")) then "workspace:already" else "✗ " + (.error|tostring) end) else "ok" end ] | join(" → "))
+        + " · settled " + (($r[$n-2].waitedMs // 0)|tostring) + "ms" + (if $r[$n-2].quiet == false then " (DOM still changing)" else "" end)'
+    printf '%s' "$response" | jq -c '.results[-1]' | render_look
+    ;;
+
+  tour)
+    # tour <dest> <dest> ... [--settle N] — visit several surfaces and screenshot each
+    # in ONE round-trip. Same destination names as `nav`.
+    settle_ms=400; args=()
+    while [ $# -gt 0 ]; do case "$1" in --settle) settle_ms="${2:-400}"; shift 2 ;; *) args+=("$1"); shift ;; esac; done
+    [ ${#args[@]} -gt 0 ] || { echo "usage: $0 tour <home|fishing|pickpocket|lockpicking|settings|diagnostics|close> ... [--settle N]" >&2; exit 2; }
+    home_sel='nav[aria-label="Activity navigation"] button'
+    ops="$(jq -nc '[]')"
+    for dest in "${args[@]}"; do
+      case "$dest" in
+        home|activities|library) step="$(jq -nc --arg s "$home_sel" '[{op:"click",params:{selector:$s}}]')" ;;
+        fishing|pickpocket|lockpicking)
+          label="$(printf '%s' "$dest" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+          step="$(jq -nc --arg h "$home_sel" --arg s "[aria-label=\"Open $label\"]" --argjson ms "$settle_ms" '[{op:"click",params:{selector:$h}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:$s}}]')" ;;
+        settings)    step="$(jq -nc --argjson ms "$settle_ms" '[{op:"click",params:{selector:"[aria-label=\"Open Fishing\"]"}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:"[aria-label=\"Workspace tools\"] button:nth-of-type(2)"}}]')" ;;
+        diagnostics|about) step="$(jq -nc '[{op:"click",params:{selector:"[aria-label=\"About and diagnostics\"]"}}]')" ;;
+        close|escape) step="$(jq -nc --arg e '!document.querySelector("[role=\"dialog\"]")' '[{op:"key",params:{key:"Escape"}},{op:"wait",params:{expression:$e,timeoutMs:1500}}]')" ;;
+        *)           step="$(jq -nc --arg s "$dest" '[{op:"click",params:{selector:$s}}]')" ;;
+      esac
+      # A drawer left open by the previous stop (settings/diagnostics) would cover the next click, so every
+      # stop except an explicit close starts with Escape + wait-for-no-dialog. Escape is a no-op otherwise.
+      case "$dest" in close|escape) pre='[]' ;; *) pre="$(jq -nc --arg e '!document.querySelector("[role=\"dialog\"]")' '[{op:"key",params:{key:"Escape"}},{op:"wait",params:{expression:$e,timeoutMs:1500}}]')" ;; esac
+      # Each surface ends with settle + screenshot tagged by destination so results index cleanly.
+      ops="$(jq -nc --argjson ops "$ops" --argjson pre "$pre" --argjson step "$step" --argjson ms "$settle_ms" --arg tag "$dest" '$ops + $pre + $step + [{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"screenshot",params:{format:"jpeg",quality:70,tag:$tag}}]')"
+    done
+    body="$(jq -nc --argjson ops "$ops" '{operations:$ops}')"
+    response="$(post batch "$body")"
+    printf '%s' "$response" | jq -r --arg labels "${args[*]}" '
+      ($labels | split(" ")) as $L |
+      [ .results[] | select(.path != null or (.error != null and .path == null and .waitedMs == null)) ] as $shots |
+      "[tour] " + (($L|length)|tostring) + " surface(s) in one round-trip · " + ((.elapsedMs // 0)|tostring) + "ms",
+      ( .results | map(select(.path != null)) ) as $ok |
+      ( range(0; ($L|length)) as $i | "  " + $L[$i] + "  → " + ($ok[$i].path // "(no screenshot — see errors below)") ),
+      ( .results[] | select(.error != null) | select(.error|tostring|test("Activity navigation|Open Fishing")|not) | "  ✗ " + (.error|tostring) )'
+    ;;
+
   *)
     cat >&2 <<'USAGE'
 usage: c.sh <command>
@@ -310,6 +420,10 @@ usage: c.sh <command>
   act key <key-or-combo>         key + settle + verified look
   act type <selector> <text>     type + settle + verified look
   errors [limit] [--all]         current-generation console errors
+  console [level] [limit] [--all] full console ring buffer (log/warning/error)
+  state [full]                   live engine + UI state as text (dev-only window.__cuepilot hook)
+  nav <dest> [look-sel] [ms]     home|fishing|pickpocket|lockpicking|settings|diagnostics|close in one call
+  tour <dest> <dest> ...         visit several surfaces + screenshot each in one round-trip
   eval <javascript>              evaluate JavaScript in the WebView
   shot | shot-sel <selector>     write a screenshot under scripts/cdp/.tmp
   ready | reload | shutdown      lifecycle helpers

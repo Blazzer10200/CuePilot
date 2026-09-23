@@ -9,9 +9,13 @@ internal sealed record PickpocketTimingBudget(double MinimumInputDelayMs, double
         && MaximumFrameAgeMs is > 0 and <= 100 && MaximumHorizonMs is > 0 and <= 100;
 }
 
+/// <summary>
+/// <paramref name="AppliedAdvanceMs"/> is the early correction actually planned into a
+/// thin-target center shot; null when no correction applied. History uses it to calibrate.
+/// </summary>
 internal sealed record PickpocketTimingPrediction(
     bool CanSchedule, double? PressAtMs, double? LatestPressAtMs,
-    double SpeedPixelsPerSecond, double UncertaintyPixels, string Reason)
+    double SpeedPixelsPerSecond, double UncertaintyPixels, string Reason, double? AppliedAdvanceMs = null)
 {
     internal static PickpocketTimingPrediction Wait(string reason, double speed = 0, double uncertainty = 0) => new(false, null, null, speed, uncertainty, reason);
 }
@@ -83,6 +87,10 @@ internal sealed class PickpocketTimingPredictor
         selected = color;
         target = nextTarget;
 
+        // The marker centroid is sub-pixel, so a step this small is measurement
+        // noise rather than real travel. Treating it as motion would let jitter
+        // fake a reversal and discard an otherwise good sweep.
+        var jitter = 0.35 * scale;
         if (samples.Count > 0)
         {
             var last = samples.Last();
@@ -91,11 +99,25 @@ internal sealed class PickpocketTimingPredictor
                 samples.Clear();
                 return PickpocketTimingPrediction.Wait("Repeated or out-of-order image timestamp.");
             }
-            if (presentationMs - last.Time > 60 || observation.MarkerX == last.X
-                || (samples.Count >= 2 && Math.Sign(observation.MarkerX - last.X) != Math.Sign(last.X - samples.ElementAt(samples.Count - 2).X)))
+            if (presentationMs - last.Time > 60)
             {
                 samples.Clear();
-                return PickpocketTimingPrediction.Wait("Motion stopped, reversed, or capture skipped too far ahead.");
+                return PickpocketTimingPrediction.Wait("Capture skipped too far ahead.");
+            }
+            var step = observation.MarkerX - last.X;
+            var previousStep = samples.Count >= 2 ? last.X - samples.ElementAt(samples.Count - 2).X : 0;
+            if (Math.Abs(step) <= jitter)
+            {
+                // A marker that has not moved may be a frozen or duplicated
+                // capture, so the fit must not survive it. Real travel is several
+                // pixels per frame, far above the sub-pixel jitter floor.
+                samples.Clear();
+                return PickpocketTimingPrediction.Wait("Motion stopped or the frame repeated.");
+            }
+            if (Math.Abs(previousStep) > jitter && Math.Sign(step) != Math.Sign(previousStep))
+            {
+                samples.Clear();
+                return PickpocketTimingPrediction.Wait("Motion reversed.");
             }
         }
         samples.Enqueue((presentationMs, observation.MarkerX));
@@ -116,7 +138,14 @@ internal sealed class PickpocketTimingPredictor
         if (!double.IsFinite(velocity) || velocity == 0)
             return PickpocketTimingPrediction.Wait("No stable motion.");
         var fittedX = meanX - velocity * meanTime;
-        var residual = samples.Max(s => Math.Abs(s.X - (fittedX + velocity * (s.Time - presentationMs))));
+        // Worst-case fit error, except that with enough samples a single bad
+        // frame no longer vetoes the sweep: one outlier used to both reject the
+        // shot outright and inflate the uncertainty that sizes the target window.
+        var errors = samples
+            .Select(s => Math.Abs(s.X - (fittedX + velocity * (s.Time - presentationMs))))
+            .OrderByDescending(error => error)
+            .ToArray();
+        var residual = errors.Length >= 6 ? errors[1] : errors[0];
         var span = presentationMs - samples.Peek().Time;
         MotionFit = (fittedX, velocity, span, samples.Count);
         var centerTime = presentationMs + (target.Center - fittedX) / velocity;
@@ -133,10 +162,11 @@ internal sealed class PickpocketTimingPredictor
             if (samples.Count < 6 || span < 75)
                 return PickpocketTimingPrediction.Wait("Precision: observing more motion before a narrow shot.", speed, uncertainty);
             var nominalDelay = (budget.MinimumInputDelayMs + budget.MaximumInputDelayMs) / 2;
-            // First live red return shot stopped 4 px beyond center at 385 px/s.
-            // Trial an 8 ms advance for slivers only; this is not a calibrated
-            // game-delay estimate and does not change successful wider targets.
-            var advanceMs = target.Width <= 6 * scale ? tinyAdvanceMs : 0;
+            // Slivers get an early correction. The caller supplies it: the saved
+            // per-color value, shifted by the median result offset of recent
+            // thin-target shots. Wider targets keep their uncorrected center shot.
+            var tiny = target.Width <= 6 * scale;
+            var advanceMs = tiny ? tinyAdvanceMs : 0;
             var planned = centerTime - nominalDelay - advanceMs;
             var windowMs = target.Width / Math.Abs(velocity);
             if (planned < nowMs)
@@ -146,7 +176,8 @@ internal sealed class PickpocketTimingPredictor
             // A best-effort center shot, NOT a claim that the full delay/error
             // envelope fits. Preserve a tight host deadline and all input gates.
             return new(true, planned, planned + Math.Min(4, windowMs / 2), speed, uncertainty,
-                $"Experimental center shot: {windowMs:F1} ms target window; {advanceMs:F0} ms early correction. Timing remains uncalibrated; a miss is possible.");
+                $"Experimental center shot: {windowMs:F1} ms target window; {advanceMs:F1} ms early correction. Timing remains uncalibrated; a miss is possible.",
+                tiny ? advanceMs : null);
         }
         if (target.Width <= 2 * uncertainty)
             return precision ? PrecisionCenter() : PickpocketTimingPrediction.Wait("Target window is smaller than the timing uncertainty.", speed, uncertainty);

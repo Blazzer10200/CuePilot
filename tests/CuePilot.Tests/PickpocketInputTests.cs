@@ -4,6 +4,7 @@ using System.Text.Json;
 
 namespace CuePilot.Tests;
 
+[Collection("Detector timing")]
 public sealed class PickpocketInputTests
 {
     [Theory]
@@ -48,7 +49,9 @@ public sealed class PickpocketInputTests
         if (expectedPresses == 1)
         {
             Assert.Equal([false, true], sent);
-            Assert.NotNull(result.InputDelivery?.KeyUpMs);
+            // The hold no longer blocks capture: key-up is stamped by the loop, or by
+            // Stop when the test stops the run before the hold elapses.
+            Assert.NotNull(observer.Status.InputDelivery?.KeyUpMs);
             Assert.Contains("Automated Space taps: 1", observer.Status.Debug!.Report);
         }
     }
@@ -90,14 +93,23 @@ public sealed class PickpocketInputTests
     }
 
     [Fact]
-    public void OneTapWaitsForDeadlineAndReleasesExactlyOnce()
+    public void OneTapWaitsForDeadlineAndReleasesExactlyOnceWhenTheHoldElapses()
     {
         var time = 100d;
         var events = new List<(bool Up, double Time)>();
         var input = new PickpocketInputController(up => events.Add((up, time)), () => time);
         input.BeginRun();
         input.TryTap(Candidate(), 95, () => true, (deadline, _) => time = deadline, CancellationToken.None);
-        input.TryTap(Candidate(150, 210), 145, () => true, (deadline, _) => time = deadline, CancellationToken.None);
+        // TryTap returns with Space held so the caller keeps capturing during the hold.
+        Assert.Equal([(false, 110d)], events);
+        Assert.Equal(145, input.ReleaseDueMs);
+        time = 140;
+        Assert.False(input.ReleaseIfDue());
+        input.TryTap(Candidate(150, 210), 135, () => true, (deadline, _) => time = deadline, CancellationToken.None);
+        time = 145;
+        Assert.True(input.ReleaseIfDue());
+        Assert.False(input.ReleaseIfDue());
+        Assert.Null(input.ReleaseDueMs);
         Assert.True(input.Stop());
         Assert.Equal([(false, 110d), (true, 145d)], events);
         Assert.Equal(1, input.PressCount);
@@ -148,21 +160,21 @@ public sealed class PickpocketInputTests
     }
 
     [Fact]
-    public void CancellationDuringHoldReleasesOwnedSpace()
+    public void StopDuringHoldReleasesOwnedSpaceAndStampsKeyUp()
     {
         var time = 100d;
-        var events = new List<bool>();
-        using var cancellation = new CancellationTokenSource();
-        var input = new PickpocketInputController(up => events.Add(up), () => time);
+        var events = new List<(bool Up, double Time)>();
+        var input = new PickpocketInputController(up => events.Add((up, time)), () => time);
         input.BeginRun();
-        Assert.Throws<OperationCanceledException>(() => input.TryTap(Candidate(), 95, () => true, (deadline, token) =>
-        {
-            time = deadline;
-            if (events.Count == 1) { cancellation.Cancel(); input.Stop(); }
-            token.ThrowIfCancellationRequested();
-        }, cancellation.Token));
-        Assert.Equal([false, true], events);
+        input.TryTap(Candidate(), 95, () => true, (deadline, _) => time = deadline, CancellationToken.None);
+        time = 120;
+        Assert.True(input.Stop());
+        Assert.Equal([(false, 110d), (true, 120d)], events);
         Assert.Equal(1, input.PressCount);
+        Assert.Equal(120, input.Delivery!.KeyUpMs);
+        Assert.Null(input.ReleaseDueMs);
+        time = 200;
+        Assert.False(input.ReleaseIfDue());
         Assert.True(input.Stop());
         Assert.Equal(2, events.Count);
     }
@@ -174,11 +186,14 @@ public sealed class PickpocketInputTests
         var releases = 0;
         var input = new PickpocketInputController(up => { if (up && ++releases == 1) throw new IOException("Injected release failure"); }, () => time);
         input.BeginRun();
-        Assert.Throws<InvalidOperationException>(() => input.TryTap(Candidate(), 95, () => true,
-            (deadline, _) => time = deadline, CancellationToken.None));
+        input.TryTap(Candidate(), 95, () => true, (deadline, _) => time = deadline, CancellationToken.None);
+        time = 145;
+        Assert.Throws<InvalidOperationException>(() => input.ReleaseIfDue());
+        Assert.Null(input.Delivery!.KeyUpMs);
         Assert.True(input.Stop());
         Assert.Equal(2, releases);
         Assert.Equal(1, input.PressCount);
+        Assert.Equal(145, input.Delivery!.KeyUpMs);
     }
 
     [Fact]

@@ -898,6 +898,13 @@ internal readonly record struct FishingControlDecision(FishingControlAction Acti
 
 internal sealed class FishingTensionController
 {
+    // The pulse envelope was tuned on a capture loop that observed the meter about
+    // every 75-160 ms. When capture slows (a GPU-bound game), a fixed pulse leaves the
+    // line slack for most of each gap, so pulses and the braking horizon stretch with
+    // the measured cadence, within a hard cap.
+    private const double NominalSampleSeconds = 0.16;
+    private const double MaximumCadenceScale = 2.5;
+    private const double MaximumTrackedGapSeconds = 2;
     private readonly double pulseBelowRatio;
     private readonly double targetRatio;
     private readonly int minimumPulseMilliseconds;
@@ -906,6 +913,9 @@ internal sealed class FishingTensionController
     private double? lastTension;
     private long lastObservationAt;
     private long? lastPulseAt;
+    private double? sampleIntervalSeconds;
+
+    internal double CadenceScale => Math.Clamp((sampleIntervalSeconds ?? 0) / NominalSampleSeconds, 1, MaximumCadenceScale);
 
     internal FishingTensionController(
         int pulseBelowPercent,
@@ -945,11 +955,18 @@ internal sealed class FishingTensionController
         {
             var seconds = (timestamp - lastObservationAt) / (double)Stopwatch.Frequency;
             velocity = (observation.TensionRatio - lastTension.Value) / seconds;
+            if (seconds <= MaximumTrackedGapSeconds)
+            {
+                sampleIntervalSeconds = sampleIntervalSeconds is null
+                    ? seconds
+                    : sampleIntervalSeconds.Value * 0.6 + seconds * 0.4;
+            }
         }
 
         lastTension = observation.TensionRatio;
         lastObservationAt = timestamp;
-        var projected = observation.TensionRatio + Math.Max(0, velocity) * 0.12;
+        var cadenceScale = CadenceScale;
+        var projected = observation.TensionRatio + Math.Max(0, velocity) * 0.12 * cadenceScale;
 
         if (projected > pulseBelowRatio || lastPulseAt is not null && timestamp - lastPulseAt.Value < minimumRestTicks)
         {
@@ -966,6 +983,7 @@ internal sealed class FishingTensionController
         }
 
         duration = Math.Clamp(duration, minimumPulseMilliseconds, maximumPulseMilliseconds);
+        duration = (int)Math.Round(duration * cadenceScale);
         lastPulseAt = timestamp;
         return new FishingControlDecision(FishingControlAction.Pulse, duration, velocity);
     }
@@ -1284,8 +1302,13 @@ internal sealed class FishingDiagnosticLog : IDisposable
         Directory.CreateDirectory(directory);
         writer = new StreamWriter(Path.Combine(directory, "last-fishing.csv"), false);
         writer.WriteLine("elapsed_ms,visible,tension_percent,progress_percent,caught,failed,confidence_percent,lmb,event,pulse_ms");
-        writer.AutoFlush = true;
+        writer.Flush();
     }
+
+    // Rows are written between a capture and the next input edge, so they must not
+    // hit the disk one by one. Flush on a short interval and on dispose instead.
+    private const long FlushIntervalMilliseconds = 500;
+    private long lastFlushMilliseconds;
 
     internal void Write(FishingMeterObservation observation, bool holding, string eventName = "sample", int pulseMilliseconds = 0)
     {
@@ -1300,6 +1323,11 @@ internal sealed class FishingDiagnosticLog : IDisposable
             holding ? "down" : "up",
             eventName,
             pulseMilliseconds.ToString(CultureInfo.InvariantCulture)));
+        if (clock.ElapsedMilliseconds - lastFlushMilliseconds >= FlushIntervalMilliseconds)
+        {
+            writer.Flush();
+            lastFlushMilliseconds = clock.ElapsedMilliseconds;
+        }
     }
 
     internal string CaptureEvidence(

@@ -43,7 +43,6 @@ export function readTarget(value: string | null, recording: PickpocketRecording 
   return pickpocketRecordings[recording].targets.some(target => target.id === value) ? value as PickpocketTarget : recording === "grab" ? "Purple" : "White";
 }
 
-export const traceDurationMs = 2000;
 export const barPosition = (x: number, left = 672, width = 576) => Math.max(0, Math.min(100, (x - left) / width * 100));
 
 // Native presentation timestamps and measured marker positions from the user clip.

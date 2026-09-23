@@ -11,7 +11,7 @@
   }
 
   let { engineConnected, targetValid, focusActivity, onselect }: Props = $props();
-  let activityCardNodes: Partial<Record<ActivityId, HTMLButtonElement>> = {};
+  let activityCardNodes: Partial<Record<ActivityId, HTMLButtonElement>> = $state({});
   const readyCount = activities.filter((activity) => activity.availability === "ready").length;
   const observeCount = activities.filter((activity) => activity.availability === "observe" || activity.availability === "calibration").length;
   const previewCount = activities.filter((activity) => activity.availability === "preview").length;

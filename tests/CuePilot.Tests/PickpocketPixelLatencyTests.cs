@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace CuePilot.Tests;
 
+[Collection("Detector timing")]
 public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
 {
     [Fact]
@@ -54,10 +55,10 @@ public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
     [InlineData("SingleAttempt", "Widest", 579, 702, 1)]
     [InlineData("SingleAttempt", "Red", 809, 813, 0)]
     [InlineData("PrecisionAttempt", "Red", 809, 813, 1)]
-    [InlineData("PrecisionAttempt", "Red", 809, 813, 0, false)]
+    [InlineData("PrecisionAttempt", "Red", 809, 813, 1, false)] // red sits past the quarter-bar cruise check on the outward pass
     [InlineData("PrecisionAttempt", "Yellow", 979, 983, 1)]
     [InlineData("PrecisionAttempt", "RarestFirst", 979, 983, 1)]
-    [InlineData("PrecisionAttempt", "RarestFirst", 979, 983, 0, false)]
+    [InlineData("PrecisionAttempt", "RarestFirst", 979, 983, 0, false)] // yellow is not reached before the short fixture ends
     public async Task ReconstructedFifthLayoutSendsSpaceThroughPixelDetectorAndEngine(string mode, string policy, double left, double right, int expectedPresses, bool includeReturn = true)
     {
         // The live stall discarded the intervening frames. This is explicitly a
@@ -84,8 +85,8 @@ public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
             }, () => now, (deadline, token) => { token.ThrowIfCancellationRequested(); now = Math.Max(now, deadline); });
         observer.StatusChanged += (_, status) => { if (!status.Observing && status.SampleCount > 0) done.TrySetResult(status); };
         // This constructed fixture models the original 16 ms total delay.
-        // Keep its 8 ms yellow advance explicit; the native TNT replay tests 20 ms.
-        observer.Configure(policy, mode, yellowAdvanceMs: 8);
+        // Keep its 8 ms advances explicit; the native TNT replay tests 20 ms.
+        observer.Configure(policy, mode, redAdvanceMs: 8, yellowAdvanceMs: 8);
         observer.Start(new() { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
         var final = await done.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(expectedPresses, final.AutomatedPressCount);
@@ -94,7 +95,8 @@ public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
         Assert.False(keys[0].Up);
         Assert.True(keys[1].Up);
         Assert.True(keys[1].Time - keys[0].Time >= 35);
-        if (mode == "PrecisionAttempt") Assert.True(keys[0].Time > source.FirstTurnaround, "Tiny targets must skip the outward pass.");
+        // Thin targets fire on the outward pass once a quarter-bar cruise is measured.
+        if (mode == "PrecisionAttempt") Assert.True(keys[0].Time < source.FirstTurnaround, "Tiny targets should fire on the outward pass once cruise is confirmed.");
         // Slivers trial an extra 8 ms lead: verify its assumed 16 ms total delay,
         // not a claim that actual delay is known or that every delay fits.
         foreach (var delay in mode == "PrecisionAttempt" ? new[] { 16d } : new[] { 0d, 8d, 16d })

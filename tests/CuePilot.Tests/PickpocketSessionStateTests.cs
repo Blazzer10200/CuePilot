@@ -58,6 +58,48 @@ public sealed class PickpocketSessionStateTests
     }
 
     [Fact]
+    public void CalibrationShiftsThinTargetAdvanceByMedianStopOffsetWithinSixMilliseconds()
+    {
+        var now = 1_000_000L;
+        var path = StatePath();
+        var store = new PickpocketSessionState(path, () => ++now);
+        var precision = Result() with { InputMode = "PrecisionAttempt", RedAdvanceMs = 8, YellowAdvanceMs = 12 };
+        Assert.Equal(12, store.Calibrate(PickpocketBandColor.Yellow, 12).AppliedMs);
+        // Five recorded shots stopped 2 px late at 400 px/s (+5 ms) with 12 ms applied.
+        for (var i = 0; i < 5; i++)
+            store.Complete(precision, new(i % 2 == 0 ? "Grabbed" : "Missed", PickpocketBandColor.Yellow, 4, 2, 400, 12), null);
+        var pending = store.Calibrate(PickpocketBandColor.Yellow, 12);
+        Assert.Equal(12, pending.AppliedMs);
+        Assert.Equal(5, pending.Samples);
+        Assert.Contains("5 of 6", pending.Describe());
+        store.Complete(precision, new("Missed", PickpocketBandColor.Yellow, 4, -2, -400, 12), null);
+        var yellow = store.Calibrate(PickpocketBandColor.Yellow, 12);
+        Assert.Equal(17, yellow.AppliedMs);
+        Assert.Equal(6, yellow.Samples);
+        Assert.Equal(0, yellow.LegacySamples);
+        Assert.Contains("12 -> 17.0 ms from 6 thin-target shots", yellow.Describe());
+        // Red history predates speed recording: thin widths use the measured live speed.
+        for (var i = 0; i < 6; i++)
+            store.Complete(precision, new("Grabbed", PickpocketBandColor.Red, 4, 1.4), null);
+        var red = store.Calibrate(PickpocketBandColor.Red, 8);
+        Assert.Equal(6, red.LegacySamples);
+        Assert.Equal(11.6, red.AppliedMs);
+        Assert.Contains("older shots assume 390 px/s", red.Describe());
+        // A large median shift is bounded to six ms; wide targets never calibrate.
+        for (var i = 0; i < 6; i++)
+            store.Complete(precision, new("Missed", PickpocketBandColor.Red, 4, 10, 400, 8), null);
+        Assert.Equal(14, store.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
+        for (var i = 0; i < 6; i++)
+            store.Complete(precision, new("Missed", PickpocketBandColor.Blue, 40, 10, 400), null);
+        Assert.Equal(0, store.Calibrate(PickpocketBandColor.Blue, 8).Samples);
+        // Speed and applied advance survive a restart with the rest of the history.
+        var restored = new PickpocketSessionState(path, () => now);
+        Assert.Null(restored.Error);
+        Assert.Equal(17, restored.Calibrate(PickpocketBandColor.Yellow, 12).AppliedMs);
+        Assert.Equal(14, restored.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
+    }
+
+    [Fact]
     public void VersionOneHistoryMigratesWithoutInventingNewMetadata()
     {
         var path = StatePath();

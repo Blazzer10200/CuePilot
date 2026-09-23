@@ -2,15 +2,23 @@ use std::{
     fs,
     io::{Read, Seek, SeekFrom},
     process::Command,
-    sync::Arc,
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, OnceLock,
+    },
     thread,
+    time::Instant,
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, State};
 
 mod engine_bridge;
+#[cfg(windows)]
+mod mouse_shortcuts;
+mod notifications;
+#[cfg(windows)]
+mod splash;
 mod support;
 mod update_service;
 
@@ -23,6 +31,25 @@ use update_service::UpdateService;
 const MAX_DEBUG_IMAGE_BYTES: usize = 12 * 1024 * 1024;
 const MAX_SINGLE_DEBUG_IMAGE_BYTES: usize = 6 * 1024 * 1024;
 const MAX_RECENT_DIAGNOSTIC_TEXT_BYTES: u64 = 256 * 1024;
+
+/// Wall clock for launch phases. Set once at the top of `run()` so every phase
+/// is measured from the same instant the user double-clicked the shortcut.
+static LAUNCHED_AT: OnceLock<Instant> = OnceLock::new();
+static FIRST_UI_COMMAND_RECORDED: AtomicBool = AtomicBool::new(false);
+
+fn launch_elapsed_ms() -> u64 {
+    LAUNCHED_AT
+        .get()
+        .map(|start| start.elapsed().as_millis() as u64)
+        .unwrap_or_default()
+}
+
+/// Appends one bounded line per launch phase to the existing shell log. This is
+/// how a slow cold start is attributed without attaching a debugger to a release
+/// build, which has no CDP.
+pub(crate) fn record_startup_phase(phase: &str) {
+    support::log("startup", &format!("{phase} at {}ms", launch_elapsed_ms()));
+}
 
 fn read_limited(reader: impl Read, byte_limit: usize) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
@@ -71,24 +98,8 @@ fn read_tail_lines(path: &std::path::Path, byte_limit: u64, line_limit: usize) -
         .collect()
 }
 
-#[derive(Default)]
-pub(crate) struct OverlayState {
-    sequence: Mutex<u64>,
-    payload: Mutex<Option<serde_json::Value>>,
-}
-
 pub(crate) fn publish_overlay(app: &AppHandle, payload: serde_json::Value) {
-    let state = app.state::<OverlayState>();
-    {
-        if let Ok(mut sequence) = state.sequence.lock() {
-            *sequence = sequence.wrapping_add(1);
-        }
-    }
-    {
-        if let Ok(mut current) = state.payload.lock() {
-            *current = Some(payload);
-        };
-    }
+    notifications::consume(app, &payload);
 }
 
 #[tauri::command]
@@ -99,6 +110,15 @@ fn engine_command(
     target_process_id: Option<u32>,
     settings: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
+    // The first command from the webview means Svelte mounted and the window is
+    // no longer blank, so this is the user-visible end of the launch.
+    if !FIRST_UI_COMMAND_RECORDED.swap(true, Ordering::Relaxed) {
+        record_startup_phase("ui_first_command");
+        // The real interface is on screen now, so the launch splash has nothing
+        // left to cover.
+        #[cfg(windows)]
+        splash::hide();
+    }
     match command.as_str() {
         "snapshot"
         | "start"
@@ -279,28 +299,6 @@ fn open_diagnostics() -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-fn overlay_poll(app: AppHandle) -> Result<serde_json::Value, String> {
-    let state = app.state::<OverlayState>();
-    let sequence = *state
-        .sequence
-        .lock()
-        .map_err(|_| "Overlay state lock failed.")?;
-    let payload = state
-        .payload
-        .lock()
-        .map_err(|_| "Overlay payload lock failed.")?
-        .clone();
-    Ok(serde_json::json!({ "sequence": sequence, "notification": payload }))
-}
-
-fn overlay_enabled(value: Option<&str>) -> bool {
-    matches!(
-        value.map(str::trim).map(str::to_ascii_lowercase).as_deref(),
-        Some("1" | "true" | "on")
-    )
-}
-
 fn focus_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -310,9 +308,16 @@ fn focus_main_window(app: &AppHandle) {
 }
 
 pub fn run() {
+    let _ = LAUNCHED_AT.set(Instant::now());
     // Velopack must run before Tauri initializes. During install/update/remove
     // lifecycle hooks this may fast-exit without constructing the desktop UI.
     velopack::VelopackApp::build().run();
+    record_startup_phase("velopack_done");
+    // Everything past this point is a real launch, and the next five seconds are
+    // spent inside Tauri/WebView2 with nothing able to paint. Put a native
+    // window up now; it needs no web content, so it does not wait on any of it.
+    #[cfg(windows)]
+    splash::show();
     let previous_panic_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         support::log("shell_panic", &info.to_string());
@@ -326,38 +331,34 @@ pub fn run() {
         return;
     }
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // This must stay ahead of every other plugin so a second launch exits
         // before it can claim F10 or start a competing engine sidecar.
         .plugin(tauri_plugin_single_instance::init(
             |app, _arguments, _working_directory| focus_main_window(app),
         ))
+        // Splits the launch gap further. Plugin initialization runs before the
+        // configured window is created, so this timestamp says which side of
+        // that line the missing seconds are on: near `builder_ready` means the
+        // cost is window/WebView creation, near `setup_begin` means it is a
+        // plugin.
+        .plugin(
+            tauri::plugin::Builder::new("startup-probe")
+                .setup(|_app, _api: tauri::plugin::PluginApi<tauri::Wry, ()>| {
+                    record_startup_phase("plugins_ready");
+                    Ok(())
+                })
+                .build(),
+        )
         .manage(EngineBridge::default())
-        .manage(OverlayState::default())
+        .manage(notifications::NotificationState::default())
         .manage(Arc::new(UpdateService::new()))
         .setup(|app| {
-            use tauri::Emitter;
             use tauri_plugin_global_shortcut::ShortcutState;
 
-            let overlay_setting = std::env::var("CUEPILOT_OVERLAY_ENABLED").ok();
-            if overlay_enabled(overlay_setting.as_deref()) {
-                WebviewWindowBuilder::new(
-                    app,
-                    "overlay",
-                    WebviewUrl::App("index.html?overlay".into()),
-                )
-                .title("CuePilot Overlay")
-                .inner_size(430.0, 112.0)
-                .decorations(false)
-                .transparent(true)
-                .always_on_top(true)
-                .skip_taskbar(true)
-                .shadow(false)
-                .resizable(false)
-                .focused(false)
-                .visible(false)
-                .build()?;
-            }
+            record_startup_phase("setup_begin");
+            notifications::setup(app)?;
+            record_startup_phase("notifications_ready");
 
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
@@ -367,33 +368,7 @@ pub fn run() {
                             let Some(command) = bridge.command_for_shortcut(shortcut) else {
                                 return;
                             };
-                            let handle = handle.clone();
-                            let shortcut_label = match command {
-                                "toggle" => "F10",
-                                "toggle_lockpicking_class_c" => "F9",
-                                "toggle_pickpocket_observe" => "Pickpocket",
-                                "stop" => "Pause / Break",
-                                _ => "shortcut",
-                            };
-                            let shortcut_payload = serde_json::json!({
-                                "name": "shortcut",
-                                "payload": {
-                                    "key": shortcut_label,
-                                    "command": command,
-                                },
-                            });
-                            publish_overlay(&handle, shortcut_payload.clone());
-                            let _ = handle.emit("engine://event", shortcut_payload);
-                            thread::spawn(move || {
-                                if let Err(detail) = bridge.command(&handle, command, None, None) {
-                                    let fault_payload = serde_json::json!({
-                                        "name": "fault",
-                                        "payload": { "detail": detail },
-                                    });
-                                    publish_overlay(&handle, fault_payload.clone());
-                                    let _ = handle.emit("engine://event", fault_payload);
-                                }
-                            });
+                            run_shortcut_command(handle.clone(), bridge, command);
                         }
                     })
                     .build(),
@@ -403,11 +378,24 @@ pub fn run() {
             bridge.set_shortcuts_enabled(owns_global_shortcuts);
             if owns_global_shortcuts {
                 bridge.register_default_shortcuts(app.handle());
+                #[cfg(windows)]
+                mouse_shortcuts::install(app.handle().clone());
             }
+            record_startup_phase("setup_end");
+            // Normally the webview reports in about a tenth of a second later
+            // and closes the splash itself. This bounds the damage when the
+            // frontend fails to load: `hide` is idempotent, so the usual path
+            // makes this a no-op.
+            #[cfg(windows)]
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                splash::hide();
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             engine_command,
+            shortcut_capture,
             support::support_sessions,
             support::support_report,
             support::support_health,
@@ -416,7 +404,10 @@ pub fn run() {
             support::support_log,
             diagnostics_snapshot,
             open_diagnostics,
-            overlay_poll,
+            notifications::notification_ready,
+            notifications::notification_settings,
+            notifications::save_notification_settings,
+            notifications::preview_notification,
             update_service::updater_status,
             update_service::check_for_updates,
             update_service::download_update,
@@ -424,13 +415,70 @@ pub fn run() {
             update_service::open_update_releases
         ])
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 let bridge = window.state::<EngineBridge>();
                 bridge.shutdown(window.app_handle());
+                // The hidden notification window must not keep CuePilot alive.
+                window.app_handle().exit(0);
             }
-        })
+        });
+    // Splits the launch into our own pre-run work and the time Tauri/WebView2
+    // spends bringing up the window. Without this marker the whole gap up to
+    // `setup_begin` reads as one opaque delay.
+    record_startup_phase("builder_ready");
+    builder
         .run(tauri::generate_context!())
         .expect("error while running CuePilot Tauri shell");
+}
+
+/// Announces a fired shortcut and runs its engine command off the caller's thread.
+/// Shared by the keyboard plugin handler and the mouse hook.
+fn run_shortcut_command(handle: AppHandle, bridge: EngineBridge, command: &'static str) {
+    use tauri::Emitter;
+
+    let shortcut_label = bridge
+        .registered_shortcut(command)
+        .map(|text| engine_bridge::shortcut_label(&text))
+        .unwrap_or_else(|| "the shortcut".to_string());
+    let shortcut_payload = serde_json::json!({
+        "name": "shortcut",
+        "payload": {
+            "key": shortcut_label,
+            "command": command,
+        },
+    });
+    publish_overlay(&handle, shortcut_payload.clone());
+    let _ = handle.emit("engine://event", shortcut_payload);
+    thread::spawn(move || match bridge.command(&handle, command, None, None) {
+        Ok(result) => notifications::confirm_shortcut(&handle, command, &result, &shortcut_label),
+        Err(detail) => {
+            let fault_payload = serde_json::json!({
+                "name": "fault",
+                "payload": { "detail": detail },
+            });
+            publish_overlay(&handle, fault_payload.clone());
+            let _ = handle.emit("engine://event", fault_payload);
+        }
+    });
+}
+
+/// Called from the low-level mouse hook. Returns true when the press was bound
+/// to a command, so the hook swallows it instead of passing it to the game.
+#[cfg(windows)]
+pub(crate) fn dispatch_mouse_shortcut(app: &AppHandle, shortcut: &str) -> bool {
+    let bridge = app.state::<EngineBridge>().inner().clone();
+    let Some(command) = bridge.command_for_mouse(shortcut) else {
+        return false;
+    };
+    run_shortcut_command(app.clone(), bridge, command);
+    true
+}
+
+/// The Settings drawer calls this while its key-capture field is listening, so
+/// the currently registered keys reach the page instead of firing commands.
+#[tauri::command]
+fn shortcut_capture(app: AppHandle, bridge: State<EngineBridge>, active: bool) {
+    bridge.set_capture_suspended(&app, active);
 }
 
 fn shortcut_profile_owns_hotkeys(identifier: &str) -> bool {
@@ -471,17 +519,6 @@ mod diagnostics_tests {
     fn all_profiles_attempt_to_register_global_shortcuts() {
         assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot"));
         assert!(shortcut_profile_owns_hotkeys("com.blazzer.cuepilot.dev"));
-    }
-
-    #[test]
-    fn overlay_requires_explicit_opt_in() {
-        assert!(!overlay_enabled(None));
-        assert!(!overlay_enabled(Some("0")));
-        assert!(!overlay_enabled(Some("FALSE")));
-        assert!(!overlay_enabled(Some(" off ")));
-        assert!(overlay_enabled(Some("1")));
-        assert!(overlay_enabled(Some("true")));
-        assert!(overlay_enabled(Some(" on ")));
     }
 
     #[test]

@@ -41,6 +41,10 @@ pub(crate) struct EngineBridge {
     pending: Arc<Mutex<PendingCommands>>,
     next_id: Arc<AtomicU64>,
     shortcuts_enabled: Arc<AtomicBool>,
+    /// True while the Settings drawer is listening for a new binding: the
+    /// keyboard shortcuts are released so the WebView can see them, and mouse
+    /// shortcuts pass through to the page instead of firing commands.
+    capture_suspended: Arc<AtomicBool>,
     start_stop_shortcut: Arc<Mutex<Option<String>>>,
     lockpicking_start_stop_shortcut: Arc<Mutex<Option<String>>>,
     pickpocket_start_stop_shortcut: Arc<Mutex<Option<String>>>,
@@ -73,6 +77,105 @@ impl EngineBridge {
 
     pub(crate) fn set_shortcuts_enabled(&self, enabled: bool) {
         self.shortcuts_enabled.store(enabled, Ordering::Relaxed);
+    }
+
+    fn shortcut_slots(&self) -> [(&Mutex<Option<String>>, &'static str, &'static str); 4] {
+        [
+            (&self.start_stop_shortcut, "F10", "Start / Stop"),
+            (
+                &self.lockpicking_start_stop_shortcut,
+                "F9",
+                "Lockpicking Start / Stop",
+            ),
+            (&self.emergency_shortcut, "Pause", "Emergency stop"),
+            (
+                &self.pickpocket_start_stop_shortcut,
+                "F7",
+                "Pickpocket Start / Stop",
+            ),
+        ]
+    }
+
+    fn shortcuts_active(&self) -> bool {
+        self.shortcuts_enabled.load(Ordering::Relaxed)
+            && !self.capture_suspended.load(Ordering::Relaxed)
+    }
+
+    /// Releases (or re-claims) every registered keyboard shortcut while the UI
+    /// captures a new binding. Windows delivers a registered hotkey only to the
+    /// registrant, so without this the page could never observe the current key.
+    pub(crate) fn set_capture_suspended(&self, app: &AppHandle, active: bool) {
+        if !self.shortcuts_enabled.load(Ordering::Relaxed) {
+            return;
+        }
+        if self.capture_suspended.swap(active, Ordering::Relaxed) == active {
+            return;
+        }
+        let shortcuts = app.global_shortcut();
+        for (slot, _, label) in self.shortcut_slots() {
+            let Some(registered) = slot.lock().ok().and_then(|value| value.clone()) else {
+                continue;
+            };
+            if is_mouse_shortcut(&registered) {
+                continue;
+            }
+            let outcome = if active {
+                shortcuts.unregister(registered.as_str())
+            } else {
+                shortcuts.register(registered.as_str())
+            };
+            if let Err(error) = outcome {
+                let verb = if active { "release" } else { "re-claim" };
+                emit_shortcut_warning(
+                    app,
+                    format!(
+                        "Could not {verb} the {label} shortcut '{registered}' for capture. {error}"
+                    ),
+                );
+            }
+        }
+    }
+
+    /// The stored text for a command's binding, used to label the overlay toast.
+    pub(crate) fn registered_shortcut(&self, command: &str) -> Option<String> {
+        let (slot, fallback) = match command {
+            "toggle" => (&self.start_stop_shortcut, "F10"),
+            "toggle_lockpicking_class_c" => (&self.lockpicking_start_stop_shortcut, "F9"),
+            "stop" => (&self.emergency_shortcut, "Pause"),
+            "toggle_pickpocket_observe" => (&self.pickpocket_start_stop_shortcut, "F7"),
+            _ => return None,
+        };
+        Some(
+            slot.lock()
+                .ok()
+                .and_then(|value| value.clone())
+                .unwrap_or_else(|| fallback.to_string()),
+        )
+    }
+
+    /// Routes a mouse-button shortcut (`Ctrl+MouseX1`) the same way keyboard
+    /// shortcuts are routed, using the same slot priority.
+    pub(crate) fn command_for_mouse(&self, shortcut: &str) -> Option<&'static str> {
+        if !self.shortcuts_active() {
+            return None;
+        }
+        let matches = |slot: &Mutex<Option<String>>| {
+            slot.lock()
+                .ok()
+                .and_then(|value| value.clone())
+                .is_some_and(|configured| configured.eq_ignore_ascii_case(shortcut))
+        };
+        if matches(&self.start_stop_shortcut) {
+            Some("toggle")
+        } else if matches(&self.lockpicking_start_stop_shortcut) {
+            Some("toggle_lockpicking_class_c")
+        } else if matches(&self.emergency_shortcut) {
+            Some("stop")
+        } else if matches(&self.pickpocket_start_stop_shortcut) {
+            Some("toggle_pickpocket_observe")
+        } else {
+            None
+        }
     }
 
     pub(crate) fn register_default_shortcuts(&self, app: &AppHandle) {
@@ -145,8 +248,10 @@ impl EngineBridge {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| format!("Start local engine: {error}"))?;
-        let input = child.stdin.take().ok_or("Engine did not expose stdin.")?;
-        let stdout = child.stdout.take().ok_or("Engine did not expose stdout.")?;
+        let (Some(input), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
+            stop_owned_child(child);
+            return Err("Engine did not expose its stdin/stdout pipes.".into());
+        };
         let stderr = child.stderr.take();
 
         let generation = {
@@ -322,7 +427,7 @@ impl EngineBridge {
     }
 
     pub(crate) fn command_for_shortcut(&self, shortcut: &Shortcut) -> Option<&'static str> {
-        if !self.shortcuts_enabled.load(Ordering::Relaxed) {
+        if !self.shortcuts_active() {
             return None;
         }
         if shortcut_matches(&self.start_stop_shortcut, "F10", shortcut) {
@@ -349,31 +454,56 @@ impl EngineBridge {
             app,
             &self.pickpocket_start_stop_shortcut,
             settings.get("pickpocketStartStop"),
-            "F7",
             "Pickpocket Start / Stop",
         );
         sync_registered_shortcut(
             app,
             &self.start_stop_shortcut,
             settings.get("startStop"),
-            "F10",
             "Start / Stop",
         );
         sync_registered_shortcut(
             app,
             &self.lockpicking_start_stop_shortcut,
             settings.get("lockpickingStartStop"),
-            "F9",
             "Lockpicking Start / Stop",
         );
         sync_registered_shortcut(
             app,
             &self.emergency_shortcut,
             settings.get("emergencyStop"),
-            "Pause",
             "Emergency stop",
         );
     }
+}
+
+/// Human label for a stored shortcut: `Ctrl+MouseX1` → `Ctrl + Mouse 4`,
+/// `Shift+KeyG` → `Shift + G`. Mirrors `describeKey` in `ui/src/lib/hotkeys.ts`.
+pub(crate) fn shortcut_label(shortcut: &str) -> String {
+    shortcut
+        .split('+')
+        .map(|part| match part {
+            "MouseX1" => "Mouse 4".to_string(),
+            "MouseX2" => "Mouse 5".to_string(),
+            "MouseMiddle" => "Middle Mouse".to_string(),
+            "Pause" => "Pause / Break".to_string(),
+            "Return" => "Enter".to_string(),
+            key if key.len() == 4 && key.starts_with("Key") => key[3..].to_string(),
+            key if key.len() == 6 && key.starts_with("Digit") => key[5..].to_string(),
+            key if key.len() == 7 && key.starts_with("Numpad") => format!("Num {}", &key[6..]),
+            key => key.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+/// Mouse bindings are stored as `[Ctrl+][Shift+][Alt+]Mouse{Middle,X1,X2}` and are
+/// served by the low-level mouse hook, never by the global-shortcut plugin.
+pub(crate) fn is_mouse_shortcut(shortcut: &str) -> bool {
+    shortcut
+        .rsplit('+')
+        .next()
+        .is_some_and(|key| key.len() > 5 && key[..5].eq_ignore_ascii_case("Mouse"))
 }
 
 fn register_initial_shortcut(
@@ -410,7 +540,6 @@ fn sync_registered_shortcut(
     app: &AppHandle,
     current: &Mutex<Option<String>>,
     binding: Option<&Value>,
-    fallback: &str,
     label: &str,
 ) {
     let Some(binding) = binding else {
@@ -423,36 +552,45 @@ fn sync_registered_shortcut(
     let Ok(mut registered) = current.lock() else {
         return;
     };
-    if registered.is_none() {
-        match app.global_shortcut().register(shortcut.as_str()) {
-            Ok(()) => *registered = Some(shortcut),
-            Err(error) => emit_shortcut_warning(
-                app,
-                format!("{label} shortcut '{shortcut}' is already in use; CuePilot remains open without claiming it. {error}"),
-            ),
-        }
-        return;
-    }
     if registered.as_deref() == Some(shortcut.as_str()) {
         return;
     }
 
     let shortcuts = app.global_shortcut();
-    let previous = registered.as_deref().unwrap_or(fallback).to_string();
-    if let Err(error) = shortcuts.unregister(previous.as_str()) {
-        emit_shortcut_warning(app, format!("Update {label} shortcut: {error}"));
+    let previous = registered.clone();
+    // Only keyboard bindings live in the plugin; a mouse binding just changes the
+    // text the hook compares against.
+    if let Some(previous) = previous
+        .as_deref()
+        .filter(|value| !is_mouse_shortcut(value))
+    {
+        if let Err(error) = shortcuts.unregister(previous) {
+            emit_shortcut_warning(app, format!("Update {label} shortcut: {error}"));
+            return;
+        }
+    }
+    if is_mouse_shortcut(&shortcut) {
+        *registered = Some(shortcut);
         return;
     }
     match shortcuts.register(shortcut.as_str()) {
         Ok(()) => *registered = Some(shortcut),
-        Err(error) => {
-            let _ = shortcuts.register(previous.as_str());
-            *registered = Some(previous.clone());
-            emit_shortcut_warning(
+        Err(error) => match previous {
+            Some(previous) => {
+                if !is_mouse_shortcut(&previous) {
+                    let _ = shortcuts.register(previous.as_str());
+                }
+                *registered = Some(previous.clone());
+                emit_shortcut_warning(
+                    app,
+                    format!("{label} shortcut '{shortcut}' is unsupported; {previous} remains active. {error}"),
+                );
+            }
+            None => emit_shortcut_warning(
                 app,
-                format!("{label} shortcut '{shortcut}' is unsupported; {previous} remains active. {error}"),
-            );
-        }
+                format!("{label} shortcut '{shortcut}' is already in use; CuePilot remains open without claiming it. {error}"),
+            ),
+        },
     }
 }
 
@@ -493,6 +631,14 @@ fn dispatch_engine_line(app: &AppHandle, pending: &Arc<Mutex<PendingCommands>>, 
             result,
             error,
         }) => {
+            if ok {
+                if let Some(snapshot) = result
+                    .as_ref()
+                    .filter(|value| value.get("protocolVersion").is_some())
+                {
+                    crate::notifications::consume_snapshot(app, snapshot);
+                }
+            }
             let sender = pending
                 .lock()
                 .ok()
@@ -674,6 +820,73 @@ mod tests {
         assert_eq!(
             bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
             None
+        );
+    }
+
+    #[test]
+    fn labels_shortcuts_for_people() {
+        assert_eq!(shortcut_label("F7"), "F7");
+        assert_eq!(shortcut_label("Ctrl+MouseX1"), "Ctrl + Mouse 4");
+        assert_eq!(shortcut_label("Shift+KeyG"), "Shift + G");
+        assert_eq!(shortcut_label("Digit1"), "1");
+        assert_eq!(shortcut_label("Numpad7"), "Num 7");
+        assert_eq!(shortcut_label("Pause"), "Pause / Break");
+    }
+
+    #[test]
+    fn recognises_mouse_shortcut_text() {
+        assert!(is_mouse_shortcut("MouseX1"));
+        assert!(is_mouse_shortcut("Ctrl+Shift+MouseMiddle"));
+        assert!(is_mouse_shortcut("mousex2"));
+        assert!(!is_mouse_shortcut("F10"));
+        assert!(!is_mouse_shortcut("Ctrl+M"));
+        assert!(!is_mouse_shortcut("Mouse"));
+        assert_eq!(
+            shortcut_string(&serde_json::json!({ "control": true }), "MouseX2"),
+            "Ctrl+MouseX2"
+        );
+    }
+
+    #[test]
+    fn routes_mouse_shortcuts_through_the_same_slots() {
+        let bridge = EngineBridge::default();
+        bridge.set_shortcuts_enabled(true);
+        *bridge.start_stop_shortcut.lock().unwrap() = Some("MouseX1".into());
+        *bridge.pickpocket_start_stop_shortcut.lock().unwrap() = Some("Ctrl+MouseX2".into());
+
+        assert_eq!(bridge.command_for_mouse("MouseX1"), Some("toggle"));
+        assert_eq!(bridge.command_for_mouse("mousex1"), Some("toggle"));
+        assert_eq!(
+            bridge.command_for_mouse("Ctrl+MouseX2"),
+            Some("toggle_pickpocket_observe")
+        );
+        assert_eq!(bridge.command_for_mouse("MouseX2"), None);
+        assert_eq!(bridge.command_for_mouse("MouseMiddle"), None);
+        assert_eq!(
+            bridge.registered_shortcut("toggle").as_deref(),
+            Some("MouseX1")
+        );
+        assert_eq!(bridge.registered_shortcut("stop").as_deref(), Some("Pause"));
+    }
+
+    #[test]
+    fn capture_suspends_routing_for_keyboard_and_mouse() {
+        let bridge = EngineBridge::default();
+        bridge.set_shortcuts_enabled(true);
+        *bridge.start_stop_shortcut.lock().unwrap() = Some("MouseX1".into());
+        bridge.capture_suspended.store(true, Ordering::Relaxed);
+
+        assert_eq!(bridge.command_for_mouse("MouseX1"), None);
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
+            None
+        );
+
+        bridge.capture_suspended.store(false, Ordering::Relaxed);
+        assert_eq!(bridge.command_for_mouse("MouseX1"), Some("toggle"));
+        assert_eq!(
+            bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
+            Some("toggle_pickpocket_observe")
         );
     }
 

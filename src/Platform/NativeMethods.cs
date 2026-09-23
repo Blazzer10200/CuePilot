@@ -73,6 +73,13 @@ internal static class NativeMethods
         internal UIntPtr ExtraInfo;
     }
 
+    // D3DKMT_SCHEDULINGPRIORITYCLASS; values above NORMAL need an elevated process.
+    internal const int GpuSchedulingPriorityHigh = 4;
+    internal const int GpuSchedulingPriorityRealtime = 5;
+
+    [DllImport("gdi32.dll")]
+    internal static extern int D3DKMTSetProcessSchedulingPriorityClass(IntPtr process, int priority);
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint count, ref Input input, int size);
 

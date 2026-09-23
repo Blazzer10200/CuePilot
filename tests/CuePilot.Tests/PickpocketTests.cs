@@ -169,7 +169,9 @@ public sealed class PickpocketTests(ITestOutputHelper output)
         foreach (var time in new[] { press, press + 16 })
         {
             var before = positions.Last(p => p.Time <= time);
-            var after = positions.First(p => p.Time >= time);
+            // The final frame is the recorded Grabbed result: the marker froze there,
+            // so any later delivery time reads that same position.
+            var after = positions.FirstOrDefault(p => p.Time >= time, positions[^1]);
             var x = after.Time == before.Time ? before.X
                 : before.X + (after.X - before.X) * (time - before.Time) / (after.Time - before.Time);
             Assert.InRange(x, 268, 283);

@@ -5,16 +5,19 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
     Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
-    Gauge, GripHorizontal, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
-    ShieldCheck, Square, Terminal, X,
+    Gauge, Hand, KeyRound, Layers3, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
+    ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
   import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
-  import { getActivity, type ActivityId } from "./lib/activities";
+  import { activities, getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
   import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
   import PickpocketWorkspace from "./lib/activities/PickpocketWorkspace.svelte";
   import UpdateCenter from "./lib/UpdateCenter.svelte";
   import SupportCenter from "./lib/SupportCenter.svelte";
+  import NotificationSettings from "./lib/NotificationSettings.svelte";
+  import HotkeyCapture from "./lib/HotkeyCapture.svelte";
+  import { hotkeyDisplay, sameHotkey } from "./lib/hotkeys";
   import { updates } from "./lib/updates.svelte";
 
   const developmentBuild = import.meta.env.DEV;
@@ -77,7 +80,11 @@
     { value: "Foreground", label: "Foreground only", description: "Require FiveM to stay active" },
   ];
   let settingsAdvanced = $state(false);
-  const shortcutOptions = ["F6", "F7", "F9", "F10", "F11", "F12"];
+  const defaultShortcuts = {
+    fishing: { key: "F10", control: false, shift: false, alt: false },
+    lockpicking: { key: "F9", control: false, shift: false, alt: false },
+    pickpocket: { key: "F7", control: false, shift: false, alt: false },
+  } as const satisfies Record<string, HotkeyBinding>;
 
   const engine = new EngineClient();
   const stoppedLockpicking: LockpickingObserveStatus = {
@@ -190,6 +197,11 @@
     const syncMotionPreference = () => reduceMotion = motionQuery.matches;
     syncMotionPreference();
     motionQuery.addEventListener("change", syncMotionPreference);
+    const syncIdle = () => document.documentElement.classList.toggle("app-idle", document.hidden || !document.hasFocus());
+    syncIdle();
+    document.addEventListener("visibilitychange", syncIdle);
+    window.addEventListener("blur", syncIdle);
+    window.addEventListener("focus", syncIdle);
     const seenFrontendErrors = new Set<string>();
     const recordFrontendError = (kind: "frontend_error" | "frontend_rejection", value: unknown) => {
       const detail = value instanceof Error ? `${value.name}: ${value.message}\n${value.stack ?? ""}` : String(value);
@@ -204,8 +216,22 @@
     window.addEventListener("unhandledrejection", onFrontendRejection);
     void engine.connect().catch((error: unknown) => engine.error = String(error));
     void updates.initialize();
+    if (import.meta.env.DEV) {
+      // Read-only inspection hook for the local CDP bridge (`c.sh state`). Vite drops this block from production builds.
+      (window as unknown as { __cuepilot?: unknown }).__cuepilot = {
+        get connected() { return engine.connected; },
+        get error() { return engine.error; },
+        get status() { return $state.snapshot(engine.status); },
+        get snapshot() { return $state.snapshot(engine.snapshot); },
+        get activity() { return selectedActivity; },
+        get panels() { return { settings: showSettings, diagnostics: showDiagnostics, targetPicker: targetPickerOpen, updates: updates.dialogOpen }; },
+      };
+    }
     return () => {
       motionQuery.removeEventListener("change", syncMotionPreference);
+      document.removeEventListener("visibilitychange", syncIdle);
+      window.removeEventListener("blur", syncIdle);
+      window.removeEventListener("focus", syncIdle);
       window.removeEventListener("error", onFrontendError);
       window.removeEventListener("unhandledrejection", onFrontendRejection);
       if (noticeTimer) clearTimeout(noticeTimer);
@@ -369,18 +395,14 @@
     return { ...binding };
   }
 
-  function hotkeyDisplay(binding: HotkeyBinding | null | undefined) {
-    if (!binding) return "F10";
-    const parts = [binding.control && "Ctrl", binding.shift && "Shift", binding.alt && "Alt", binding.key]
-      .filter(Boolean);
-    return parts.join(" + ");
-  }
-
-  function sameHotkey(left: HotkeyBinding, right: HotkeyBinding) {
-    return left.key.toLowerCase() === right.key.toLowerCase()
-      && left.control === right.control
-      && left.shift === right.shift
-      && left.alt === right.alt;
+  function takenShortcuts(except: "fishing" | "lockpicking" | "pickpocket") {
+    const owners = [
+      { id: "fishing", binding: shortcutDraft, owner: "Fishing Start / Stop" },
+      { id: "lockpicking", binding: lockpickingShortcutDraft, owner: "the reserved Class C shortcut" },
+      { id: "pickpocket", binding: pickpocketShortcutDraft, owner: "Pickpocket Start / Stop" },
+      { id: "emergency", binding: engine.snapshot?.settings.emergencyStop ?? null, owner: "Emergency stop" },
+    ];
+    return owners.flatMap(entry => entry.id !== except && entry.binding ? [{ binding: entry.binding, owner: entry.owner }] : []);
   }
 
   async function selectActivity(activityId: ActivityId) {
@@ -703,16 +725,15 @@
   }
 </script>
 
-<svelte:head><title>{applicationName}</title><link rel="icon" type="image/png" sizes="128x128" href={brandIcon} /><meta name="theme-color" content="#071518" /></svelte:head>
+<svelte:head><title>{applicationName}</title><link rel="icon" type="image/png" sizes="128x128" href={brandIcon} /><meta name="theme-color" content="#242321" /></svelte:head>
 <svelte:window onkeydown={handleWindowKeydown} onclick={handleWindowClick} />
 
-<main class:running={active} class:activity-home={selectedActivity === null} class:activity-workspace={selectedActivity !== null} inert={showSettings || showDiagnostics || updates.dialogOpen} aria-hidden={showSettings || showDiagnostics || updates.dialogOpen}>
+<main data-workspace={selectedActivity ?? "home"} class:running={active} class:activity-home={selectedActivity === null} class:activity-workspace={selectedActivity !== null} inert={showSettings || showDiagnostics || updates.dialogOpen} aria-hidden={showSettings || showDiagnostics || updates.dialogOpen}>
   <div class="titlebar" role="group" aria-label="Window controls" onpointerdown={startDragging}>
     <div class="brand">
       <div class="mark" aria-hidden="true"><img src={brandIcon} alt="" /></div>
       <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
     </div>
-    <div class="drag-hint" aria-hidden="true"><GripHorizontal size={16} /> DRAG WINDOW</div>
     <div class="top-actions">
       <button aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={15} /></button>
       <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
@@ -721,6 +742,20 @@
       <button class="close" aria-label="Close" title="Close CuePilot" onclick={close}><X size={15} /></button>
     </div>
   </div>
+
+  <div class="app-body">
+  <nav class="rail" aria-label="Activity rail">
+    <button class="rail__item" class:active={selectedActivity === null} aria-current={selectedActivity === null ? "page" : undefined} aria-label="Activity library" title="Activity library" onclick={returnToActivities} disabled={!!runPending || selectedActivity === null}><Layers3 size={18} strokeWidth={1.8} /><span>Home</span></button>
+    <i class="rail__divider" aria-hidden="true"></i>
+    {#each activities as activity (activity.id)}
+      <button class="rail__item" data-rail={activity.id} class:active={selectedActivity === activity.id} aria-current={selectedActivity === activity.id ? "page" : undefined} aria-label={`Switch to ${activity.shortName}`} title={activity.name} onclick={() => selectActivity(activity.id)} disabled={!!runPending || selectedActivity === activity.id}>
+        {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else if activity.id === "pickpocket"}<Hand size={18} strokeWidth={1.8} />{:else}<KeyRound size={18} strokeWidth={1.8} />{/if}
+        <span>{activity.id === "fishing" ? "Fish" : activity.id === "pickpocket" ? "Pocket" : "Lock"}</span>
+        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"></b>{/if}
+      </button>
+    {/each}
+  </nav>
+  <div class="app-content">
 
   {#if currentActivity}
   <div class="workspace-header">
@@ -774,6 +809,7 @@
     </div>
   </section>
 
+  <div class="fishing-body">
   <section class="instrument" aria-label="Live engine telemetry">
     <article class="target-card">
       <header class="target-card__header">
@@ -816,6 +852,7 @@
     </aside>
   </section>
 
+  <aside class="fishing-run" aria-label="Routine controls">
   <section class="cycle" aria-label="Routine cycle">
     {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
       {@const stepState = cycleStepState(index)}
@@ -853,6 +890,8 @@
     </button>
     <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
   </section>
+  </aside>
+  </div>
 
   <footer class="status-footer">
     <div class="safety-summary">
@@ -881,6 +920,8 @@
       onmode={async (mode) => { await engine.setLockpicking(mode); }}
     />
   {/if}
+  </div>
+  </div>
       {#if targetPickerOpen}
         <div
           id="target-picker"
@@ -966,23 +1007,26 @@
           <div><p>Global control</p><h3 id="shortcut-heading">Fishing Start / Stop shortcut</h3></div>
           <span>{hotkeyDisplay(shortcutDraft)}</span>
         </header>
-        <div class="shortcut-control">
-          <div><strong>Toggle Fishing from FiveM</strong><small>Press once to start. Press again to stop and release input.</small></div>
-          <select aria-label="Fishing start and stop shortcut" bind:value={shortcutDraft.key}>
-            {#if shortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
-            {#each shortcutOptions as key}<option value={key}>{key}</option>{/each}
-          </select>
-        </div>
+        <HotkeyCapture
+          bind:value={shortcutDraft}
+          label="Fishing start and stop shortcut"
+          title="Toggle Fishing from FiveM"
+          description="Press once to start. Press again to stop and release input."
+          defaultBinding={defaultShortcuts.fishing}
+          taken={takenShortcuts("fishing")}
+        />
       </section>
     {:else if selectedActivity === "pickpocket"}
       <section class="settings-group shortcut-setting" aria-labelledby="pickpocket-shortcut-heading">
         <header class="settings-group__header"><div><p>Global control</p><h3 id="pickpocket-shortcut-heading">Pickpocket Start / Stop shortcut</h3></div><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
-        <div class="shortcut-control"><div><strong>Toggle Pickpocket from FiveM</strong><small>{engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.</small></div>
-          <select aria-label="Pickpocket start and stop shortcut" bind:value={pickpocketShortcutDraft.key}>
-            {#if pickpocketShortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
-            {#each shortcutOptions.filter(key => key !== "F8") as key}<option value={key}>{key}</option>{/each}
-          </select>
-        </div>
+        <HotkeyCapture
+          bind:value={pickpocketShortcutDraft}
+          label="Pickpocket start and stop shortcut"
+          title="Toggle Pickpocket from FiveM"
+          description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
+          defaultBinding={defaultShortcuts.pickpocket}
+          taken={takenShortcuts("pickpocket")}
+        />
       </section>
     {:else}
       <section class="settings-group shortcut-setting" aria-labelledby="lockpicking-shortcut-heading">
@@ -990,13 +1034,14 @@
           <div><p>Future control</p><h3 id="lockpicking-shortcut-heading">Reserved Class C shortcut</h3></div>
           <span>{hotkeyDisplay(lockpickingShortcutDraft)}</span>
         </header>
-        <div class="shortcut-control">
-          <div><strong>Reserved Class C shortcut</strong><small>Class C input is unavailable until the evidence gate passes. This binding is saved for that future release.</small></div>
-          <select aria-label="Reserved Class C shortcut" bind:value={lockpickingShortcutDraft.key}>
-            {#if lockpickingShortcutDraft.key === "F8"}<option value="F8" disabled>F8 · existing binding</option>{/if}
-            {#each shortcutOptions as key}<option value={key}>{key}</option>{/each}
-          </select>
-        </div>
+        <HotkeyCapture
+          bind:value={lockpickingShortcutDraft}
+          label="Reserved Class C shortcut"
+          title="Reserved Class C shortcut"
+          description="Class C input is unavailable until the evidence gate passes. This binding is saved for that future release."
+          defaultBinding={defaultShortcuts.lockpicking}
+          taken={takenShortcuts("lockpicking")}
+        />
       </section>
     {/if}
 
@@ -1074,9 +1119,10 @@
       </label>
     </section>
     {/if}
+    <NotificationSettings />
     </div>
     {#if settingsError}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 150 }}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
-    <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}No changes to apply <Check size={16} strokeWidth={2.1} />{/if}</button></div>
+    <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
   </div>
 {/if}
 

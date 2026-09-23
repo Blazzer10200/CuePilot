@@ -224,14 +224,37 @@ internal static class Program
             Console.Error.WriteLine($"CAPTURE_PROBE_FAILED {detail}");
             return 2;
         }
+        // The first sample pays device and duplication setup; the fishing loop reuses one
+        // source, so the steady-state samples are the number that matters.
+        const int samples = 16;
         using var source = FrameSourceFactory.Create();
-        var observation = FishingMeterService.Observe(source, target, out var status);
-        if (status.State != FrameSourceState.Ready)
+        var captureMilliseconds = new List<double>(samples);
+        var sampleMilliseconds = new List<double>(samples);
+        var observation = FishingMeterObservation.Missing;
+        FrameSourceStatus? status = null;
+        for (var index = 0; index < samples; index++)
         {
-            Console.Error.WriteLine($"CAPTURE_PROBE_FAILED backend={status.Backend} detail={status.Detail}");
-            return 3;
+            var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+            observation = FishingMeterService.Observe(source, target, out var sampleStatus);
+            sampleMilliseconds.Add(System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+            status = sampleStatus;
+            if (sampleStatus.State != FrameSourceState.Ready)
+            {
+                Console.Error.WriteLine($"CAPTURE_PROBE_FAILED backend={sampleStatus.Backend} detail={sampleStatus.Detail}");
+                return 3;
+            }
+            captureMilliseconds.Add(sampleStatus.CaptureMilliseconds);
+            Thread.Sleep(40);
         }
-        Console.WriteLine($"CAPTURE_PROBE_OK backend={status.Backend} ms={status.CaptureMilliseconds:F2} visible={observation.IsVisible} failed={observation.IsFailed} confidence={observation.Confidence:P0}");
+
+        var steady = captureMilliseconds.Skip(1).Order().ToArray();
+        var steadySamples = sampleMilliseconds.Skip(1).Order().ToArray();
+        Console.WriteLine(
+            $"CAPTURE_PROBE_OK backend={status!.Backend} cold_ms={captureMilliseconds[0]:F2} " +
+            $"steady_median_ms={steady[steady.Length / 2]:F2} steady_max_ms={steady[^1]:F2} " +
+            $"sample_median_ms={steadySamples[steadySamples.Length / 2]:F2} " +
+            $"gpu_priority={(DxgiFrameSource.GpuPriorityRaised ? "raised" : "normal")} " +
+            $"visible={observation.IsVisible} failed={observation.IsFailed} confidence={observation.Confidence:P0}");
         return 0;
     }
 

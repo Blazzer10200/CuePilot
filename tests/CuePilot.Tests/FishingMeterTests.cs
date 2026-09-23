@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace CuePilot.Tests;
 
-[Collection("Fishing timing")]
+[Collection("Detector timing")]
 public sealed class FishingMeterTests
 {
     [Fact]
@@ -794,7 +794,7 @@ public sealed class FishingMeterTests
         Assert.Equal(FishingControlAction.None, fastRise.Action);
         Assert.True(fastRise.VelocityPerSecond > 1);
 
-        var settled = controller.Observe(visible with { TensionRatio = 0.52 }, frequency * 2);
+        var settled = controller.Observe(visible with { TensionRatio = 0.52 }, frequency + frequency / 5);
         Assert.Equal(FishingControlAction.Pulse, settled.Action);
         Assert.InRange(settled.PulseMilliseconds, 35, 90);
 
@@ -823,6 +823,42 @@ public sealed class FishingMeterTests
         Assert.Equal(FishingControlAction.None, tooSoon.Action);
         Assert.Equal(FishingControlAction.Pulse, afterRest.Action);
         Assert.InRange(afterRest.PulseMilliseconds, 35, 90);
+    }
+
+    [Fact]
+    public void SlowCaptureCadenceStretchesPulsesWithinTheHardCap()
+    {
+        // Mirrors the 2026-09-22 live trace: ~300 ms between meter reads left 35-90 ms
+        // pulses too short to hold tension, and the fish escaped.
+        var controller = new FishingTensionController(55, 68, 35, 90, 70);
+        var frequency = System.Diagnostics.Stopwatch.Frequency;
+        var decisions = Enumerable.Range(1, 8)
+            .Select(index => controller.Observe(
+                new FishingMeterObservation(true, 0.30, 0.02, false, 1),
+                frequency + index * frequency * 300 / 1_000))
+            .ToArray();
+
+        var pulses = decisions.Where(decision => decision.Action == FishingControlAction.Pulse).ToArray();
+        Assert.Equal(decisions.Length, pulses.Length);
+        Assert.True(pulses[^1].PulseMilliseconds > 90);
+        Assert.All(pulses, decision => Assert.InRange(decision.PulseMilliseconds, 35, 225));
+        Assert.InRange(controller.CadenceScale, 1.5, 2.5);
+    }
+
+    [Fact]
+    public void HealthyCaptureCadenceKeepsTheTunedPulseEnvelope()
+    {
+        var controller = new FishingTensionController(55, 68, 35, 90, 70);
+        var frequency = System.Diagnostics.Stopwatch.Frequency;
+        var decisions = Enumerable.Range(1, 12)
+            .Select(index => controller.Observe(
+                new FishingMeterObservation(true, 0.30, 0.02, false, 1),
+                frequency + index * frequency * 120 / 1_000))
+            .ToArray();
+
+        Assert.Equal(1, controller.CadenceScale);
+        Assert.All(decisions.Where(decision => decision.Action == FishingControlAction.Pulse),
+            decision => Assert.InRange(decision.PulseMilliseconds, 35, 90));
     }
 
     [Fact]

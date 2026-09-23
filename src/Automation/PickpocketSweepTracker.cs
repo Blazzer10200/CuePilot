@@ -7,6 +7,12 @@ internal sealed class PickpocketSweepTracker
     private double lastTime = double.NaN, startX, extreme;
     private int direction, samples, reverseSamples;
     internal bool FirstPassComplete { get; private set; }
+    /// <summary>
+    /// The marker has held one direction for at least twelve samples and a quarter
+    /// of the bar. Enough for a thin-target shot on the first pass; a full sweep
+    /// with its turnaround is still reported separately.
+    /// </summary>
+    internal bool CruiseConfirmed { get; private set; }
 
     internal static bool IsTiny(PickpocketObservation observation, int index) =>
         observation.Bands[index].Width <= 6 * observation.Bar.Width / 576d;
@@ -17,6 +23,7 @@ internal sealed class PickpocketSweepTracker
         lastTime = double.NaN;
         direction = samples = reverseSamples = 0;
         FirstPassComplete = false;
+        CruiseConfirmed = false;
     }
 
     internal void Observe(PickpocketObservation observation, double presentation)
@@ -43,6 +50,7 @@ internal sealed class PickpocketSweepTracker
             extreme = direction > 0 ? Math.Max(extreme, observation.MarkerX) : Math.Min(extreme, observation.MarkerX);
             samples++;
             reverseSamples = 0;
+            if (samples >= 12 && Math.Abs(extreme - startX) >= observation.Bar.Width * .25) CruiseConfirmed = true;
             return;
         }
         reverseSamples++;

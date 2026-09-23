@@ -1,73 +1,82 @@
-# Handoff — CuePilot 5.3.6 — 2026-09-12
+# Handoff — CuePilot 5.3.10 — 2026-09-22
 
-## Current Objective
+The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.9 are
+archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
+user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
-The documentation, verification, diagnostics, local installation, and cleanup batch is complete. Start with [docs/README.md](docs/README.md), the [code map](docs/code-map.md), and [current backlog](docs/product-backlog.md).
+## Snapshot
 
-## Current State
+| | |
+| --- | --- |
+| Branch | `codex/release-complete` |
+| Source version | 5.3.10, synchronized across all six release files |
+| Published | Requested by the owner 2026-09-22: tag `v5.3.10` pushed, `.github/workflows/release.yml` publishes the GitHub release |
+| Installed locally | **5.3.10**, installed 2026-09-22 with Setup `--silent` over a running 5.3.9 (stopped by exact install path), then relaunched at medium integrity; shell and sidecar came up |
+| Package | `release/velopack/` — 5.3.10 built 2026-09-22 21:55: Setup 45.6 MB, full 41.3 MB, delta from 5.3.9 1.9 MB |
+| Last full gate | `verify.ps1 -All` green 2026-09-22: docs 23 files / 163 links, dotnet 448, vitest 51, svelte-check 0/0, Playwright 23, clippy `-D warnings`, cargo 28 |
 
-- Source versions are 5.3.6 across all six release files, including both root npm lockfile fields and the exact Cargo lockfile application entry.
-- CuePilot 5.3.6 is installed in the normal Windows user session. The previous registered 5.3.5 installation was uninstalled. One 5.3.6 registration remains, and the duplicate Codex-redirected 5.3.5 payload was removed.
-- The installed shell and engine hashes match the new full package. Headless self-test and a protocol-1 stopped/disarmed bridge snapshot passed. A normal visible launch produced a responsive CuePilot window and its owned installed engine.
-- Settings remained byte-for-byte unchanged. All 126 pre-install history entries remained unchanged; a new post-launch attempt increased History to 127. Do not restore the older backup over new activity.
-- Current installer and full package: `release/velopack-5.3.6/`. Install and startup proof: `release/velopack-5.3.6/installed-verification.json`.
-- The batch includes the previously uncommitted 5.3.5 recovery and the subsequent documentation/tooling work. The user authorized committing and pushing the complete batch to the configured `origin/main` destination; no release tag or public installer publication was requested.
+`release/velopack/` also holds `publication-receipt.json` and
+`verification-receipt.json` from the published v5.3.4. Packaging does not
+regenerate them, so never delete that directory to clean up a build.
 
-## Recent Relevant Changes
+Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
 
-- Organized maintained documentation, linked source navigation, a short actionable backlog, and dated design/calibration history. Original plan URLs remain as compatibility landing pages.
-- Receipts now identify staged, unstaged, deleted, and untracked content, retain the dirty-tree fingerprint fields, and separately record index identity. Fixtures cover mixed changes, Unicode paths, repeat stability, and safe temporary cleanup.
-- A shared six-file version reader serves project status, packaging, and the release tag gate. Package status shows the matching versioned manifest rather than an older mirror.
-- `verify.ps1 -Browser` runs the existing Edge/Playwright suite; default and `-All` include it. Both GitHub workflows now run documentation/tooling and browser checks.
-- Launcher cleanup requires the exact checkout Tauri `dev` command and owned process descendants or exact development executable paths; independent Vite builds and other installations are preserved.
-- Diagnostics use a bounded 256 KiB log tail. Screenshot reads enforce the existing per-image/aggregate budgets on actual bytes, including growth after metadata inspection.
-- Default workspace cleanup preserves `tmp/`, user-data backups, replay evidence, and Cargo caches.
+## 5.3.10 — Fishing rhythm restored
 
-## Verification
+The owner reported Fishing "just doing a tap ever so often" and losing fish.
+Root cause, measured from the Fishing debug session: the time from the end of
+one pulse to the next meter read had grown from about 54 ms to about 194 ms,
+while pulses stayed 35–90 ms, so tension starved between taps. The controller
+tuning was never the problem and was not changed.
 
-- Full `scripts/verify.ps1 -All` passed in about 153 seconds.
-- .NET Release build: zero warnings/errors; 438 tests passed; headless self-test passed.
-- Frontend: 42 unit tests; zero Svelte errors/warnings; production build passed.
-- Browser: all 20 Playwright scenarios passed, including compact/intermediate layouts, History, settings, focus, disconnected states, and save failures.
-- Rust: format and Clippy with warnings denied passed; all 17 tests passed.
-- Docs/tooling: local links, 4 link-checker tests, 4 package-selection scenarios, 5 version assertions, 16 receipt assertions, and 11 launcher assertions passed. Final receipt regressions also cover empty/single-file array shape.
-- Native development WebView: rendered 5.3.6, engine online, no console errors, Home/Pickpocket fitting at 1180×760, idle/input-off state, and Detection Review opening successfully.
-- Saved grass-scene replay: two frames, zero mismatches, zero hypothetical presses. No gameplay input was sent by this task.
-- Packaging passed; installed payload/registration/self-test/bridge checks passed. The installed release was not inspected using computer-use automation.
-- Bounded code review found no remaining actionable findings in the changed engine, diagnostics, launcher, verification, and CI paths. Regression images were visually checked for unrelated private overlays.
-- Local logs and receipts are under `tmp/host-536/`; GitHub workflow results should be checked against the release commit.
+What was slow, and the fix for each:
 
-## Cleanup
+- **Capture.** `DxgiFrameSource` copied the whole desktop into a staging texture
+  every sample. Under a GPU-bound game that copy queued behind the game's frames
+  (steady-state probes ranged from 6 ms to 95 ms median with FiveM at 88% GPU).
+  It now copies only the region (`CopySubresourceRegion`) into a cached staging
+  texture, and raises GPU scheduling priority on device creation
+  (`SetGPUThreadPriority(7)` + `D3DKMTSetProcessSchedulingPriorityClass` HIGH,
+  as OBS does; needs elevation, best-effort).
+- **Window lookup.** `WindowTargetService.TryResolve` enumerated every window and
+  opened each one's process on every sample and every input edge. The saved
+  settings still hold a stale FiveM PID, which forced the slowest path. Strong
+  matches are now cached and revalidated with cheap window calls plus one process
+  name check (guards PID reuse).
+- **Safety net.** `FishingTensionController` tracks an EMA of the sample
+  interval and scales pulse length and velocity projection by it (nominal
+  0.16 s, cap 2.5×, so pulses reach at most 225 ms). At a healthy cadence the
+  scale is 1 and the tuned envelope is untouched.
 
-- Removed 21 inspected obsolete package/profile/install targets: about 785 MiB.
-- Removed about 324 MiB of disposable build outputs: total recovery approximately 1.08 GiB.
-- Retained the 5.3.6 installer/feed/full package, small historical receipts, diagnostic evidence, settings backups, dependency/compiler caches, and source.
-- Older release directories retain historical metadata but no longer contain their installer/package payloads. Do not treat those old manifests as available installers.
-- The supported installed Desktop shortcut remains. Temporary installation/inventory/launch tasks and the inspection wrapper were removed/stopped.
+Diagnostics: every `meter/sample` and `left_down` record now carries
+`captureMilliseconds` (and `cadenceScale` on pulses), and `--capture-probe`
+reports cold, steady median, and steady max capture time plus `gpu_priority`.
 
-## Known Problems / Limits
+The same pass also buffered the per-sample Fishing CSV, ported the Pickpocket
+item reader off `GetPixel`, cached Lockpicking ring directions, throttled
+Lockpicking UI publishes to 50 ms (changes still immediate), paused looping UI
+animations while unfocused, moved two pulses off `box-shadow`, fixed an engine
+child-process leak on pipe failure, and removed two unused window permissions and
+one dead export.
 
-- The first background shortcut launch did not remain healthy; a normal visible relaunch recovered a responsive window and engine. A Windows AppHang event was recorded. If it recurs, investigate startup/WebView evidence rather than changing gameplay timing.
-- Narrow-target Pickpocket timing and occasional DXGI capture failure still need fresh live-session evidence. This batch preserved calibration and input safety gates.
-- Lockpicking remains observe-only; Fishing remains accepted and parked.
-- Stage/package before starting development watchers to avoid transient engine-resource locks.
-- Codex MSIX redirection can mislead installer checks. Use normal-user host verification for installations.
+**Not yet proven live:** the slow capture was measured in a real session but not
+reproduced during probes. See backlog issue 1 for the check.
 
-## Next Actions
+## What is open
 
-1. Use the installed CuePilot shortcut. Preserve any new failed diagnostic session before changing detector thresholds or timing.
-2. Keep documentation/tooling gates current; use the full gate for runtime releases.
-3. Build outputs were cleaned after verification; rebuild before running source-tree engine executables.
-4. Use GitHub run status for this commit to distinguish local verification from hosted CI.
+Actionable work lives in [docs/product-backlog.md](docs/product-backlog.md)
+under **Open issues**. This file records state; the backlog records intent.
 
-## Canonical Commands
+## Canonical commands
 
-- Orientation: `pwsh -NoProfile -File scripts/project-status.ps1`
-- Docs/tooling: `pwsh -NoProfile -File scripts/verify.ps1 -Docs`
-- Browser only: `pwsh -NoProfile -File scripts/verify.ps1 -Browser`
-- Full gate: `pwsh -NoProfile -File scripts/verify.ps1 -All`
+```powershell
+pwsh -NoProfile -File scripts/project-status.ps1
+pwsh -NoProfile -File scripts/verify.ps1 -All
+npm --prefix ui run tauri:build          # Velopack package into release/velopack/
+```
 
-## Important Decisions
-
-- No Windows computer-use automation; source, CLI, and the local development bridge remain the inspection routes.
-- Previous snapshot preserved under `$CODEX_HOME/archive/handoffs/WorkflowLooper/HANDOFF-20260912-before-release536-6d9cc7412e2042aea743f07649512d46.md`.
+```bash
+npm --prefix ui run cdp:dev      # inspectable dev app (long-lived)
+npm --prefix ui run cdp:serve    # CDP HTTP wrapper (long-lived)
+bash ui/scripts/cdp/c.sh state   # engine + UI state as text
+```

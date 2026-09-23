@@ -20,9 +20,25 @@ internal sealed class HotkeyBinding
             if (Control) parts.Add("CTRL");
             if (Shift) parts.Add("SHIFT");
             if (Alt) parts.Add("ALT");
-            parts.Add(Key.Equals("Pause", StringComparison.OrdinalIgnoreCase) ? "PAUSE / BREAK" : Key.ToUpperInvariant());
+            parts.Add(KeyDisplayText(Key));
             return string.Join(" + ", parts);
         }
+    }
+
+    // Keys arrive as W3C code names from the desktop shell (KeyA, Digit1, MouseX1);
+    // the legacy D1 / Return spellings from older settings files still display sensibly.
+    private static string KeyDisplayText(string key)
+    {
+        if (key.Equals("Pause", StringComparison.OrdinalIgnoreCase)) return "PAUSE / BREAK";
+        if (key.Equals("MouseX1", StringComparison.OrdinalIgnoreCase)) return "MOUSE 4";
+        if (key.Equals("MouseX2", StringComparison.OrdinalIgnoreCase)) return "MOUSE 5";
+        if (key.Equals("MouseMiddle", StringComparison.OrdinalIgnoreCase)) return "MIDDLE MOUSE";
+        if (key.Equals("Return", StringComparison.OrdinalIgnoreCase)) return "ENTER";
+        if (key.Length == 4 && key.StartsWith("Key", StringComparison.Ordinal) && char.IsAsciiLetter(key[3])) return key[3..].ToUpperInvariant();
+        if (key.Length == 6 && key.StartsWith("Digit", StringComparison.Ordinal) && char.IsAsciiDigit(key[5])) return key[5..];
+        if (key.Length == 2 && key[0] == 'D' && char.IsAsciiDigit(key[1])) return key[1..];
+        if (key.Length == 7 && key.StartsWith("Numpad", StringComparison.Ordinal) && char.IsAsciiDigit(key[6])) return "NUM " + key[6..];
+        return key.ToUpperInvariant();
     }
 
     internal HotkeyBinding Copy() => new() { Key = Key, Control = Control, Shift = Shift, Alt = Alt };
@@ -167,11 +183,19 @@ internal static class SettingsStore
         && !SameBinding(settings.StartStop, settings.EmergencyStop)
         && !SameBinding(settings.LockpickingStartStop, settings.EmergencyStop);
 
+    // Bare modifiers and the Windows key can't be shortcuts; Escape is the capture
+    // cancel key; left and right mouse buttons always stay with the game.
     internal static bool IsValid(HotkeyBinding binding) =>
         !string.IsNullOrWhiteSpace(binding.Key)
         && binding.Key is not ("None" or "ControlKey" or "LControlKey" or "RControlKey"
             or "ShiftKey" or "LShiftKey" or "RShiftKey"
-            or "Menu" or "LMenu" or "RMenu" or "LWin" or "RWin");
+            or "Menu" or "LMenu" or "RMenu" or "LWin" or "RWin"
+            or "ControlLeft" or "ControlRight" or "ShiftLeft" or "ShiftRight"
+            or "AltLeft" or "AltRight" or "MetaLeft" or "MetaRight")
+        && !binding.Key.Equals("Escape", StringComparison.OrdinalIgnoreCase)
+        && !binding.Key.Equals("Esc", StringComparison.OrdinalIgnoreCase)
+        && !binding.Key.Equals("MouseLeft", StringComparison.OrdinalIgnoreCase)
+        && !binding.Key.Equals("MouseRight", StringComparison.OrdinalIgnoreCase);
 
     private static bool SameBinding(HotkeyBinding left, HotkeyBinding right) =>
         left.Key.Equals(right.Key, StringComparison.OrdinalIgnoreCase)

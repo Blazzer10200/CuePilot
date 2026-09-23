@@ -15,9 +15,10 @@ internal sealed record PickpocketObserveStatus(
     bool? ManualSpaceDown = null, int ManualSpacePressCount = 0, double? LastSpaceObservedMilliseconds = null,
     PickpocketDebugStatus? Debug = null, string CaptureDetail = "", int FrameWidth = 0, int FrameHeight = 0, string? Failure = null,
     string InputMode = "Observe", bool InputArmed = false, int AutomatedPressCount = 0, PickpocketInputDelivery? InputDelivery = null,
-    int RedAdvanceMs = 8, int YellowAdvanceMs = 20,
+    int RedAdvanceMs = 11, int YellowAdvanceMs = 20,
     IReadOnlyList<PickpocketRecentAttempt>? RecentAttempts = null, string? SessionStateError = null,
-    IReadOnlyList<PickpocketBandColor>? CustomPriority = null, IReadOnlyList<string>? ItemPriority = null)
+    IReadOnlyList<PickpocketBandColor>? CustomPriority = null, IReadOnlyList<string>? ItemPriority = null,
+    string? Calibration = null)
 {
     internal static PickpocketObserveStatus Stopped => new(false, "Stopped", "Ready for a live observation test. Input is off.", PickpocketObservation.Missing);
 }
@@ -79,7 +80,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
             RecentAttempts = this.sessionState.Recent, SessionStateError = this.sessionState.Error };
     }
 
-    internal void Configure(string policy, string inputMode = "Observe", int redAdvanceMs = 8, int yellowAdvanceMs = 20,
+    internal void Configure(string policy, string inputMode = "Observe", int redAdvanceMs = 11, int yellowAdvanceMs = 20,
         IReadOnlyList<PickpocketBandColor>? customPriority = null, IReadOnlyList<string>? itemPriority = null)
     {
         var preferences = new PickpocketPreferences { TargetPolicy = policy, InputMode = inputMode, RedAdvanceMs = redAdvanceMs, YellowAdvanceMs = yellowAdvanceMs };
@@ -143,6 +144,11 @@ internal sealed class PickpocketObserverEngine : IDisposable
             Action<double, CancellationToken> wait = waitUntil ?? sampleClock.WaitUntil;
             Action<double, CancellationToken> inputWait = waitUntil ?? sampleClock.WaitForInputDeadline;
             var predictor = new PickpocketTimingPredictor();
+            // Saved per-color advance, shifted by recent thin-target results. Fixed
+            // for the run; history only changes when an attempt completes.
+            var redCalibration = sessionState.Calibrate(PickpocketBandColor.Red, redAdvance);
+            var yellowCalibration = sessionState.Calibrate(PickpocketBandColor.Yellow, yellowAdvance);
+            var calibration = $"Thin-target timing from history: {redCalibration.Describe()} | {yellowCalibration.Describe()}.";
             PickpocketObservation? previous = null;
             var targetTracker = new PickpocketTargetTracker();
             var itemReader = new PickpocketItemReader();
@@ -234,10 +240,12 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         // timestamp, so do not issue a timing candidate from it.
                         prediction = capture.Backend.Contains("DXGI", StringComparison.OrdinalIgnoreCase)
                             ? predictor.Observe(observation, observation.Bands[index].Color, presentation, analyzedAt, new(0, 16), index, precision,
-                                observation.Bands[index].Color == PickpocketBandColor.Yellow ? yellowAdvance : observation.Bands[index].Color == PickpocketBandColor.Red ? redAdvance : 8)
+                                observation.Bands[index].Color == PickpocketBandColor.Yellow ? yellowCalibration.AppliedMs : observation.Bands[index].Color == PickpocketBandColor.Red ? redCalibration.AppliedMs : 8)
                             : PickpocketTimingPrediction.Wait("Capture backend lacks a verified presentation timestamp.");
-                        if (precision && PickpocketSweepTracker.IsTiny(observation, index) && !sweepTracker.FirstPassComplete)
-                            prediction = PickpocketTimingPrediction.Wait("Small target: observing the first sweep and confirming its turnaround before one timed shot.",
+                        // A thin target needs a measured marker speed first: either a
+                        // confirmed cruise on this pass or a full sweep with its turnaround.
+                        if (precision && PickpocketSweepTracker.IsTiny(observation, index) && !sweepTracker.FirstPassComplete && !sweepTracker.CruiseConfirmed)
+                            prediction = PickpocketTimingPrediction.Wait("Small target: measuring the marker's speed on this sweep before one timed shot.",
                                 prediction.SpeedPixelsPerSecond, prediction.UncertaintyPixels);
                     }
                     var countBefore = input.PressCount;
@@ -270,7 +278,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         analyzedAt, NowMs() - loopStart, sampleInterval, region, window.Bounds, capture.AccumulatedFrames,
                         manualDown, manualPresses, lastSpace, CaptureDetail: capture.Detail, FrameWidth: frame.Bitmap.Width, FrameHeight: frame.Bitmap.Height,
                         InputMode: mode, InputArmed: automatic && !input.Consumed, AutomatedPressCount: input.PressCount, InputDelivery: input.Delivery,
-                        RedAdvanceMs: redAdvance, YellowAdvanceMs: yellowAdvance, CustomPriority: customPriority, ItemPriority: itemPriority);
+                        RedAdvanceMs: redAdvance, YellowAdvanceMs: yellowAdvance, CustomPriority: customPriority, ItemPriority: itemPriority,
+                        Calibration: calibration);
                     // Null previous means acquisition, not a new Hidden transition on every frame.
                     var changed = observation.State != latest.Observation.State;
                     var critical = changed || prediction.CanSchedule || completion || spaceEdge || input.PressCount > countBefore;
@@ -287,7 +296,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         if (saveImage) lastImage = analyzedAt;
                         lastTrace = analyzedAt;
                     }
-                    next = next with { Detail = PickpocketProgress.Describe(next, preparationSeen, sweepTracker.FirstPassComplete) };
+                    next = next with { Detail = PickpocketProgress.Describe(next, preparationSeen, sweepTracker.FirstPassComplete || sweepTracker.CruiseConfirmed) };
                     latest = next;
                     if (critical || analyzedAt - lastPublish >= 100)
                     {
@@ -297,8 +306,14 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     previous = observation.State == PickpocketVisualState.Hidden ? null : observation;
                 }
                 var interval = previous?.State == PickpocketVisualState.Active && attempts.RemainingMs(NowMs()) == 0 ? 16 : 67;
-                if (interval == 16 || waitUntil is not null) wait(loopStart + interval, token);
-                else await Task.Delay(Math.Max(2, (int)Math.Ceiling(interval - (NowMs() - loopStart))), token);
+                // Capture keeps running through an owned Space hold; wake early to
+                // release it on time. Stop and the finally block release it regardless.
+                var wake = loopStart + interval;
+                if (input.ReleaseDueMs is double due && due < wake) wake = due;
+                input.ReleaseIfDue();
+                if (interval == 16 || waitUntil is not null) wait(wake, token);
+                else await Task.Delay(Math.Max(2, (int)Math.Ceiling(wake - NowMs())), token);
+                input.ReleaseIfDue();
             }
             token.ThrowIfCancellationRequested();
             latest = latest with { Observing = false, State = "Stopped", Detail = "Ten-minute observation limit reached.", Prediction = null };

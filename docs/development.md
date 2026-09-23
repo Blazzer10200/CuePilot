@@ -165,11 +165,29 @@ dotnet run --project .\CuePilot.csproj -- --replay-lockpicking C:\path\to\ordere
 
 Before promoting another vehicle class, capture its own complete numbered and SPIN evidence, add regression fixtures, and calibrate its cadence independently. OPEN remains a terminal visual state unless direct evidence proves another required action.
 
+### Launch timing
+
+A release build has no CDP, so startup is measured through the `startup` lines in `%LOCALAPPDATA%\CuePilot\diagnostics\shell.jsonl`. `record_startup_phase` in [ui/src-tauri/src/lib.rs](../ui/src-tauri/src/lib.rs) writes one bounded line per phase, each carrying milliseconds since process start:
+
+| Phase | Reached when |
+| --- | --- |
+| `velopack_done` | Velopack's lifecycle hooks have run; past this point it is a real launch |
+| `builder_ready` | Every piece of our own pre-run work is finished and `builder.run` is about to be called |
+| `plugins_ready` | Tauri has initialized its plugins |
+| `setup_begin` | The Tauri `setup` closure has been entered, so the window exists |
+| `notifications_ready` | The notification window has been created |
+| `setup_end` | Shortcuts are registered and setup is complete |
+| `ui_first_command` | Svelte has mounted and issued its first command — the user-visible end of the launch |
+
+`builder_ready` is the important split: everything before it is CuePilot's own work, everything between it and `setup_begin` belongs to Tauri and WebView2. On an installed 5.3.9 build `builder_ready` lands at 1-2 ms while `setup_begin` lands near 5300 ms, so optimizing shell startup code has nothing left to win. That gap is what [ui/src-tauri/src/splash.rs](../ui/src-tauri/src/splash.rs) covers rather than removes.
+
+To compare WebView2 startup options, set `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before launching and diff `setup_begin` across runs. Discard the first run of each variant as profile warmup, and take several — a single launch is too noisy to read. Note that an elevated launch and a medium-integrity shortcut launch are not comparable in absolute terms; only deltas within one launch style mean anything.
+
 ## Release gate
 
 Keep the version synchronized in `CuePilot.csproj`, `ui/package.json`, both root metadata fields in `ui/package-lock.json`, `ui/src-tauri/Cargo.toml`, the exact `cuepilot-ui` package entry in `ui/src-tauri/Cargo.lock`, and `ui/src-tauri/tauri.conf.json`. The status and packaging guards enforce these fields. The Velopack Rust crate and `vpk` CLI must both remain exactly 1.2.0.
 
-Fishing detector tests use the nonparallel `Fishing timing` collection so wall-clock assertions do not measure contention with unrelated replay suites. The 60 ms tracked-meter and 250 ms prompt budgets remain enforced. Combined GitHub PowerShell validation steps enable native-command failure propagation so an earlier failure cannot be hidden by a later successful command.
+Detector tests that read a real clock use the nonparallel `Detector timing` collection (`tests/CuePilot.Tests/DetectorTimingCollection.cs`) so wall-clock assertions do not measure contention with unrelated replay suites. It holds the Fishing meter and prompt suites plus the Pickpocket latency, input, and live-evidence suites. The 60 ms tracked-meter and 250 ms prompt budgets remain enforced, as does the 100 ms Pickpocket missing-header bound. Suites that inject their own timestamps are not members and stay parallel. Combined GitHub PowerShell validation steps enable native-command failure propagation so an earlier failure cannot be hidden by a later successful command.
 
 Use [CHANGELOG.md](../CHANGELOG.md) for release history and the current
 [handoff](../HANDOFF.md) for local package/install receipts. These historical

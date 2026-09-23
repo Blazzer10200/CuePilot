@@ -20,6 +20,8 @@
 - `assets/` = model/vision helper assets
 - `docs/development.md` = canonical setup, verification, inspection, and release workflow
 - `docs/README.md` = documentation index and maintenance conventions
+- `docs/product-backlog.md` = open-issue table and standing priorities (what is next)
+- `HANDOFF.md` = current state of the checkout, newest first (what is true now)
 - `docs/history/` = completed plans and acceptance records, not current instructions
 - `docs/activities.md` = activity boundary and readiness contract
 - `docs/code-map.md` = task-oriented call paths, edit points, and search recipes

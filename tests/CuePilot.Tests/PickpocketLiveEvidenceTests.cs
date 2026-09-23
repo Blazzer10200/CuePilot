@@ -7,6 +7,7 @@ using Xunit.Abstractions;
 
 namespace CuePilot.Tests;
 
+[Collection("Detector timing")]
 public sealed class PickpocketLiveEvidenceTests(ITestOutputHelper output)
 {
     private static readonly string DirectoryPath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Pickpocket", "Live");

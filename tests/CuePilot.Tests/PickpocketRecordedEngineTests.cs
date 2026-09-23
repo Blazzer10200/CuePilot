@@ -49,7 +49,8 @@ public sealed class PickpocketRecordedEngineTests
                 sentBand = status.Observation.Bands[index];
             if (!status.Observing && status.SampleCount > 0) done.TrySetResult(status);
         };
-        observer.Configure(policy, mode, yellowAdvanceMs: yellowAdvanceMs);
+        // The recorded red shot was planned with the 8 ms value of that session.
+        observer.Configure(policy, mode, redAdvanceMs: 8, yellowAdvanceMs: yellowAdvanceMs);
         observer.Start(new() { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
         var final = await done.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(1, final.AutomatedPressCount);
@@ -61,17 +62,36 @@ public sealed class PickpocketRecordedEngineTests
         if (recordedAutomatic)
         {
             var delivered = frames.First(f => f.InputDelivery?.State == "Sent").InputDelivery!;
-            // The original run ended Active when the real key froze the marker.
-            // Reproduce its plan; do not invent future moving frames after Grabbed.
-            Assert.InRange(Math.Abs(keys[0].Time - (delivered.PlannedMs!.Value - advanceMs)), 0, 1);
-            var result = frames.First(f => f.Observation.State is PickpocketVisualState.Grabbed or PickpocketVisualState.Missed);
-            if (advanceMs == 0) Assert.InRange(result.Observation.MarkerX, sentBand.Left, sentBand.Right);
+            var recordedPlan = delivered.PlannedMs!.Value - advanceMs;
+            if (Math.Abs(keys[0].Time - recordedPlan) <= 1)
+            {
+                // The original run ended Active when the real key froze the marker.
+                // Reproduce its plan; do not invent future moving frames after Grabbed.
+                var result = frames.First(f => f.Observation.State is PickpocketVisualState.Grabbed or PickpocketVisualState.Missed);
+                if (advanceMs == 0) Assert.InRange(result.Observation.MarkerX, sentBand.Left, sentBand.Right);
+                else
+                {
+                    // The recorded result remains a MISS. Only the earlier plan is
+                    // verified here; a counterfactual successful grab is not footage.
+                    Assert.Equal(PickpocketVisualState.Missed, result.Observation.State);
+                    Assert.False(result.Observation.MarkerX >= sentBand.Left && result.Observation.MarkerX <= sentBand.Right);
+                }
+            }
             else
             {
-                // The recorded result remains a MISS. Only the earlier plan is
-                // verified here; a counterfactual successful grab is not footage.
-                Assert.Equal(PickpocketVisualState.Missed, result.Observation.State);
-                Assert.False(result.Observation.MarkerX >= sentBand.Left && result.Observation.MarkerX <= sentBand.Right);
+                // The recorded runs surveyed the whole first sweep and fired on the
+                // return. A thin target now fires on the outward pass once a quarter-bar
+                // cruise is measured, so check the earlier plan against the recorded
+                // marker positions: at the nominal 8 ms delay plus the advance in
+                // force, the marker should sit inside the thin target.
+                Assert.True(keys[0].Time < recordedPlan, $"Replay fired at {keys[0].Time:F1} ms, after the recorded plan {recordedPlan:F1} ms.");
+                var arrival = keys[0].Time + 8 + (expectedColor == "Yellow" ? yellowAdvanceMs : 8);
+                var before = frames.Last(f => f.PresentationMilliseconds <= arrival && f.Observation.State == PickpocketVisualState.Active);
+                var after = frames.First(f => f.PresentationMilliseconds >= arrival && f.Observation.State == PickpocketVisualState.Active);
+                var span = after.PresentationMilliseconds - before.PresentationMilliseconds;
+                var x = span == 0 ? before.Observation.MarkerX : before.Observation.MarkerX
+                    + (after.Observation.MarkerX - before.Observation.MarkerX) * (arrival - before.PresentationMilliseconds) / span;
+                Assert.InRange(x, sentBand.Left - 1, sentBand.Right + 1);
             }
         }
         // A hypothetical tiny-yellow shot uses the provisional 16 ms assumption;

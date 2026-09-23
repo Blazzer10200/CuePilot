@@ -9,7 +9,8 @@ read CuePilot's public GitHub release feed through Velopack.
 
 The root shell opens on an activity picker. Activity metadata lives in
 `src/lib/activities.ts`, and dedicated workspaces live in
-`src/lib/activities/`. Fishing is release-ready. Vehicle Lockpicking exposes an
+`src/lib/activities/`. Fishing is release-ready and Pickpocket makes one timed
+Space press. Vehicle Lockpicking exposes an
 input-free observer while Class C live-calibration input remains gated;
 classes A, B, and D remain unavailable until evidence-backed profiles are added.
 
@@ -32,31 +33,15 @@ historical design records are organized in the
 
 ## Focus-safe UI inspection
 
-The development shell includes a local WebView2 CDP bridge adapted from Rift.
-It can inspect the rendered DOM, accessibility tree, computed styles, console
-errors, interactions, and screenshots without desktop screen control.
+The development shell includes a local WebView2 CDP bridge for inspecting the
+rendered DOM, console, interactions, and screenshots without desktop screen
+control. Start it with `npm run cdp:dev` and `npm run cdp:serve`; the full
+command set is in [scripts/cdp/README.md](scripts/cdp/README.md). CDP ports
+`9322` and `9323` bind to loopback and are enabled only by
+`scripts/run-dev-inspectable.ps1`; normal development and release builds remain
+unchanged.
 
-Start the inspectable app and the bridge from separate terminals in `ui/`:
-
-```powershell
-npm run cdp:dev
-npm run cdp:serve
-```
-
-Then inspect it from Git Bash:
-
-```bash
-bash scripts/cdp/c.sh doctor
-bash scripts/cdp/c.sh inspect
-bash scripts/cdp/c.sh map
-bash scripts/cdp/c.sh look
-```
-
-Use `map` or `find` before interaction, `act` for an action plus settled review,
-and `measure` for exact layout and typography. Captures are generated under
-`scripts/cdp/.tmp/` and are ignored by Git. CDP ports `9322` and `9323` bind to
-loopback and are enabled only by `scripts/run-dev-inspectable.ps1`; normal
-development and release builds remain unchanged.
+## Release build
 
 Build the complete versioned release installer with:
 

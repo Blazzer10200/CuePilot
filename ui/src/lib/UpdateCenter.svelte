@@ -157,44 +157,44 @@
     width: min(470px, calc(100vw - 28px));
     min-height: 54px;
     padding: 7px 8px 7px 10px;
-    border: 1px solid rgba(142, 241, 226, 0.28);
+    border: 1px solid rgba(217, 119, 87, 0.28);
     border-radius: 12px;
-    background: rgba(10, 24, 29, 0.97);
-    box-shadow: 0 18px 44px rgba(0, 4, 7, 0.44);
+    background: rgba(39, 38, 36, 0.97);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.44);
     display: grid;
     grid-template-columns: 28px 1fr auto 28px;
     align-items: center;
     gap: 8px;
   }
-  .update-banner > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: #061c1c; background: var(--accent); }
+  .update-banner > span { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; color: #252422; background: var(--accent); }
   .update-banner p { margin: 0; display: grid; gap: 2px; }
   .update-banner strong { font-size: 11.5px; }
   .update-banner small { color: var(--text-muted); font-size: 9.5px; }
   .update-banner button { cursor: pointer; }
-  .update-banner .review { height: 30px; padding: 0 11px; border-radius: 7px; color: #07191b; background: var(--accent); font-size: 10px; font-weight: 720; }
+  .update-banner .review { height: 30px; padding: 0 11px; border-radius: 7px; color: #fff8f3; background: var(--accent); font-size: 10px; font-weight: 720; }
   .update-banner .dismiss { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text-muted); }
 
-  .update-backdrop { position: fixed; inset: 0; z-index: 80; padding: 18px; display: grid; place-items: center; background: rgba(2, 8, 12, 0.7); backdrop-filter: blur(6px); }
-  .update-dialog { width: min(520px, 100%); max-height: min(680px, calc(100dvh - 36px)); overflow: auto; border: 1px solid var(--line-strong); border-radius: 15px; outline: none; color: var(--text); background: #0d1820; box-shadow: 0 28px 80px rgba(0, 3, 7, 0.58); }
+  .update-backdrop { position: fixed; inset: 0; z-index: 80; padding: 18px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(6px); }
+  .update-dialog { width: min(520px, 100%); max-height: min(680px, calc(100dvh - 36px)); overflow: auto; border: 1px solid var(--line-strong); border-radius: 15px; outline: none; color: var(--text); background: #292826; box-shadow: 0 28px 80px rgba(0, 0, 0, 0.58); }
   .update-dialog > header { min-height: 67px; padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
   .update-dialog header span, .release-notes > span { color: var(--accent); font-size: 8px; font-weight: 760; letter-spacing: .12em; }
   .update-dialog h2 { margin: 3px 0 0; font-size: 18px; letter-spacing: -.02em; }
   .update-dialog header button { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); cursor: pointer; }
-  .update-hero { min-height: 190px; padding: 30px 34px; text-align: center; display: grid; place-items: center; align-content: center; gap: 9px; background: radial-gradient(circle at 50% 5%, rgba(142, 241, 226, .13), transparent 58%); }
+  .update-hero { min-height: 190px; padding: 30px 34px; text-align: center; display: grid; place-items: center; align-content: center; gap: 9px; background: radial-gradient(circle at 50% 5%, rgba(217, 119, 87, .13), transparent 58%); }
   .update-hero :global(svg) { color: var(--accent); }
   .update-hero[data-state="error"] :global(svg), .update-hero[data-state="disabled"] :global(svg) { color: var(--warning); }
   .update-hero h3 { margin: 2px 0 0; font-size: 20px; letter-spacing: -.025em; }
   .update-hero p { max-width: 390px; margin: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
   .progress-number { color: var(--accent); font-size: 30px; }
-  .progress-track { width: min(340px, 100%); height: 5px; overflow: hidden; border-radius: 999px; background: rgba(190, 220, 216, .1); }
+  .progress-track { width: min(340px, 100%); height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .1); }
   .progress-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 160ms ease; }
-  .release-notes { margin: 0 16px 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(4, 13, 18, .38); }
-  .release-notes ul { margin: 9px 0 0; padding-left: 17px; color: #cbd8df; font-size: 10.5px; line-height: 1.55; }
+  .release-notes { margin: 0 16px 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(32, 31, 30, .38); }
+  .release-notes ul { margin: 9px 0 0; padding-left: 17px; color: #d6d5d4; font-size: 10.5px; line-height: 1.55; }
   .release-notes li + li { margin-top: 4px; }
-  .active-warning { margin: 0 16px 14px; padding: 10px 11px; border: 1px solid rgba(255, 207, 132, .2); border-radius: 8px; color: var(--warning); background: rgba(255, 207, 132, .07); display: flex; align-items: flex-start; gap: 8px; font-size: 10.5px; line-height: 1.4; }
+  .active-warning { margin: 0 16px 14px; padding: 10px 11px; border: 1px solid rgba(232, 184, 109, .2); border-radius: 8px; color: var(--warning); background: rgba(232, 184, 109, .07); display: flex; align-items: flex-start; gap: 8px; font-size: 10.5px; line-height: 1.4; }
   .update-dialog > footer { min-height: 64px; padding: 12px 16px; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; }
-  .update-dialog footer button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: #c8d6dc; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-size: 10.5px; font-weight: 650; }
-  .update-dialog footer button.primary { border-color: transparent; color: #07191b; background: var(--accent); }
+  .update-dialog footer button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: #d3d2d1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-size: 10.5px; font-weight: 650; }
+  .update-dialog footer button.primary { border-color: transparent; color: #fff8f3; background: var(--accent); }
   .update-dialog footer button.link { padding-inline: 4px; border-color: transparent; color: var(--text-muted); }
   .update-dialog footer button:disabled { cursor: not-allowed; opacity: .46; }
   @media (max-width: 560px) { .update-dialog > footer { grid-template-columns: 1fr 1fr; } .update-dialog > footer div { display: none; } .update-dialog footer button { width: 100%; } }

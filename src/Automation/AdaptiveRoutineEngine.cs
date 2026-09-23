@@ -713,7 +713,14 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                         token,
                         () => input.SendLeftButton(settings.TargetWindow, false));
                     leftIsDown = true;
-                    debugSession.Record("input", "left_down", new { decision.PulseMilliseconds, observation.TensionRatio, observation.ProgressRatio });
+                    debugSession.Record("input", "left_down", new
+                    {
+                        decision.PulseMilliseconds,
+                        observation.TensionRatio,
+                        observation.ProgressRatio,
+                        controller.CadenceScale,
+                        captureMilliseconds = captureStatus.CaptureMilliseconds,
+                    });
                     diagnostics.Write(observation, true, "pulse_start", decision.PulseMilliseconds);
                     if (token.WaitHandle.WaitOne(decision.PulseMilliseconds))
                     {
@@ -735,7 +742,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 if (sampleCount % 10 == 0)
                 {
                     Raise(new RoutineStatus(RoutineState.Regulating,
-                        $"{captureStatus.Backend} · tension {observation.TensionRatio:P0} · progress {observation.ProgressRatio:P0}",
+                        $"{captureStatus.Backend} {captureStatus.CaptureMilliseconds:0} ms · tension {observation.TensionRatio:P0} · progress {observation.ProgressRatio:P0}",
                         sampleCount, observation.Confidence));
                 }
 

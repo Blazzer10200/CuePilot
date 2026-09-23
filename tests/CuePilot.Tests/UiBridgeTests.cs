@@ -38,6 +38,26 @@ public sealed class UiBridgeTests
     }
 
     [Fact]
+    public void MouseButtonShortcutsSaveThroughTheBridgeUnlessGameOwned()
+    {
+        foreach (var (key, accepted) in new[] { ("MouseX2", true), ("MouseMiddle", true), ("MouseLeft", false), ("Escape", false) })
+        {
+            var settings = AppSettings.Defaults();
+            var incoming = settings.Copy();
+            incoming.StartStop = new HotkeyBinding { Key = key, Control = true };
+            AppSettings? saved = null;
+            var messages = RunBridge(settings, JsonSerializer.Serialize(new { id = "mouse", command = "save_settings", settings = incoming }, Json), value => saved = value.Copy());
+            Assert.Equal(accepted, FindResponse(messages, "mouse").GetProperty("ok").GetBoolean());
+            if (accepted)
+            {
+                Assert.Equal(key, saved!.StartStop.Key);
+                Assert.True(saved.StartStop.Control);
+            }
+            else Assert.Null(saved);
+        }
+    }
+
+    [Fact]
     public void AddingPickpocketBindingPreservesExistingShortcutsAndSettings()
     {
         var restored = SettingsStore.DeserializeAndMigrateForTest("""
@@ -181,7 +201,7 @@ public sealed class UiBridgeTests
         var bad = SettingsStore.DeserializeAndMigrateForTest("""{"formatVersion":9,"pickpocket":{"targetPolicy":"Nope","inputMode":"Unlimited","redAdvanceMs":-1,"yellowAdvanceMs":21}}""");
         Assert.Equal("RarestFirst", bad.Pickpocket.TargetPolicy);
         Assert.Equal("Observe", bad.Pickpocket.InputMode);
-        Assert.Equal(8, bad.Pickpocket.RedAdvanceMs);
+        Assert.Equal(11, bad.Pickpocket.RedAdvanceMs);
         Assert.Equal(20, bad.Pickpocket.YellowAdvanceMs);
     }
 

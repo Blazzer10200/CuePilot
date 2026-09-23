@@ -204,6 +204,53 @@ public sealed class PersistenceTests
     }
 
     [Fact]
+    public void MouseAndLetterShortcutsRoundTripWithReadableDisplayText()
+    {
+        var restored = SettingsStore.DeserializeAndMigrateForTest("""
+            {
+              "formatVersion": 9,
+              "selectedProfile": "fishing",
+              "startStop": { "key": "MouseX1", "control": true },
+              "lockpickingStartStop": { "key": "KeyG", "shift": true },
+              "pickpocketStartStop": { "key": "MouseMiddle" },
+              "emergencyStop": { "key": "Pause" },
+              "routine": { "targetWindow": {} }
+            }
+            """);
+
+        Assert.Equal("MouseX1", restored.StartStop.Key);
+        Assert.True(restored.StartStop.Control);
+        Assert.Equal("CTRL + MOUSE 4", restored.StartStop.DisplayText);
+        Assert.Equal("SHIFT + G", restored.LockpickingStartStop.DisplayText);
+        Assert.Equal("MIDDLE MOUSE", restored.PickpocketStartStop!.DisplayText);
+        Assert.Equal("MouseX1", SettingsStore.RoundTripForTest(restored).StartStop.Key);
+        Assert.Equal("MOUSE 5", new HotkeyBinding { Key = "MouseX2" }.DisplayText);
+        Assert.Equal("NUM 7", new HotkeyBinding { Key = "Numpad7" }.DisplayText);
+        Assert.Equal("1", new HotkeyBinding { Key = "Digit1" }.DisplayText);
+    }
+
+    [Theory]
+    [InlineData("MouseLeft")]
+    [InlineData("MouseRight")]
+    [InlineData("Escape")]
+    [InlineData("ControlLeft")]
+    public void GameOwnedAndBareModifierShortcutsFallBackToSafeDefaults(string key)
+    {
+        var restored = SettingsStore.DeserializeAndMigrateForTest($$"""
+            {
+              "formatVersion": 9,
+              "selectedProfile": "fishing",
+              "startStop": { "key": "{{key}}" },
+              "lockpickingStartStop": { "key": "F9" },
+              "emergencyStop": { "key": "Pause" },
+              "routine": { "targetWindow": {} }
+            }
+            """);
+
+        Assert.Equal("F10", restored.StartStop.Key);
+    }
+
+    [Fact]
     public void VersionNineSettingsKeepConfiguredLockpickingShortcut()
     {
         var restored = SettingsStore.DeserializeAndMigrateForTest("""

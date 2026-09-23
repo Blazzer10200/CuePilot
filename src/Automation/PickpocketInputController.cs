@@ -6,12 +6,15 @@ internal sealed record PickpocketInputDelivery(string State, string Detail, doub
 /// <summary>One explicitly armed tap. All native input is behind the shared stop/ownership gate.</summary>
 internal sealed class PickpocketInputController
 {
+    internal const double HoldMilliseconds = 35;
     private readonly AutomationInputGate gate;
     private readonly Action<bool> send;
     private readonly Func<double> now;
     internal bool Consumed { get; private set; }
     internal int PressCount { get; private set; }
     internal PickpocketInputDelivery? Delivery { get; private set; }
+    /// <summary>Monotonic time at which an owned Space hold should end; null when nothing is held.</summary>
+    internal double? ReleaseDueMs { get; private set; }
 
     internal PickpocketInputController(Action<bool>? send = null, Func<double>? now = null)
     {
@@ -26,6 +29,7 @@ internal sealed class PickpocketInputController
         Consumed = false;
         PressCount = 0;
         Delivery = null;
+        ReleaseDueMs = null;
     }
 
     internal void Disarm(string reason)
@@ -34,7 +38,33 @@ internal sealed class PickpocketInputController
         Delivery ??= new("Skipped", reason);
     }
 
-    internal bool Stop() => gate.StopAndReleaseOwnedInput();
+    internal bool Stop()
+    {
+        ReleaseDueMs = null;
+        var released = gate.StopAndReleaseOwnedInput();
+        if (released) StampKeyUp();
+        return released;
+    }
+
+    /// <summary>
+    /// Releases an owned Space once its hold has elapsed. The observer loop calls
+    /// this around its frame wait so capture continues through the press instead
+    /// of blocking on the hold. Stop and run cleanup release regardless.
+    /// </summary>
+    internal bool ReleaseIfDue()
+    {
+        if (ReleaseDueMs is not double due || now() < due) return false;
+        ReleaseDueMs = null;
+        if (!gate.ReleaseKey(InputKey.Space))
+            throw new InvalidOperationException("Space release failed; input is disarmed. Stop retries owned-key cleanup.");
+        StampKeyUp();
+        return true;
+    }
+
+    private void StampKeyUp()
+    {
+        if (Delivery is { KeyDownMs: not null, KeyUpMs: null }) Delivery = Delivery with { KeyUpMs = now() };
+    }
 
     internal void TryTap(PickpocketTimingPrediction prediction, double presentationMs,
         Func<bool> validate, Action<double, CancellationToken> waitUntil, CancellationToken token, bool precision = false)
@@ -67,13 +97,15 @@ internal sealed class PickpocketInputController
                 PressCount++;
                 Delivery = Delivery with { State = "Sent", Detail = "One Space tap sent. Waiting for the game result.", KeyDownMs = now() };
             });
-            waitUntil(now() + 35, token);
+            // Hold at least 35 ms without blocking the capture loop; ReleaseIfDue ends it.
+            ReleaseDueMs = Delivery.KeyDownMs + HoldMilliseconds;
         }
-        finally
+        catch
         {
+            // Nothing is owned unless the down event was sent; the gate keeps that truth.
             if (!gate.ReleaseKey(InputKey.Space))
                 throw new InvalidOperationException("Space release failed; input is disarmed. Stop retries owned-key cleanup.");
-            if (Delivery.KeyDownMs is not null) Delivery = Delivery with { KeyUpMs = now() };
+            throw;
         }
     }
 }

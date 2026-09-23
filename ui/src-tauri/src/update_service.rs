@@ -44,6 +44,8 @@ struct Inner {
     busy: bool,
     applying: bool,
     init_error: Option<String>,
+    /// False until `resolve_manager` has been attempted once.
+    resolved: bool,
 }
 
 pub struct UpdateService {
@@ -52,18 +54,15 @@ pub struct UpdateService {
 
 impl UpdateService {
     pub fn new() -> Self {
-        let (manager, init_error) = match resolve_manager() {
-            Ok(manager) => (Some(manager), None),
-            Err(error) => (None, Some(error)),
-        };
         Self {
             inner: Mutex::new(Inner {
-                manager,
+                manager: None,
                 pending: None,
                 downloaded: false,
                 busy: false,
                 applying: false,
-                init_error,
+                init_error: None,
+                resolved: false,
             }),
         }
     }
@@ -74,8 +73,23 @@ impl UpdateService {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    /// Velopack's manager reads the installed package state from disk. Doing that
+    /// while the app is being constructed delays the first window, so it is
+    /// resolved on first use instead. Every accessor takes this lock, not `lock`.
+    fn ready(&self) -> MutexGuard<'_, Inner> {
+        let mut inner = self.lock();
+        if !inner.resolved {
+            inner.resolved = true;
+            match resolve_manager() {
+                Ok(manager) => inner.manager = Some(manager),
+                Err(error) => inner.init_error = Some(error),
+            }
+        }
+        inner
+    }
+
     pub fn runtime(&self) -> UpdaterRuntimeDto {
-        let inner = self.lock();
+        let inner = self.ready();
         let installed = inner.manager.is_some();
         let development = cfg!(debug_assertions);
         let detail = if installed {
@@ -103,7 +117,7 @@ impl UpdateService {
     /// by Velopack for the later download/apply calls.
     pub fn check(&self) -> Result<Option<UpdateInfoDto>, String> {
         let manager = {
-            let mut inner = self.lock();
+            let mut inner = self.ready();
             if inner.busy || inner.applying {
                 return Err("another update operation is already in progress".to_string());
             }
@@ -140,7 +154,7 @@ impl UpdateService {
     /// supplied channel. Only a successful download arms apply.
     pub fn download(&self, progress: std::sync::mpsc::Sender<i16>) -> Result<(), String> {
         let (manager, pending) = {
-            let mut inner = self.lock();
+            let mut inner = self.ready();
             if inner.busy || inner.applying {
                 return Err("another update operation is already in progress".to_string());
             }
@@ -174,7 +188,7 @@ impl UpdateService {
 
     fn schedule_apply_with_args(&self, restart_args: Vec<String>) -> Result<(), String> {
         let (manager, pending) = {
-            let mut inner = self.lock();
+            let mut inner = self.ready();
             if inner.busy || inner.applying {
                 return Err("another update operation is already in progress".to_string());
             }
@@ -203,7 +217,7 @@ impl UpdateService {
 
     #[cfg(feature = "update-test-feed")]
     fn installed_identity(&self) -> Result<(String, String), String> {
-        let inner = self.lock();
+        let inner = self.ready();
         let manager = inner.manager.as_ref().ok_or_else(|| {
             inner
                 .init_error

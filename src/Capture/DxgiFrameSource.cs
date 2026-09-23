@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using SharpGen.Runtime;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using static Vortice.Direct3D11.D3D11;
+using Box = Vortice.Mathematics.Box;
 
 namespace CuePilot;
 
@@ -16,6 +16,9 @@ internal sealed class DxgiFrameSource : IFrameSource
     private ID3D11Device? device;
     private ID3D11DeviceContext? context;
     private IDXGIOutputDuplication? duplication;
+    private ID3D11Texture2D? staging;
+    private Size stagingSize;
+    private Format stagingFormat;
     private Rectangle outputBounds;
 
     public string Name => "DXGI Desktop Duplication";
@@ -71,14 +74,19 @@ internal sealed class DxgiFrameSource : IFrameSource
             {
                 try
                 {
+                    // Copy only the requested region on the GPU. A full-desktop copy queues
+                    // behind a GPU-bound game and stretched each sample past 150 ms.
                     using var source = desktopResource.QueryInterface<ID3D11Texture2D>();
-                    using var staging = CreateStagingTexture(source.Description);
-                    context!.CopyResource(staging, source);
+                    var staging = EnsureStagingTexture(source.Description, region.Size);
+                    var sourceX = region.Left - outputBounds.Left;
+                    var sourceY = region.Top - outputBounds.Top;
+                    context!.CopySubresourceRegion(staging, 0, 0, 0, 0, source, 0,
+                        new Box(sourceX, sourceY, 0, sourceX + region.Width, sourceY + region.Height, 1));
                     var mapResult = context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out var mapped);
                     mapResult.CheckError();
                     try
                     {
-                        var bitmap = CopyRegion(mapped, region);
+                        var bitmap = CopyMapped(mapped, region.Size);
                         var frameAge = CalculateFrameAge(frameInfo.LastPresentTime);
                         status = new FrameSourceStatus(FrameSourceState.Ready, Name,
                             "Desktop duplication frame ready.", frameAge, clock.Elapsed.TotalMilliseconds,
@@ -143,6 +151,7 @@ internal sealed class DxgiFrameSource : IFrameSource
             out context).CheckError();
 
         using var dxgiDevice = device!.QueryInterface<IDXGIDevice>();
+        RaiseGpuPriority(dxgiDevice);
         dxgiDevice.GetAdapter(out var adapter).CheckError();
         using (adapter)
         {
@@ -178,34 +187,64 @@ internal sealed class DxgiFrameSource : IFrameSource
         throw new InvalidOperationException("The target capture region is not fully inside a desktop output.");
     }
 
-    private ID3D11Texture2D CreateStagingTexture(Texture2DDescription source)
+    // Capture is a few tiny GPU copies, but at normal priority each Map waits behind a
+    // GPU-bound game's frames. Raising the scheduling class is what OBS does for the same
+    // problem. It needs elevation (CuePilot runs as admin) and is best-effort: without it
+    // capture still works, only slower under load, which the sample timing shows.
+    internal static bool GpuPriorityRaised { get; private set; }
+
+    private static void RaiseGpuPriority(IDXGIDevice dxgiDevice)
     {
-        var description = source;
-        description.Usage = ResourceUsage.Staging;
-        description.BindFlags = BindFlags.None;
-        description.CPUAccessFlags = CpuAccessFlags.Read;
-        description.MiscFlags = ResourceOptionFlags.None;
-        return device!.CreateTexture2D(description);
+        var thread = dxgiDevice.SetGPUThreadPriority(7);
+        using var process = Process.GetCurrentProcess();
+        var scheduling = NativeMethods.D3DKMTSetProcessSchedulingPriorityClass(
+            process.Handle, NativeMethods.GpuSchedulingPriorityHigh);
+        GpuPriorityRaised = thread.Success && scheduling == 0;
     }
 
-    private Bitmap CopyRegion(MappedSubresource mapped, Rectangle region)
+    private ID3D11Texture2D EnsureStagingTexture(Texture2DDescription source, Size size)
     {
-        var sourceX = region.Left - outputBounds.Left;
-        var sourceY = region.Top - outputBounds.Top;
-        var bitmap = new Bitmap(region.Width, region.Height, PixelFormat.Format32bppArgb);
+        if (staging is not null && stagingSize == size && stagingFormat == source.Format)
+        {
+            return staging;
+        }
+
+        staging?.Dispose();
+        staging = device!.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)size.Width,
+            Height = (uint)size.Height,
+            MipLevels = 1,
+            ArraySize = 1,
+            Format = source.Format,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Staging,
+            BindFlags = BindFlags.None,
+            CPUAccessFlags = CpuAccessFlags.Read,
+            MiscFlags = ResourceOptionFlags.None,
+        });
+        stagingSize = size;
+        stagingFormat = source.Format;
+        return staging;
+    }
+
+    private static unsafe Bitmap CopyMapped(MappedSubresource mapped, Size size)
+    {
+        var bitmap = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb);
         var bitmapData = bitmap.LockBits(
-            new Rectangle(Point.Empty, bitmap.Size),
+            new Rectangle(Point.Empty, size),
             ImageLockMode.WriteOnly,
             PixelFormat.Format32bppArgb);
-        var row = new byte[region.Width * 4];
+        var rowBytes = size.Width * 4L;
         try
         {
-            for (var y = 0; y < region.Height; y++)
+            for (var y = 0; y < size.Height; y++)
             {
-                var sourceRow = IntPtr.Add(mapped.DataPointer,
-                    checked((sourceY + y) * (int)mapped.RowPitch + sourceX * 4));
-                Marshal.Copy(sourceRow, row, 0, row.Length);
-                Marshal.Copy(row, 0, IntPtr.Add(bitmapData.Scan0, y * bitmapData.Stride), row.Length);
+                Buffer.MemoryCopy(
+                    (byte*)mapped.DataPointer + (long)y * mapped.RowPitch,
+                    (byte*)bitmapData.Scan0 + (long)y * bitmapData.Stride,
+                    rowBytes,
+                    rowBytes);
             }
         }
         catch
@@ -221,6 +260,9 @@ internal sealed class DxgiFrameSource : IFrameSource
 
     private void Reset()
     {
+        staging?.Dispose();
+        staging = null;
+        stagingSize = Size.Empty;
         duplication?.Dispose();
         duplication = null;
         context?.Dispose();

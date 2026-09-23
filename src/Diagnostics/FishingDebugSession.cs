@@ -223,7 +223,14 @@ internal sealed class FishingDebugSession : IDisposable
 
         if (sampleCount == 1 || sampleCount % 5 == 0 || observation.IsVisible)
         {
-            Record("meter", "sample", new { observation, candidate, analysis.CandidateCount, sampleCount });
+            Record("meter", "sample", new
+            {
+                observation,
+                candidate,
+                analysis.CandidateCount,
+                sampleCount,
+                captureMilliseconds = frame?.Status.CaptureMilliseconds,
+            });
         }
 
         if (frame is not null)

@@ -4,7 +4,7 @@ internal sealed record PickpocketPreferences
 {
     public string TargetPolicy { get; set; } = "RarestFirst";
     public string InputMode { get; set; } = "Observe";
-    public int RedAdvanceMs { get; set; } = 8;
+    public int RedAdvanceMs { get; set; } = 11;
     public int YellowAdvanceMs { get; set; } = 20;
     public PickpocketBandColor[] CustomPriority { get; set; } = [PickpocketBandColor.Yellow, PickpocketBandColor.Red, PickpocketBandColor.Purple, PickpocketBandColor.Blue, PickpocketBandColor.White];
     public string[] ItemPriority { get; set; } = PickpocketItemReader.Items.Keys.ToArray();
@@ -28,7 +28,7 @@ internal sealed record PickpocketPreferences
     {
         if (!ValidPolicy(TargetPolicy)) TargetPolicy = "RarestFirst";
         if (InputMode is not ("Observe" or "SingleAttempt" or "PrecisionAttempt")) InputMode = "Observe";
-        if (RedAdvanceMs is < 0 or > 20) RedAdvanceMs = 8;
+        if (RedAdvanceMs is < 0 or > 20) RedAdvanceMs = 11;
         if (YellowAdvanceMs is < 0 or > 20) YellowAdvanceMs = 20;
         if (!ValidOrder(CustomPriority)) CustomPriority = new PickpocketPreferences().CustomPriority;
         if (!ValidItems(ItemPriority)) ItemPriority = PickpocketItemReader.Items.Keys.ToArray();

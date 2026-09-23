@@ -1,11 +1,15 @@
 :root {
-  --overlay-bg: rgba(7, 16, 22, 0.94);
-  --overlay-text: #ecf5f9;
-  --overlay-muted: #91a3af;
-  --overlay-accent: #8ef1e2;
-  --overlay-success: #86efcf;
-  --overlay-warning: #ffcf84;
-  --overlay-danger: #ec6a67;
+  --overlay-bg: rgba(32, 32, 30, 0.94);
+  --overlay-text: #ececea;
+  --overlay-muted: #9b9a94;
+  --overlay-accent: #d97757;
+  --overlay-success: #86d98f;
+  --overlay-warning: #e8b86d;
+  --overlay-danger: #e5695f;
+  /* Transparent room around the card for the drop shadow to fade out inside
+     the window. The window is transparent but still clips, so a shadow whose
+     blur reaches past this gutter gets cut off into a hard dark rectangle. */
+  --overlay-gutter: 18px;
 }
 
 html,
@@ -25,49 +29,54 @@ body {
 
 .overlay-card {
   position: relative;
-  width: calc(100% - 8px);
-  min-height: 84px;
-  margin: 4px;
-  padding: 17px 22px 16px 16px;
+  box-sizing: border-box;
+  width: calc(100% - 2 * var(--overlay-gutter));
+  height: calc(100% - 2 * var(--overlay-gutter));
+  margin: var(--overlay-gutter);
+  padding: 9px 11px;
   overflow: hidden;
-  border: 1px solid rgba(142, 241, 226, 0.34);
-  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
   background:
-    linear-gradient(110deg, rgba(142, 241, 226, 0.09), transparent 68%),
+    linear-gradient(110deg, rgba(217, 119, 87, 0.07), transparent 70%),
     var(--overlay-bg);
-  box-shadow: 0 18px 42px rgba(0, 4, 8, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.025) inset;
+  /* Offset + blur must stay within --overlay-gutter or it clips (see above). */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.42);
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 10px;
+  animation: notice-enter 160ms ease-out;
 }
 
 .overlay-card__icon {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
-  border: 1px solid rgba(142, 241, 226, 0.34);
-  border-radius: 10px;
-  color: #06201c;
+  border-radius: 9px;
+  color: #fff8f3;
   background: var(--overlay-accent);
   display: grid;
   place-items: center;
 }
 
-.overlay-card__copy { min-width: 0; display: grid; gap: 3px; }
-.overlay-card__copy span { color: var(--overlay-accent); font-size: 10px; font-weight: 720; letter-spacing: 0.14em; }
-.overlay-card__copy strong { font-size: 16px; font-weight: 620; letter-spacing: -0.01em; }
-.overlay-card__copy small { max-width: 330px; overflow: hidden; color: var(--overlay-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.overlay-card__edge { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--overlay-accent); opacity: 0.7; }
+.overlay-card__copy { min-width: 0; display: grid; gap: 1px; }
+.overlay-card__copy span { color: var(--overlay-accent); font-size: 8.5px; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
+.overlay-card__copy b { margin: 0 3px; opacity: .5; }
+.overlay-card__copy strong { font-size: 13px; line-height: 17px; font-weight: 620; letter-spacing: -0.01em; }
+.overlay-card__copy small { color: var(--overlay-muted); font-size: 10.5px; line-height: 14px; }
+.overlay-card__edge { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--overlay-accent); opacity: 0.55; transform-origin: left; animation: notice-drain var(--duration) linear forwards; }
+@keyframes notice-enter { from { opacity: 0; transform: translateX(6px); } }
+@keyframes notice-drain { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .overlay-card, .overlay-card__edge { animation: none; } }
 
-.overlay-card.success { border-color: rgba(134, 239, 207, 0.38); }
-.overlay-card.success .overlay-card__icon { border-color: rgba(134, 239, 207, 0.36); background: var(--overlay-success); }
+.overlay-card.success .overlay-card__icon { background: var(--overlay-success); color: #08260c; }
 .overlay-card.success .overlay-card__copy span { color: var(--overlay-success); }
 .overlay-card.success .overlay-card__edge { background: var(--overlay-success); }
-.overlay-card.warning { border-color: rgba(255, 207, 132, 0.42); background: linear-gradient(110deg, rgba(255, 207, 132, 0.1), transparent 68%), var(--overlay-bg); }
-.overlay-card.warning .overlay-card__icon { color: #271a06; border-color: rgba(255, 207, 132, 0.38); background: var(--overlay-warning); }
+.overlay-card.warning { background: linear-gradient(110deg, rgba(232, 184, 109, 0.08), transparent 70%), var(--overlay-bg); }
+.overlay-card.warning .overlay-card__icon { color: #271a06; background: var(--overlay-warning); }
 .overlay-card.warning .overlay-card__copy span { color: var(--overlay-warning); }
 .overlay-card.warning .overlay-card__edge { background: var(--overlay-warning); }
-.overlay-card.critical { border-color: rgba(236, 106, 103, 0.48); background: linear-gradient(110deg, rgba(236, 106, 103, 0.12), transparent 68%), var(--overlay-bg); }
-.overlay-card.critical .overlay-card__icon { color: #2d0808; border-color: rgba(236, 106, 103, 0.42); background: var(--overlay-danger); }
+.overlay-card.critical { background: linear-gradient(110deg, rgba(229, 105, 95, 0.09), transparent 70%), var(--overlay-bg); }
+.overlay-card.critical .overlay-card__icon { color: #2d0808; background: var(--overlay-danger); }
 .overlay-card.critical .overlay-card__copy span { color: var(--overlay-danger); }
 .overlay-card.critical .overlay-card__edge { background: var(--overlay-danger); }

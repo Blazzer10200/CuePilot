@@ -8,7 +8,7 @@ itself proof that the game accepted the action.
 The 2026-09-07 verified snapshot used Yellow 12 ms and Red 8 ms. Those values
 describe that checked build and session, not permanent preferences: confirm the
 saved Timing values and the selected attempt's report before drawing conclusions
-from a later run. The 5.3.5 detector recovery, retained in 5.3.6, fixes the recorded
+from a later run. The 5.3.5 detector recovery, retained through 5.3.9, fixes the recorded
 active-grass false-Hidden case. Check `HANDOFF.md` for the build and the latest
 investigation before changing settings.
 
@@ -24,7 +24,9 @@ investigation before changing settings.
 - **Timing:** Red and Yellow accept independent values from 0 through 20 ms.
   A larger advance schedules the planned press earlier. Change timing only
   against a retained diagnostic session; do not infer game-receipt latency from
-  a result-frame offset.
+  a result-frame offset. Precision runs shift the saved value by the median
+  stop offset of that color's last twenty thin-target shots (six or more, at
+  most ±6 ms); the Timing view and the debug report show the value in use.
 - **Safety:** F7 starts or stops a Pickpocket run. A new run must see Preparing
   before input can arm. Focus loss, a manual Space press, Stop, an error, or a
   cooldown closes the input gate. Pause / Break is the emergency stop and

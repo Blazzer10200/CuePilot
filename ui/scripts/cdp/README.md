@@ -48,6 +48,19 @@ bash scripts/cdp/c.sh look
 - `act click|key|type` performs the input, waits for DOM quiescence, and returns
   the settled page, console errors, and a screenshot.
 - `look [selector]` writes a screenshot and reports current page state/errors.
+- `state [full]` prints the live engine and UI state as text (connection, selected
+  activity, target, routine state, Pickpocket/Lockpicking status, open panels)
+  through the development-only `window.__cuepilot` hook that `App.svelte`
+  installs on mount. `full` returns the entire engine snapshot.
+- `nav <dest>` jumps to `home`, `fishing`, `pickpocket`, `lockpicking`,
+  `settings`, `diagnostics`, or `close` (Escape) and returns the settled page in
+  one round-trip; activity destinations route through Home automatically, and
+  `settings` opens the Fishing workspace first when called from Home because the
+  Settings button only exists inside a workspace (no automation starts).
+- `tour <dest> <dest> ...` visits several destinations and screenshots each in a
+  single round-trip.
+- `console [level] [limit] [--all]` returns the full console ring buffer;
+  `errors` is the error-only shorthand.
 
 Run `bash scripts/cdp/c.sh` without a command for the full command list.
 

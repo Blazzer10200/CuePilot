@@ -29,6 +29,7 @@ internal sealed class LockpickingObserverEngine : IDisposable
     private const int InputEnabledSampleIntervalMilliseconds = 16;
     private const int ObserveOnlySampleIntervalMilliseconds = 67;
     private const int MinimumObserveOnlyCooldownMilliseconds = 4;
+    private const int MinimumLivePublishMilliseconds = 50;
     private readonly object sync = new();
     private readonly OwnedRoutineWorker routineWorker = new();
     private IFrameSource? frameSource;
@@ -139,6 +140,7 @@ internal sealed class LockpickingObserverEngine : IDisposable
         var openCount = 0;
         var unexpectedCount = 0;
         var inputSessionActivated = false;
+        var lastPublishTimestamp = 0L;
         try
         {
             while (!token.IsCancellationRequested)
@@ -251,23 +253,35 @@ internal sealed class LockpickingObserverEngine : IDisposable
                     {
                         spin = spin with { CapturedFrames = diagnostics.SavedSpinEvidenceCount };
                     }
-                    var detail = $"{observation.State} · {observation.PredictedAction} · {observation.Reason}";
-                    Publish(new LockpickingObserveStatus(
-                        true,
-                        state,
-                        detail,
-                        sampleCount,
-                        observation.Confidence,
-                        capture.Backend,
-                        Math.Max(capture.CaptureMilliseconds, clock.Elapsed.TotalMilliseconds),
-                        evidenceDirectory,
-                        observation,
-                        capture.AccumulatedFrames,
-                        spin,
-                        inputEnabled,
-                        vehicleClass,
-                        automation?.ActionCount ?? 0,
-                        automation?.SpinActive ?? false));
+                    // Input mode samples at 60 Hz; the UI does not need every frame. State,
+                    // action, and spin changes always publish; steady frames at most every 50 ms.
+                    var actionCount = automation?.ActionCount ?? 0;
+                    var spinActive = automation?.SpinActive ?? false;
+                    var changed = observation.State != Status.Observation.State
+                        || actionCount != Status.ActionCount
+                        || spinActive != Status.SpinInputActive
+                        || state != Status.State;
+                    if (changed || Stopwatch.GetElapsedTime(lastPublishTimestamp).TotalMilliseconds >= MinimumLivePublishMilliseconds)
+                    {
+                        lastPublishTimestamp = Stopwatch.GetTimestamp();
+                        var detail = $"{observation.State} · {observation.PredictedAction} · {observation.Reason}";
+                        Publish(new LockpickingObserveStatus(
+                            true,
+                            state,
+                            detail,
+                            sampleCount,
+                            observation.Confidence,
+                            capture.Backend,
+                            Math.Max(capture.CaptureMilliseconds, clock.Elapsed.TotalMilliseconds),
+                            evidenceDirectory,
+                            observation,
+                            capture.AccumulatedFrames,
+                            spin,
+                            inputEnabled,
+                            vehicleClass,
+                            actionCount,
+                            spinActive));
+                    }
 
                     if (openCount >= 3)
                     {

@@ -129,14 +129,14 @@ if (-not $existingTargets -and -not $cargoAppFiles) {
     return
 }
 
-$summary = foreach ($target in $existingTargets) {
+$summary = @(foreach ($target in $existingTargets) {
     $files = Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue
     [pscustomobject]@{
         Path = [System.IO.Path]::GetRelativePath($repoRoot, $target)
         Files = ($files | Measure-Object).Count
         Megabytes = [math]::Round((($files | Measure-Object Length -Sum).Sum / 1MB), 1)
     }
-}
+})
 $summary += foreach ($file in $cargoAppFiles) {
     [pscustomobject]@{
         Path = $file.FullName
