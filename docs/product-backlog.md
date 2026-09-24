@@ -8,7 +8,7 @@ The current checkout, installed build, and package state are recorded in
 
 ## Open issues
 
-Concrete items left open by the 5.3.7 - 5.3.10 batches. Each names where the work
+Concrete items left open by the 5.3.7 - 5.3.11 batches. Each names where the work
 lands, so a session can start from the file rather than from a search.
 
 | # | Issue | Where | Notes |
@@ -21,6 +21,8 @@ lands, so a session can start from the file rather than from a search.
 | 6 | Installed UI never inspected | - | Release builds have no CDP, so an installed build can only be launch-checked. Visual confirmation of the neutral theme, the activity rail, the dark launch background, and the new launch splash in the installed build is outstanding. |
 | 7 | Portable build stops spawning its sidecar after repeated launches | `ui/src-tauri/src/engine_bridge.rs` | A portable `cuepilot-ui.exe` launched several times in a row eventually logged only `velopack_done` and never started `CuePilot.exe --ui-bridge` (30 s timeouts). Not reproduced on the installed build, and not root-caused. |
 | 8 | Launch splash has never been executed | `ui/src-tauri/src/splash.rs` | The window is new Win32/GDI code written and reviewed without ever running it, because no window was allowed on screen. It compiles clean under `clippy -D warnings` and its close paths were traced by hand, but nothing has confirmed it paints, that DPI scaling is right on a non-96-DPI display, or that it never outlives the real window. The 30 s lifetime timer bounds the worst case. First launch after repackaging settles it. |
+| 9 | Pickpocket detector misreads panels over grass | `src/Automation/PickpocketDetector.cs` (`ScanStems`) | Two retained frames fail: `%LOCALAPPDATA%\CuePilot\diagnostics\pickpocket\20260923-050613-*\frame-00077.png` is a live panel with the marker at the right edge over grass, read as Hidden; `20260923-084416-*\frame-00259.png` is grass with no panel, read as Missed. Stems are rejected when too long or when grass on both sides reads as marker at x±6. 5.3.11 made the tracker tolerate both (3 s disappearance, result needs Active), but the detector itself is unchanged. An unverified WIP diff (a `clippedAtTop` stem heuristic plus `PP_DEBUG` logging to strip) is parked at `tmp/pickpocket-detector-wip-2026-09-23.diff`. Add both frames as fixtures before touching thresholds. |
+| 10 | Pickpocket 5.3.11 fixes not yet confirmed in live play | `src/Automation/PickpocketObserverEngine.cs`, `PickpocketAttemptTracker.cs` | Checks: fish, then pickpocket in the same app session (the report should show DXGI, not `Desktop GDI`); alt-tab mid-run and confirm it pauses and resumes; confirm no cooldown starts from scenery. If a run still fails, keep its diagnostic session. |
 
 ## Current priorities
 

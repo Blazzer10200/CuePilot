@@ -8,8 +8,9 @@ itself proof that the game accepted the action.
 The 2026-09-07 verified snapshot used Yellow 12 ms and Red 8 ms. Those values
 describe that checked build and session, not permanent preferences: confirm the
 saved Timing values and the selected attempt's report before drawing conclusions
-from a later run. The 5.3.5 detector recovery, retained through 5.3.9, fixes the recorded
-active-grass false-Hidden case. Check `HANDOFF.md` for the build and the latest
+from a later run. The 5.3.5 detector recovery, retained through 5.3.11, fixes the recorded
+active-grass false-Hidden case; two newer grass misreads are open (backlog
+issue 9). Check `HANDOFF.md` for the build and the latest
 investigation before changing settings.
 
 ## Run controls
@@ -28,8 +29,12 @@ investigation before changing settings.
   stop offset of that color's last twenty thin-target shots (six or more, at
   most ±6 ms); the Timing view and the debug report show the value in use.
 - **Safety:** F7 starts or stops a Pickpocket run. A new run must see Preparing
-  before input can arm. Focus loss, a manual Space press, Stop, an error, or a
-  cooldown closes the input gate. Pause / Break is the emergency stop and
+  before input can arm. A manual Space press, Stop, an error, or a cooldown
+  closes the input gate. Focus loss pauses the run: tracking restarts on return
+  and input waits for a new Preparing state.
+- **Capture:** Fishing and Lockpicking release desktop capture when their run
+  ends. A report showing `Desktop GDI` with `E_INVALIDARG` means another
+  duplication of that monitor was still open; Pickpocket cannot time a tap then. Pause / Break is the emergency stop and
   releases a Space key CuePilot owns.
 
 ## History and diagnostics

@@ -116,6 +116,7 @@ public sealed class PickpocketObserverTests
     public void MissedResultImmediatelyStartsCooldownAndLatchesPrediction()
     {
         var tracker = new PickpocketAttemptTracker();
+        tracker.Observe(PickpocketVisualState.Active, 6800);
         Assert.True(tracker.Observe(PickpocketVisualState.Missed, 6900));
         Assert.Equal(180000, tracker.RemainingMs(6900));
         Assert.False(tracker.Observe(PickpocketVisualState.Missed, 7400));
@@ -145,17 +146,40 @@ public sealed class PickpocketObserverTests
     }
 
     [Fact]
-    public void DisappearanceNeedsAnActiveAttemptAndThreeConsecutiveMissingFrames()
+    public void DisappearanceNeedsAnActiveAttemptAndThreeSecondsMissing()
     {
         var tracker = new PickpocketAttemptTracker();
-        for (var i = 0; i < 8; i++) Assert.False(tracker.Observe(PickpocketVisualState.Hidden, i));
-        tracker.Observe(PickpocketVisualState.Active, 100);
-        Assert.False(tracker.Observe(PickpocketVisualState.Hidden, 200));
-        tracker.Observe(PickpocketVisualState.Active, 210);
-        Assert.False(tracker.Observe(PickpocketVisualState.Hidden, 220));
-        Assert.False(tracker.Observe(PickpocketVisualState.Hidden, 230));
-        Assert.True(tracker.Observe(PickpocketVisualState.Hidden, 240));
-        Assert.Equal(180000, tracker.RemainingMs(240));
+        for (var i = 0; i < 8; i++) Assert.False(tracker.Observe(PickpocketVisualState.Hidden, i * 1000));
+        tracker.Observe(PickpocketVisualState.Active, 10_000);
+        // Recorded 2026-09-23 on grass: the live panel read Hidden for 2.6 s mid-minigame.
+        for (var t = 10_100; t <= 12_700; t += 100) Assert.False(tracker.Observe(PickpocketVisualState.Hidden, t));
+        tracker.Observe(PickpocketVisualState.Active, 12_800);
+        Assert.Equal(0, tracker.RemainingMs(12_800));
+        Assert.False(tracker.Observe(PickpocketVisualState.Hidden, 12_900));
+        Assert.False(tracker.Observe(PickpocketVisualState.Hidden, 15_899));
+        Assert.True(tracker.Observe(PickpocketVisualState.Hidden, 15_900));
+        Assert.Equal(180000, tracker.RemainingMs(15_900));
+        // Once the run's tap is spent, a false end blocks nothing: three frames suffice.
+        var spent = new PickpocketAttemptTracker();
+        spent.Observe(PickpocketVisualState.Active, 0);
+        Assert.False(spent.Observe(PickpocketVisualState.Hidden, 20, inputSpent: true));
+        Assert.False(spent.Observe(PickpocketVisualState.Hidden, 40, inputSpent: true));
+        Assert.True(spent.Observe(PickpocketVisualState.Hidden, 60, inputSpent: true));
+    }
+
+    [Fact]
+    public void ResultWithoutActivePlayIsSceneryAndStartsNoCooldown()
+    {
+        // Recorded 2026-09-23: grass beside a car read as Missed with no minigame.
+        var tracker = new PickpocketAttemptTracker();
+        Assert.False(tracker.Observe(PickpocketVisualState.Missed, 1000));
+        Assert.False(tracker.Observe(PickpocketVisualState.Grabbed, 1100));
+        Assert.Equal(0, tracker.RemainingMs(1100));
+        Assert.Equal(0, tracker.Attempt);
+        tracker.Observe(PickpocketVisualState.Preparing, 2000);
+        tracker.Observe(PickpocketVisualState.Active, 2200);
+        Assert.True(tracker.Observe(PickpocketVisualState.Grabbed, 3000));
+        Assert.Equal(1, tracker.Attempt);
     }
 
     [Theory]
@@ -256,22 +280,33 @@ public sealed class PickpocketObserverTests
     }
 
     [Fact]
-    public async Task LosingForegroundStopsObservationAndClearsPredictions()
+    public async Task LosingForegroundPausesAndResumesWithClearedPredictions()
     {
         var resolves = 0;
+        // Foreground, then two unfocused polls (one minimized), then foreground again.
         using var observer = new PickpocketObserverEngine(() => new FixtureSource(),
-            _ => new(IntPtr.Zero, 3258, "FiveM_b3258_GTAProcess", "Fixture", new Rectangle(0, 0, 1920, 1080), Interlocked.Increment(ref resolves) == 1, false));
-        var fault = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
-        observer.StatusChanged += (_, status) => { if (status.State == "Faulted") fault.TrySetResult(status); };
+            _ =>
+            {
+                var call = Interlocked.Increment(ref resolves);
+                return new(IntPtr.Zero, 3258, "FiveM_b3258_GTAProcess", "Fixture", new Rectangle(0, 0, 1920, 1080), call is 1 or >= 4, call == 3);
+            });
+        var paused = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumed = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        observer.StatusChanged += (_, status) =>
+        {
+            if (status.Detail.Contains("Paused", StringComparison.Ordinal)) paused.TrySetResult(status);
+            else if (paused.Task.IsCompleted && status.State is "Searching" or "Tracking" or "Cooldown") resumed.TrySetResult(status);
+        };
         observer.Start(new WindowTargetSettings { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
-        var result = await fault.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False(result.Observing);
-        Assert.Null(result.Prediction);
-        Assert.Contains("lost focus", result.Detail);
+        var pause = await paused.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(pause.Observing);
+        Assert.Equal("Waiting", pause.State);
+        Assert.Null(pause.Prediction);
+        await resumed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(observer.IsObserving);
         observer.Stop();
         Assert.False(observer.IsObserving);
-        using var report = JsonDocument.Parse(File.ReadAllText(Path.Combine(result.EvidenceDirectory, "summary.json")));
-        Assert.Equal("Faulted", report.RootElement.GetProperty("status").GetProperty("state").GetString());
-        Assert.Contains("lost focus", report.RootElement.GetProperty("status").GetProperty("detail").GetString());
+        using var report = JsonDocument.Parse(File.ReadAllText(Path.Combine(pause.EvidenceDirectory, "summary.json")));
+        Assert.Equal("Stopped", report.RootElement.GetProperty("status").GetProperty("state").GetString());
     }
 }

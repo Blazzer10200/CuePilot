@@ -337,6 +337,10 @@ internal sealed class LockpickingObserverEngine : IDisposable
         }
         finally
         {
+            // Release desktop duplication with the run; DXGI allows one per output
+            // per process, so a held source breaks Pickpocket's capture.
+            frameSource?.Dispose();
+            frameSource = null;
             diagnostics.Dispose();
         }
     }

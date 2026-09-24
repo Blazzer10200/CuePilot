@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.11 - 2026-09-23 - Pickpocket no longer silently skips attempts
+
+- Release the screen capture when a Fishing or Lockpicking run ends. DXGI allows one desktop duplication per monitor per process, so a source kept after Fishing made every later Pickpocket frame fail with `E_INVALIDARG` and fall back to GDI, which has no presentation timestamp, so no tap was ever scheduled (live sessions 2026-09-07 and 2026-09-23).
+- Tabbing out of FiveM, or FiveM minimizing, now pauses a Pickpocket run instead of ending it. Tracking restarts on return and input again needs a fresh Preparing state; an owned Space hold is released at once.
+- A result frame only ends an attempt that was seen in play. Grass beside a car read as Missed with no minigame and started a false three-minute cooldown that blocked the next real attempt.
+- While the tap is still available, the panel must be missing for three seconds (not three frames) before an attempt without a result counts as ended. Grass hid a live panel for up to 2.6 s and a single dropout started the cooldown mid-minigame. Once the tap is spent, three frames still suffice.
+
 ## 5.3.10 - 2026-09-22 - Fishing rhythm restored
 
 - Fix Fishing losing fish with only an occasional tap. Each sample had grown from about 54 ms to about 194 ms between the end of one pulse and the next read, while pulses stayed 35–90 ms, so tension starved between taps. Three causes are fixed below; the tuned rhythm (targets, thresholds, the 40 ms sample wait) is unchanged.

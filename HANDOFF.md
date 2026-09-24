@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.10 — 2026-09-22
+# Handoff — CuePilot 5.3.11 — 2026-09-23
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.9 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -9,17 +9,52 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | | |
 | --- | --- |
 | Branch | `codex/release-complete` |
-| Source version | 5.3.10, synchronized across all six release files |
-| Published | **v5.3.10 public**, 2026-09-23 03:12 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.10), run 35812371777 green; Setup, Portable, full + delta nupkg, feed, manifest, sha256 all present |
-| Installed locally | **5.3.10**, installed 2026-09-22 with Setup `--silent` over a running 5.3.9 (stopped by exact install path), then relaunched at medium integrity; shell and sidecar came up |
-| Package | `release/velopack/` — 5.3.10 built 2026-09-22 21:55: Setup 45.6 MB, full 41.3 MB, delta from 5.3.9 1.9 MB |
-| Last full gate | `verify.ps1 -All` green 2026-09-22: docs 23 files / 163 links, dotnet 448, vitest 51, svelte-check 0/0, Playwright 23, clippy `-D warnings`, cargo 28 |
+| Source version | 5.3.11, synchronized across all six release files. **Uncommitted**: 15 modified files (engine, tests, docs, version bump) |
+| Published | **v5.3.10 public**, 2026-09-23 03:12 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.10), run 35812371777 green. 5.3.11 is local only, not tagged or published |
+| Installed locally | **5.3.11**, installed 2026-09-23 with Setup `--silent` over a running 5.3.10 (stopped by exact install path), relaunched through the Start Menu shortcut; shell and sidecar came up, `project-status.ps1` reports `installed: v5.3.11` |
+| Package | `release/velopack/` — 5.3.11 built 2026-09-23 05:08: Setup 45.6 MB, full 41.3 MB, delta from 5.3.10 31.2 MB (unusually large next to 5.3.10's 1.9 MB; not investigated) |
+| Last gates | 5.3.11: `dotnet build` + `dotnet test` 449/449 and `verify.ps1 -Docs` green 2026-09-23. UI and Rust untouched except the version bump; `verify.ps1 -All` not rerun. Last full gate: 2026-09-22 at 5.3.10 (docs 23 / 163 links, dotnet 448, vitest 51, svelte-check 0/0, Playwright 23, clippy, cargo 28) |
 
 `release/velopack/` also holds `publication-receipt.json` and
 `verification-receipt.json` from the published v5.3.4. Packaging does not
 regenerate them, so never delete that directory to clean up a build.
 
 Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
+
+## 5.3.11 — Pickpocket no longer silently skips attempts
+
+The owner reported Pickpocket "sometimes just not register at all", suspecting
+other hotkeys or alt-tabbing. The retained sessions under
+`%LOCALAPPDATA%\CuePilot\diagnostics\pickpocket\` showed four separate causes:
+
+- **Capture held by Fishing (the 09:40Z session, also 2026-09-07).** DXGI
+  allows one duplication per output per process. A Fishing run earlier in the
+  same app process kept its `DxgiFrameSource` alive, so every Pickpocket frame
+  failed `DuplicateOutput` with `E_INVALIDARG` and fell back to GDI. GDI frames
+  have no presentation timestamp, so no tap could ever be scheduled. Fix:
+  `AdaptiveRoutineEngine` and `LockpickingObserverEngine` dispose their frame
+  source when a run ends.
+- **Scenery read as a result (08:44Z).** Grass beside a car classified as
+  Missed with no minigame on screen and started a false 3-minute cooldown,
+  which then blocked real attempts (and persisted across restart). Fix:
+  `PickpocketAttemptTracker` only completes after an Active frame was seen.
+- **Brief dropout ended the attempt (05:06Z).** A few Hidden frames mid-minigame
+  completed the attempt and started cooldown. Fix: the panel must be missing
+  for 3 s, except after the run's tap is spent, where the old three-frame rule
+  still applies (the recorded `third-attempt.json` replay depends on it).
+- **Alt-tab killed the run (05:06, 05:11, 08:59).** Foreground loss threw
+  "lost focus". Now the observer pauses: it releases owned input, clears
+  prediction and tracking, shows "FiveM is not in front", and resumes on
+  return, requiring a fresh Preparing state before input can arm.
+
+Seen but deliberately **not** changed: at 05:06 and 05:11 capture was 33–48 ms
+with frames 50–60 ms old under GPU load, so the ≤40 ms age and ≤60 ms
+contiguity gates correctly refused to predict. At 05:11 a manual Space press
+disarmed the run, which is intended safety.
+
+**Not yet proven live.** Unit and recorded-engine tests cover each fix; no
+in-game Pickpocket run has been made on 5.3.11. The grass detector
+misclassification is still open (backlog issue 9).
 
 ## 5.3.10 — Fishing rhythm restored
 

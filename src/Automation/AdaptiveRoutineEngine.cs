@@ -148,6 +148,11 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
         finally
         {
             inputGate.StopAndReleaseOwnedInput();
+            // DXGI allows one duplication per output per process. A source kept
+            // after the run makes every later Pickpocket capture fail with
+            // E_INVALIDARG and fall back to GDI, which has no timing timestamps.
+            frameSource?.Dispose();
+            frameSource = null;
             debugSession.Complete(outcome);
             Raise(new RoutineStatus(State, outcome));
             debugSession.Dispose();

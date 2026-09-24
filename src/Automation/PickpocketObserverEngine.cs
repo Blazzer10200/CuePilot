@@ -171,10 +171,28 @@ internal sealed class PickpocketObserverEngine : IDisposable
             while (!token.IsCancellationRequested && NowMs() - start < 600_000)
             {
                 var window = resolve(target);
-                if (window.IsMinimized) throw new InvalidOperationException("FiveM was minimized. Observation stopped.");
-                if (!window.IsForeground)
+                if (window.IsMinimized || !window.IsForeground)
                 {
-                    if (foregroundSeen) throw new InvalidOperationException("FiveM lost focus. Observation stopped; predictions cleared.");
+                    if (foregroundSeen)
+                    {
+                        // Tabbing out and back is normal play, so pause instead of
+                        // ending the run. Nothing measured before the switch is trusted:
+                        // tracking restarts and input again needs a fresh Preparing state.
+                        foregroundSeen = false;
+                        preparationSeen = false;
+                        previous = null;
+                        selected = null;
+                        lastTarget = null;
+                        lastLoop = 0;
+                        spaceWasDown = false;
+                        predictor.Reset();
+                        targetTracker.Reset();
+                        input.ReleaseIfDue(immediately: true);
+                        latest = latest with { State = "Waiting", Prediction = null, SelectedBandIndex = null, Observation = PickpocketObservation.Missing,
+                            Detail = "FiveM is not in front. Paused; return to FiveM and start a new pickpocket." };
+                        diagnostics.Queue(latest, null, false);
+                        Publish(latest with { Debug = diagnostics.Snapshot() });
+                    }
                     if (diagnostics.Error != latest.Debug?.Error)
                     {
                         latest = latest with { Debug = diagnostics.Snapshot() };
@@ -210,7 +228,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     if (automatic && spaceEdge) input.Disarm("Manual Space observed; automatic input cancelled for this run.");
                     if (manualDown.HasValue) spaceWasDown = manualDown.Value;
                     samples++;
-                    var completion = attempts.Observe(observation.State, analyzedAt);
+                    var completion = attempts.Observe(observation.State, analyzedAt, automatic && input.Consumed);
                     if (automatic && completion) input.Disarm("Attempt ended; arm a new test explicitly.");
                     if (observation.State == PickpocketVisualState.Preparing && previous?.State != PickpocketVisualState.Preparing)
                     { predictor.Reset(); selected = null; lastTarget = null; targetTracker.Reset(); preparationSeen = true; spaceWasDown = false; }

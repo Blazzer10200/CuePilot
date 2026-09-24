@@ -51,9 +51,9 @@ internal sealed class PickpocketInputController
     /// this around its frame wait so capture continues through the press instead
     /// of blocking on the hold. Stop and run cleanup release regardless.
     /// </summary>
-    internal bool ReleaseIfDue()
+    internal bool ReleaseIfDue(bool immediately = false)
     {
-        if (ReleaseDueMs is not double due || now() < due) return false;
+        if (ReleaseDueMs is not double due || (!immediately && now() < due)) return false;
         ReleaseDueMs = null;
         if (!gate.ReleaseKey(InputKey.Space))
             throw new InvalidOperationException("Space release failed; input is disarmed. Stop retries owned-key cleanup.");
