@@ -20,6 +20,7 @@ mod notifications;
 #[cfg(windows)]
 mod splash;
 mod support;
+mod tray;
 mod update_service;
 
 use engine_bridge::EngineBridge;
@@ -359,6 +360,7 @@ pub fn run() {
             record_startup_phase("setup_begin");
             notifications::setup(app)?;
             record_startup_phase("notifications_ready");
+            tray::setup(app)?;
 
             app.handle().plugin(
                 tauri_plugin_global_shortcut::Builder::new()
@@ -415,6 +417,16 @@ pub fn run() {
             update_service::open_update_releases
         ])
         .on_window_event(|window, event| {
+            // Close (title-bar X, Alt+F4, taskbar) hides to the tray so an
+            // activity and its shortcuts keep running. Quit lives in the tray menu.
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    notifications::announce_background(window.app_handle());
+                    return;
+                }
+            }
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 let bridge = window.state::<EngineBridge>();
                 bridge.shutdown(window.app_handle());

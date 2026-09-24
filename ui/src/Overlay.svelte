@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
-  import { Fish, Hand } from "@lucide/svelte";
+  import { Fish, Hand, Minimize2 } from "@lucide/svelte";
   import "./overlay.css";
 
   type Notice = { activity: string; title: string; detail: string; durationMs: number };
@@ -31,7 +31,7 @@
   {#key revision}
     <section class="overlay-card" role="status" aria-live="polite" aria-atomic="true">
       <div class="overlay-card__icon">
-        {#if notice.activity === "Fishing"}<Fish size={21} strokeWidth={1.8} />{:else}<Hand size={21} strokeWidth={1.8} />{/if}
+        {#if notice.activity === "Fishing"}<Fish size={21} strokeWidth={1.8} />{:else if notice.activity === "Background"}<Minimize2 size={21} strokeWidth={1.8} />{:else}<Hand size={21} strokeWidth={1.8} />{/if}
       </div>
       <div class="overlay-card__copy">
         <span>CuePilot <b>·</b> {notice.activity}</span>

@@ -51,6 +51,7 @@ Every LMB hold is independently capped at 35–90 ms by the feedback controller.
 - The Fishing Start / Stop shortcut is rebound by clicking its field in Settings and pressing any key or combo (`Ctrl`/`Shift`/`Alt` plus a key), or a side or middle mouse button (Mouse 4, Mouse 5, middle click). It works while FiveM remains focused. `F8`, `Escape`, the Windows key, and the left and right mouse buttons cannot be bound.
 - The reserved Lockpicking shortcut defaults to `F9` and is rebound the same way; it cannot enable Class C input until the evidence gate passes.
 - `Pause / Break` is the global emergency stop and releases held input.
+- Closing the window hides CuePilot to the notification area; the engine, a running activity, shortcuts, and popups keep working. Left-click the tray icon (or launch CuePilot again) to bring it back, and right-click it → **Quit CuePilot** to exit.
 - Fishing stops if FiveM stops being the active visible window.
 
 ## Input modes

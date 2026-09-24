@@ -42,6 +42,9 @@ struct Notice {
     title: &'static str,
     detail: String,
     duration_ms: u64,
+    /// Informational notices skip the chime; it is reserved for game events.
+    #[serde(skip)]
+    silent: bool,
 }
 
 impl Notice {
@@ -51,6 +54,7 @@ impl Notice {
             title: "Ready for another pickpocket",
             detail: "Cooldown complete. You can start a new attempt.".into(),
             duration_ms: DURATION_MS,
+            silent: false,
         }
     }
     fn fishing() -> Self {
@@ -59,6 +63,16 @@ impl Notice {
             title: "Ready for the next catch",
             detail: "New cast started. CuePilot is watching for the meter.".into(),
             duration_ms: DURATION_MS,
+            silent: false,
+        }
+    }
+    fn background() -> Self {
+        Self {
+            activity: "Background",
+            title: "Still running in the tray",
+            detail: "Shortcuts keep working. Right-click the tray icon to quit.".into(),
+            duration_ms: DURATION_MS,
+            silent: true,
         }
     }
     /// Feedback for the pickpocket start/stop shortcut, built from the snapshot
@@ -87,6 +101,7 @@ impl Notice {
             title,
             detail,
             duration_ms: SHORTCUT_DURATION_MS,
+            silent: false,
         }
     }
 }
@@ -143,9 +158,18 @@ struct Delivery {
     ready: bool,
     pending: VecDeque<Notice>,
     visible_until: u64,
+    background_announced: bool,
 }
 
 impl Delivery {
+    /// The tray hint is shown on the first hide of each launch only.
+    fn announce_background(&mut self) {
+        if !self.background_announced {
+            self.background_announced = true;
+            self.enqueue(Notice::background());
+        }
+    }
+
     fn enqueue(&mut self, notice: Notice) {
         // Keep a bounded queue of meaningful transitions, not raw telemetry.
         if self.pending.len() == 4 {
@@ -186,6 +210,12 @@ pub(crate) fn confirm_shortcut(app: &AppHandle, command: &str, result: &Value, s
         if state.preferences.shortcuts {
             state.enqueue(Notice::pickpocket_shortcut(result, shortcut));
         }
+    }
+}
+
+pub(crate) fn announce_background(app: &AppHandle) {
+    if let Ok(mut state) = app.state::<NotificationState>().0.lock() {
+        state.announce_background();
     }
 }
 
@@ -327,7 +357,7 @@ fn pump(app: &AppHandle) -> Result<(), String> {
         window.hide().map_err(|e| e.to_string())?;
     }
     if let Some(notice) = notice {
-        if preferences.sound {
+        if preferences.sound && !notice.silent {
             play_sound();
         }
         if preferences.popups {
@@ -559,6 +589,21 @@ mod tests {
         let loaded: Preferences = serde_json::from_str(r#"{"popups":false,"sound":true}"#).unwrap();
         assert!(!loaded.popups);
         assert!(loaded.shortcuts);
+    }
+
+    #[test]
+    fn tray_hint_is_silent_and_queued_once_per_launch() {
+        let mut delivery = Delivery::default();
+        delivery.announce_background();
+        delivery.announce_background();
+        assert_eq!(delivery.pending.len(), 1);
+        let notice = &delivery.pending[0];
+        assert_eq!(notice.activity, "Background");
+        assert!(notice.silent);
+        assert!(serde_json::to_value(notice)
+            .unwrap()
+            .get("silent")
+            .is_none());
     }
 
     #[test]

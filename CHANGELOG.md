@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.12 - 2026-09-24 - Runs in the background from the tray
+
+- Closing the window (the title-bar X, Alt+F4, or the taskbar) now hides CuePilot to the notification area instead of quitting. The engine, any running activity, the F10 / F9 / F7 / Pause shortcuts, and notification popups keep working while it is hidden.
+- A CuePilot tray icon brings the window back with a left click or **Open CuePilot**, and **Quit CuePilot** in its right-click menu stops the engine and exits. Launching CuePilot again also brings the hidden window back.
+- The first time the window hides in each launch, a silent popup says CuePilot is still running in the tray.
+- This release also ships the 5.3.11 Pickpocket fixes below, which were never published on their own.
+
 ## 5.3.11 - 2026-09-23 - Pickpocket no longer silently skips attempts
 
 - Release the screen capture when a Fishing or Lockpicking run ends. DXGI allows one desktop duplication per monitor per process, so a source kept after Fishing made every later Pickpocket frame fail with `E_INVALIDARG` and fall back to GDI, which has no presentation timestamp, so no tap was ever scheduled (live sessions 2026-09-07 and 2026-09-23).

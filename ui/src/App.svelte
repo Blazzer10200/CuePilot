@@ -739,7 +739,7 @@
       <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
       <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
       <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
-      <button class="close" aria-label="Close" title="Close CuePilot" onclick={close}><X size={15} /></button>
+      <button class="close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
     </div>
   </div>
 

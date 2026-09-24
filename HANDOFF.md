@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.11 — 2026-09-23
+# Handoff — CuePilot 5.3.12 — 2026-09-24
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.9 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -9,11 +9,11 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | | |
 | --- | --- |
 | Branch | `codex/release-complete` |
-| Source version | 5.3.11, synchronized across all six release files. **Uncommitted**: 15 modified files (engine, tests, docs, version bump) |
-| Published | **v5.3.10 public**, 2026-09-23 03:12 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.10), run 35812371777 green. 5.3.11 is local only, not tagged or published |
-| Installed locally | **5.3.11**, installed 2026-09-23 with Setup `--silent` over a running 5.3.10 (stopped by exact install path), relaunched through the Start Menu shortcut; shell and sidecar came up, `project-status.ps1` reports `installed: v5.3.11` |
-| Package | `release/velopack/` — 5.3.11 built 2026-09-23 05:08: Setup 45.6 MB, full 41.3 MB, delta from 5.3.10 31.2 MB (unusually large next to 5.3.10's 1.9 MB; not investigated) |
-| Last gates | 5.3.11: `dotnet build` + `dotnet test` 449/449 and `verify.ps1 -Docs` green 2026-09-23. UI and Rust untouched except the version bump; `verify.ps1 -All` not rerun. Last full gate: 2026-09-22 at 5.3.10 (docs 23 / 163 links, dotnet 448, vitest 51, svelte-check 0/0, Playwright 23, clippy, cargo 28) |
+| Source version | 5.3.12, synchronized across all six release files. 5.3.11 committed as `5dfa378` (never tagged) |
+| Published | **v5.3.12** tag pushed 2026-09-24; tag-driven CI publishes it. Previous public: v5.3.10 (2026-09-23, run 35812371777) |
+| Installed locally | **5.3.12**, installed 2026-09-24 with Setup `--silent` (5.3.11 was not running). The first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall; happens before any tray code); stopping by exact install path and relaunching through Explorer came up in 5.5 s with the sidecar. Close-to-tray, tray registration (`CuePilot`), and relaunch-restore were then checked on the installed build |
+| Package | `release/velopack/` — 5.3.12 built 2026-09-24 18:53: Setup 45.7 MB, full 41.4 MB, delta from 5.3.11 |
+| Last gates | 5.3.12 full gate 2026-09-24: docs 23 / 165 links, dotnet 449, vitest 51, svelte-check 0/0, Playwright 23, rustfmt, clippy, cargo 30 (the first `-All` run failed only on rustfmt in a new test; `-Rust` rerun green after `cargo fmt`) |
 
 `release/velopack/` also holds `publication-receipt.json` and
 `verification-receipt.json` from the published v5.3.4. Packaging does not
@@ -21,7 +21,40 @@ regenerate them, so never delete that directory to clean up a build.
 
 Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
 
+## 5.3.12 — Runs in the background from the tray
+
+The owner asked for CuePilot to behave like their other apps: closing the
+window keeps it running in the tray.
+
+- `lib.rs` `on_window_event`: `CloseRequested` on `main` calls
+  `prevent_close()` and hides. This covers the title-bar X (JS
+  `getCurrentWindow().close()`), Alt+F4, and the taskbar. The engine, running
+  activity, global shortcuts, mouse hook, and notification pump all keep
+  going because the `main` window still exists.
+- `tray.rs`: icon with the window icon, tooltip `CuePilot` (`CuePilot Dev`
+  for the dev identifier). Left click or **Open CuePilot** →
+  `focus_main_window`; **Quit CuePilot** → `quit_application` (engine
+  `shutdown`, then `app.exit(0)`, the same order as the updater). The existing
+  single-instance handler already restores a hidden window on relaunch.
+- `notifications.rs`: `announce_background` queues one silent "Still running
+  in the tray" popup on the first hide per launch (`Notice.silent` skips the
+  chime and is not serialized). The overlay shows a `Minimize2` icon for it.
+- `Cargo.toml`: `tauri` gains the `tray-icon` feature.
+
+Verified live in the dev app (2026-09-24): Close hid the main window while the
+shell and engine stayed alive and the engine stayed connected; the
+notification window became visible; a second launch restored the window and
+exited; Windows registered the icon (`NotifyIconSettings` → tooltip
+`CuePilot Dev`). **The tray menu items were not individually proven**: a
+synthetic right-click through UI Automation ended with the dev app exiting
+cleanly (engine stopped, no panic), which points to Quit firing, but the menu
+was never observed and the owner stopped the check. Try a real right-click →
+Quit on the installed 5.3.12, and confirm a plain right-click alone does not
+quit.
+
 ## 5.3.11 — Pickpocket no longer silently skips attempts
+
+Committed as `5dfa378` but never tagged; it ships inside 5.3.12.
 
 The owner reported Pickpocket "sometimes just not register at all", suspecting
 other hotkeys or alt-tabbing. The retained sessions under

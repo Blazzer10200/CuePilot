@@ -102,6 +102,7 @@ pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.jso
 5. [ui/src-tauri/src/notifications.rs](../ui/src-tauri/src/notifications.rs) — readiness and shortcut-confirmation popups, preferences, sound, and the click-through notification window pump.
 6. [ui/src/lib/NotificationSettings.svelte](../ui/src/lib/NotificationSettings.svelte) and [ui/src/Overlay.svelte](../ui/src/Overlay.svelte) — preferences with previews, and the popup presentation.
 7. [src/Application/AppSettings.cs](../src/Application/AppSettings.cs) — engine-side binding validation and display text; [ui/e2e/hotkeys.spec.ts](../ui/e2e/hotkeys.spec.ts) and [ui/e2e/notifications.spec.ts](../ui/e2e/notifications.spec.ts) cover the Settings flows.
+8. [ui/src-tauri/src/tray.rs](../ui/src-tauri/src/tray.rs) — notification-area icon (left click / Open restores, Quit stops the engine and exits). Close-to-tray itself is the `CloseRequested` branch of `on_window_event` in [lib.rs](../ui/src-tauri/src/lib.rs), which also queues the one-time `announce_background` popup.
 
 ### Desktop UI
 
