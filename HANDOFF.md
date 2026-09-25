@@ -10,7 +10,7 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | --- | --- |
 | Branch | `codex/release-complete` |
 | Source version | 5.3.12, synchronized across all six release files. 5.3.11 committed as `5dfa378` (never tagged) |
-| Published | **v5.3.12** tag pushed 2026-09-24; tag-driven CI publishes it. Previous public: v5.3.10 (2026-09-23, run 35812371777) |
+| Published | **v5.3.12 public**, 2026-09-25 00:11 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.12), run 36075163572 green (8 assets; `releases.win.json` lists 5.3.12). Previous public: v5.3.10 |
 | Installed locally | **5.3.12**, installed 2026-09-24 with Setup `--silent` (5.3.11 was not running). The first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall; happens before any tray code); stopping by exact install path and relaunching through Explorer came up in 5.5 s with the sidecar. Close-to-tray, tray registration (`CuePilot`), and relaunch-restore were then checked on the installed build |
 | Package | `release/velopack/` — 5.3.12 built 2026-09-24 18:53: Setup 45.7 MB, full 41.4 MB, delta from 5.3.11 |
 | Last gates | 5.3.12 full gate 2026-09-24: docs 23 / 165 links, dotnet 449, vitest 51, svelte-check 0/0, Playwright 23, rustfmt, clippy, cargo 30 (the first `-All` run failed only on rustfmt in a new test; `-Rust` rerun green after `cargo fmt`) |
