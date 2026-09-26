@@ -19,7 +19,8 @@ internal sealed record FrameSourceStatus(
     TimeSpan FrameAge,
     double CaptureMilliseconds,
     uint AccumulatedFrames = 1,
-    double? PresentationMilliseconds = null);
+    double? PresentationMilliseconds = null,
+    bool GpuBusy = false);
 
 internal sealed class FrameLease : IDisposable
 {
@@ -45,15 +46,24 @@ internal interface IFrameSource : IDisposable
 
 internal static class FrameSourceFactory
 {
-    internal static IFrameSource Create()
+    // Fishing only needs a recent frame, not a presentation timestamp. When the game
+    // saturates the GPU, a DXGI readback can queue for seconds (2026-09-26: 10.6 s and
+    // 11.2 s samples while the meter was up) while GDI still returns in ~22 ms, so the
+    // responsive source bounds the GPU wait and rides GDI until the GPU frees up.
+    // Pickpocket and Lockpicking keep the default: they need DXGI presentation timing.
+    internal static readonly TimeSpan ResponsiveGpuWaitLimit = TimeSpan.FromMilliseconds(100);
+    internal static readonly TimeSpan ResponsiveGpuBusyHold = TimeSpan.FromSeconds(2);
+
+    internal static IFrameSource Create(bool responsive = false)
     {
         IFrameSource? primary = null;
         IFrameSource? fallback = null;
         try
         {
-            primary = new DxgiFrameSource();
+            primary = new DxgiFrameSource(responsive ? ResponsiveGpuWaitLimit : null);
             fallback = new GdiFrameSource();
-            var combined = new FallbackFrameSource(primary, fallback);
+            var combined = new FallbackFrameSource(primary, fallback,
+                responsive ? ResponsiveGpuBusyHold : TimeSpan.Zero);
             primary = null;
             fallback = null;
             return combined;
@@ -66,12 +76,33 @@ internal static class FrameSourceFactory
     }
 }
 
-internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fallback) : IFrameSource
+internal sealed class FallbackFrameSource(
+    IFrameSource primary,
+    IFrameSource fallback,
+    TimeSpan gpuBusyHold = default,
+    Func<long>? timestamp = null) : IFrameSource
 {
+    private readonly Func<long> now = timestamp ?? Stopwatch.GetTimestamp;
+    private long holdUntil;
+
     public string Name => primary.Name;
 
     public bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status)
     {
+        if (holdUntil != 0 && now() < holdUntil)
+        {
+            if (fallback.TryCapture(target, relativeRegion, out frame, out status)
+                && AcceptVisibleFrame(ref frame, ref status))
+            {
+                status = status with { Detail = "Fallback holding while the GPU is busy." };
+                frame!.UpdateStatus(status);
+                return true;
+            }
+
+            frame?.Dispose();
+            holdUntil = 0;
+        }
+
         if (primary.TryCapture(target, relativeRegion, out frame, out status))
         {
             if (AcceptVisibleFrame(ref frame, ref status)) return true;
@@ -81,6 +112,11 @@ internal sealed class FallbackFrameSource(IFrameSource primary, IFrameSource fal
             || status.Detail.Contains("no longer foreground", StringComparison.OrdinalIgnoreCase))
         {
             return false;
+        }
+
+        if (status.GpuBusy && gpuBusyHold > TimeSpan.Zero)
+        {
+            holdUntil = now() + (long)(gpuBusyHold.TotalSeconds * Stopwatch.Frequency);
         }
 
         var primaryFailure = status;

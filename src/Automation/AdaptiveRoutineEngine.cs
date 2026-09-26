@@ -42,7 +42,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             settings = requestedSettings.Copy();
             settings.Clamp();
             frameSource?.Dispose();
-            frameSource = FrameSourceFactory.Create();
+            frameSource = FrameSourceFactory.Create(responsive: true);
             meterTracker.Reset();
             input = new TargetInputRouter(settings.InputMode);
             var debugSession = new FishingDebugSession(settings);

@@ -10,7 +10,7 @@ using Box = Vortice.Mathematics.Box;
 
 namespace CuePilot;
 
-internal sealed class DxgiFrameSource : IFrameSource
+internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSource
 {
     private const uint AcquireTimeoutMilliseconds = 250;
     private ID3D11Device? device;
@@ -82,8 +82,13 @@ internal sealed class DxgiFrameSource : IFrameSource
                     var sourceY = region.Top - outputBounds.Top;
                     context!.CopySubresourceRegion(staging, 0, 0, 0, 0, source, 0,
                         new Box(sourceX, sourceY, 0, sourceX + region.Width, sourceY + region.Height, 1));
-                    var mapResult = context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out var mapped);
-                    mapResult.CheckError();
+                    if (!TryMap(staging, out var mapped))
+                    {
+                        status = new FrameSourceStatus(FrameSourceState.CaptureFailed, Name,
+                            $"The GPU did not return the frame within {gpuWaitLimit!.Value.TotalMilliseconds:0} ms; the game is saturating it.",
+                            TimeSpan.MaxValue, clock.Elapsed.TotalMilliseconds, GpuBusy: true);
+                        return false;
+                    }
                     try
                     {
                         var bitmap = CopyMapped(mapped, region.Size);
@@ -112,6 +117,38 @@ internal sealed class DxgiFrameSource : IFrameSource
             status = new FrameSourceStatus(FrameSourceState.CaptureFailed, Name, exception.Message,
                 TimeSpan.MaxValue, clock.Elapsed.TotalMilliseconds);
             return false;
+        }
+    }
+
+    // A blocking Map waits for the copy to reach the front of the GPU queue, which under
+    // a saturated GPU has taken over 10 s. With a limit, poll without blocking and give
+    // up so the caller can use another source. The abandoned copy just completes later.
+    private bool TryMap(ID3D11Texture2D staging, out MappedSubresource mapped)
+    {
+        if (gpuWaitLimit is not { } limit)
+        {
+            context!.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out mapped).CheckError();
+            return true;
+        }
+
+        context!.Flush();
+        var deadline = Stopwatch.GetTimestamp() + (long)(limit.TotalSeconds * Stopwatch.Frequency);
+        var spinner = new SpinWait();
+        while (true)
+        {
+            var result = context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.DoNotWait, out mapped);
+            if (result.Code != Vortice.DXGI.ResultCode.WasStillDrawing.Code)
+            {
+                result.CheckError();
+                return true;
+            }
+
+            if (Stopwatch.GetTimestamp() >= deadline)
+            {
+                return false;
+            }
+
+            spinner.SpinOnce(sleep1Threshold: -1);
         }
     }
 

@@ -55,7 +55,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
         Func<WindowTargetSettings, WindowTargetService.ResolvedWindowTarget, bool>? validateCapturedWindow = null,
         PickpocketSessionState? sessionState = null)
     {
-        this.createSource = createSource ?? FrameSourceFactory.Create;
+        this.createSource = createSource ?? (() => FrameSourceFactory.Create());
         this.resolve = resolve ?? (target => WindowTargetService.TryResolve(target, out var result, out var detail)
             ? result : throw new InvalidOperationException(detail));
         this.validateCapturedWindow = validateCapturedWindow ?? (resolve is null

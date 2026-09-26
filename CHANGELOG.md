@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.13 - 2026-09-26 - Fishing keeps seeing the meter when the GPU is maxed out
+
+- Fix Fishing going blind and losing fish in GPU-heavy spots (reported at the state park). Reading a frame back from the GPU had no time limit, and with FiveM at 99% GPU single samples took 10.6 s and 11.2 s while the meter was on screen, so the meter was missed for about 30 seconds and the fish escaped. Earlier sessions elsewhere averaged 6–8 ms.
+- Fishing now gives the GPU readback 100 ms. If the frame is not back by then, that sample uses desktop GDI capture instead (about 22 ms at 99% GPU), stays on GDI for two seconds, then tries the GPU path again. The debug log records the switch as `capture_fallback`.
+- Pickpocket and Lockpicking are unchanged: they still wait for DXGI, because their timing needs its presentation timestamps.
+- `--capture-probe` now measures the same capture path Fishing uses.
+
 ## 5.3.12 - 2026-09-24 - Runs in the background from the tray
 
 - Closing the window (the title-bar X, Alt+F4, or the taskbar) now hides CuePilot to the notification area instead of quitting. The engine, any running activity, the F10 / F9 / F7 / Pause shortcuts, and notification popups keep working while it is hidden.

@@ -910,6 +910,80 @@ public sealed class FishingMeterTests
     private static Bitmap LoadVisionFixture(string name) =>
         new(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Prompts", name));
 
+    [Fact]
+    public void GpuBusyPrimaryHandsOffToFallbackAndHoldsUntilTheGpuFreesUp()
+    {
+        var clock = 0L;
+        var primary = new BusyFrameSource();
+        var fallback = new SolidFrameSource("GDI test", Color.FromArgb(40, 60, 80));
+        using var capture = new FallbackFrameSource(primary, fallback, TimeSpan.FromSeconds(2), () => clock);
+        var target = new WindowTargetSettings();
+        var region = new Rectangle(0, 0, 64, 36);
+
+        Assert.True(capture.TryCapture(target, region, out var first, out var firstStatus), firstStatus.Detail);
+        first?.Dispose();
+        Assert.Equal("GDI test", firstStatus.Backend);
+        Assert.StartsWith("Fallback active", firstStatus.Detail, StringComparison.Ordinal);
+        Assert.Equal(1, primary.Calls);
+
+        clock = Stopwatch.Frequency; // 1 s later: still holding, primary is not touched.
+        Assert.True(capture.TryCapture(target, region, out var held, out var heldStatus), heldStatus.Detail);
+        held?.Dispose();
+        Assert.Equal("GDI test", heldStatus.Backend);
+        Assert.Equal(1, primary.Calls);
+
+        clock = 3 * Stopwatch.Frequency; // Hold expired: primary is tried again.
+        primary.Busy = false;
+        Assert.True(capture.TryCapture(target, region, out var recovered, out var recoveredStatus), recoveredStatus.Detail);
+        recovered?.Dispose();
+        Assert.Equal("DXGI test", recoveredStatus.Backend);
+        Assert.Equal(2, primary.Calls);
+    }
+
+    [Fact]
+    public void DefaultFallbackNeverHoldsSoPrecisionActivitiesKeepDxgi()
+    {
+        var primary = new BusyFrameSource();
+        using var capture = new FallbackFrameSource(primary, new SolidFrameSource("GDI test", Color.Gray));
+        var target = new WindowTargetSettings();
+        var region = new Rectangle(0, 0, 64, 36);
+
+        capture.TryCapture(target, region, out var first, out _);
+        first?.Dispose();
+        capture.TryCapture(target, region, out var second, out _);
+        second?.Dispose();
+
+        Assert.Equal(2, primary.Calls);
+    }
+
+    private sealed class BusyFrameSource : IFrameSource
+    {
+        public bool Busy { get; set; } = true;
+        public int Calls { get; private set; }
+        public string Name => "DXGI test";
+
+        public bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status)
+        {
+            Calls++;
+            if (Busy)
+            {
+                frame = null;
+                status = new FrameSourceStatus(FrameSourceState.CaptureFailed, Name, "GPU busy.", TimeSpan.MaxValue, 100, GpuBusy: true);
+                return false;
+            }
+
+            var bitmap = new Bitmap(relativeRegion.Width, relativeRegion.Height);
+            using (var graphics = Graphics.FromImage(bitmap)) graphics.Clear(Color.FromArgb(90, 90, 90));
+            status = new FrameSourceStatus(FrameSourceState.Ready, Name, "Test frame ready.", TimeSpan.Zero, 5);
+            frame = new FrameLease(bitmap, status);
+            return true;
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class SolidFrameSource(string name, Color color) : IFrameSource
     {
         public string Name => name;

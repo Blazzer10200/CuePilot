@@ -227,7 +227,7 @@ internal static class Program
         // The first sample pays device and duplication setup; the fishing loop reuses one
         // source, so the steady-state samples are the number that matters.
         const int samples = 16;
-        using var source = FrameSourceFactory.Create();
+        using var source = FrameSourceFactory.Create(responsive: true);
         var captureMilliseconds = new List<double>(samples);
         var sampleMilliseconds = new List<double>(samples);
         var observation = FishingMeterObservation.Missing;
