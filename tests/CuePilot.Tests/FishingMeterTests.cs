@@ -941,6 +941,40 @@ public sealed class FishingMeterTests
     }
 
     [Fact]
+    public void GpuBusyHoldDoublesWhileTheGpuStaysBusyAndResetsAfterAGoodFrame()
+    {
+        var clock = 0L;
+        var primary = new BusyFrameSource();
+        using var capture = new FallbackFrameSource(
+            primary, new SolidFrameSource("GDI test", Color.Gray), TimeSpan.FromSeconds(2), () => clock);
+        var target = new WindowTargetSettings();
+        var region = new Rectangle(0, 0, 64, 36);
+        void CaptureAt(double seconds)
+        {
+            clock = (long)(seconds * Stopwatch.Frequency);
+            Assert.True(capture.TryCapture(target, region, out var frame, out var status), status.Detail);
+            frame?.Dispose();
+        }
+
+        CaptureAt(0);     // busy: hold 2 s
+        CaptureAt(2.5);   // retry, still busy: hold 4 s (until 6.5 s)
+        Assert.Equal(2, primary.Calls);
+        CaptureAt(6);     // still inside the doubled hold
+        Assert.Equal(2, primary.Calls);
+        CaptureAt(7);     // retry, still busy: hold 8 s (until 15 s)
+        CaptureAt(14);
+        Assert.Equal(3, primary.Calls);
+
+        primary.Busy = false;
+        CaptureAt(15.5);  // GPU recovered: good frame resets the hold
+        Assert.Equal(4, primary.Calls);
+        primary.Busy = true;
+        CaptureAt(16);    // busy again: back to a 2 s hold
+        CaptureAt(18.5);
+        Assert.Equal(6, primary.Calls);
+    }
+
+    [Fact]
     public void DefaultFallbackNeverHoldsSoPrecisionActivitiesKeepDxgi()
     {
         var primary = new BusyFrameSource();

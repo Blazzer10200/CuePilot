@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.3.14 - 2026-09-26 - Fishing holds a steady rhythm while the GPU is maxed out
+
+- Fix taps thinning out mid-fight at the state park on 5.3.13. When the GPU stayed saturated, the screen duplication often delivered no frame at all; that 250 ms timeout was not treated as "GPU busy", so every sample retried it before falling back. Time between taps grew from about 155 ms to about 550 ms, tension slid from 40% to 10–20%, and the fish escaped.
+- Fishing now treats a missing frame the same as a late one and waits at most 100 ms for either.
+- Each retry that still finds the GPU busy doubles how long Fishing stays on desktop GDI capture (2, 4, 8, 16, then 30 seconds). One good GPU frame resets it to 2 seconds.
+
 ## 5.3.13 - 2026-09-26 - Fishing keeps seeing the meter when the GPU is maxed out
 
 - Fix Fishing going blind and losing fish in GPU-heavy spots (reported at the state park). Reading a frame back from the GPU had no time limit, and with FiveM at 99% GPU single samples took 10.6 s and 11.2 s while the meter was on screen, so the meter was missed for about 30 seconds and the fish escaped. Earlier sessions elsewhere averaged 6–8 ms.

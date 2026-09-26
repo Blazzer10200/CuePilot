@@ -82,7 +82,13 @@ internal sealed class FallbackFrameSource(
     TimeSpan gpuBusyHold = default,
     Func<long>? timestamp = null) : IFrameSource
 {
+    // Each retry that finds the GPU still busy doubles the hold, so a long fight in a
+    // GPU-heavy spot rides the fallback at a steady cadence instead of paying the
+    // primary's timeout every couple of seconds. A good primary frame resets it.
+    private static readonly TimeSpan MaximumGpuBusyHold = TimeSpan.FromSeconds(30);
     private readonly Func<long> now = timestamp ?? Stopwatch.GetTimestamp;
+    private readonly TimeSpan baseHold = gpuBusyHold;
+    private TimeSpan nextHold = gpuBusyHold;
     private long holdUntil;
 
     public string Name => primary.Name;
@@ -105,7 +111,11 @@ internal sealed class FallbackFrameSource(
 
         if (primary.TryCapture(target, relativeRegion, out frame, out status))
         {
-            if (AcceptVisibleFrame(ref frame, ref status)) return true;
+            if (AcceptVisibleFrame(ref frame, ref status))
+            {
+                nextHold = baseHold;
+                return true;
+            }
         }
 
         if (status.State is FrameSourceState.TargetUnavailable or FrameSourceState.TargetMinimized
@@ -114,9 +124,10 @@ internal sealed class FallbackFrameSource(
             return false;
         }
 
-        if (status.GpuBusy && gpuBusyHold > TimeSpan.Zero)
+        if (status.GpuBusy && baseHold > TimeSpan.Zero)
         {
-            holdUntil = now() + (long)(gpuBusyHold.TotalSeconds * Stopwatch.Frequency);
+            holdUntil = now() + (long)(nextHold.TotalSeconds * Stopwatch.Frequency);
+            nextHold = TimeSpan.FromTicks(Math.Min(nextHold.Ticks * 2, MaximumGpuBusyHold.Ticks));
         }
 
         var primaryFailure = status;

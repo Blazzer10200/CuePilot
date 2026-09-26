@@ -56,7 +56,10 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
         try
         {
             EnsureDuplication(region);
-            var result = duplication!.AcquireNextFrame(AcquireTimeoutMilliseconds, out var frameInfo, out var desktopResource);
+            var acquireTimeout = gpuWaitLimit is { } limit
+                ? (uint)Math.Min(AcquireTimeoutMilliseconds, limit.TotalMilliseconds)
+                : AcquireTimeoutMilliseconds;
+            var result = duplication!.AcquireNextFrame(acquireTimeout, out var frameInfo, out var desktopResource);
             if (result.Failure)
             {
                 if (result.Code == Vortice.DXGI.ResultCode.AccessLost.Code)
@@ -64,9 +67,13 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
                     Reset();
                 }
 
+                // Under a saturated GPU the duplication often delivers no frame at all
+                // (2026-09-26: 14 acquire timeouts in one fight), which is the same
+                // condition as a late readback for a caller that can use another source.
                 status = new FrameSourceStatus(FrameSourceState.CaptureFailed, Name,
                     $"Desktop duplication could not acquire a frame ({result.Description}).",
-                    TimeSpan.MaxValue, clock.Elapsed.TotalMilliseconds);
+                    TimeSpan.MaxValue, clock.Elapsed.TotalMilliseconds,
+                    GpuBusy: gpuWaitLimit is not null && result.Code == Vortice.DXGI.ResultCode.WaitTimeout.Code);
                 return false;
             }
 
