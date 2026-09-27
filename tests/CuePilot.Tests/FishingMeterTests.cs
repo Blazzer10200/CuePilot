@@ -222,6 +222,33 @@ public sealed class FishingMeterTests
         Assert.False(observation.IsFailed, observation.ToString());
     }
 
+    [Theory]
+    [InlineData("live-meter-day-reflective-water.png", 114, 101, 403, 310, PixelFormat.Format32bppArgb)]
+    [InlineData("live-meter-day-reflective-water.png", 114, 101, 403, 310, PixelFormat.Format24bppRgb)]
+    [InlineData("video-day-progress.png", 1583, 821, 337, 259, PixelFormat.Format24bppRgb)]
+    public void RegionAnalysisMatchesTheClonedCropExactly(
+        string name,
+        int x,
+        int y,
+        int width,
+        int height,
+        PixelFormat sourceFormat)
+    {
+        // The last case ends on the frame's bottom-right corner, where a naive
+        // stride*height copy of a region lock would read past the buffer.
+        using var loaded = LoadFixture(name);
+        using var frame = loaded.Clone(new Rectangle(Point.Empty, loaded.Size), sourceFormat);
+        var region = new Rectangle(x, y, width, height);
+        Assert.True(region.Right <= frame.Width && region.Bottom <= frame.Height, region.ToString());
+        using var meter = frame.Clone(region, PixelFormat.Format32bppArgb);
+
+        var cloned = FishingMeterDetector.Analyze(meter, out var clonedEvidence, requireActiveIdentity: false);
+        var direct = FishingMeterDetector.Analyze(frame, region, out var directEvidence, requireActiveIdentity: false);
+
+        Assert.Equal(cloned, direct);
+        Assert.Equal(clonedEvidence, directEvidence);
+    }
+
     [Fact]
     public void LiveDaytimeSkyFailureFrameIsRecognized()
     {

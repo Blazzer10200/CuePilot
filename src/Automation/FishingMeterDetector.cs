@@ -118,15 +118,29 @@ internal static class FishingMeterDetector
     internal static FishingMeterObservation Analyze(
         Bitmap bitmap,
         out FishingMeterEvidence evidence,
+        bool requireActiveIdentity) =>
+        Analyze(bitmap, new Rectangle(Point.Empty, bitmap.Size), out evidence, requireActiveIdentity);
+
+    /// <summary>
+    /// Analyzes one region of a larger frame without cloning it. GDI+ Bitmap.Clone
+    /// converts the whole source image even for a small region (about 38 ms on a
+    /// 2560x1440 frame), which dwarfed the analysis itself; a region LockBits reads
+    /// exactly the same pixels in well under a millisecond.
+    /// </summary>
+    internal static FishingMeterObservation Analyze(
+        Bitmap bitmap,
+        Rectangle region,
+        out FishingMeterEvidence evidence,
         bool requireActiveIdentity)
     {
         evidence = default;
-        if (bitmap.Width < 80 || bitmap.Height < 80)
+        region.Intersect(new Rectangle(Point.Empty, bitmap.Size));
+        if (region.Width < 80 || region.Height < 80)
         {
             return FishingMeterObservation.Missing;
         }
 
-        using var pixels = new BitmapPixels(bitmap);
+        var pixels = new BitmapPixels(bitmap, region);
         var shortest = Math.Min(pixels.Width, pixels.Height);
         var approximateRadius = shortest * 0.20;
         var expectedCenterX = pixels.Width >= pixels.Height * 1.15 ? pixels.Width * 0.40 : pixels.Width / 2d;
@@ -207,6 +221,28 @@ internal static class FishingMeterDetector
     {
         var darkness = DarkDiskScore(pixels, centerX, centerY, approximateRadius);
         var diskContrast = DiskContrastScore(pixels, centerX, centerY, approximateRadius);
+        // Every visible verdict below requires disk evidence, so a candidate without
+        // it can skip the ring, progress, catch and failure scans (the expensive
+        // part of this method). Its near-miss evidence then reports those as 0.
+        if (darkness < 0.56 && diskContrast < 0.12)
+        {
+            evidence = new FishingMeterEvidence(
+                darkness,
+                diskContrast,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                (centerX - expectedCenterX) / approximateRadius,
+                (centerY - expectedCenterY) / approximateRadius,
+                Math.Clamp((darkness - 0.45) * 1.5 + diskContrast * 0.8, 0, 1),
+                false,
+                $"Disk evidence failed: dark {darkness:P0} / contrast {diskContrast:P0}");
+            return FishingMeterObservation.Missing;
+        }
+
         var ringRadius = FindTensionRing(pixels, centerX, centerY, approximateRadius, out var ringStrength);
         var progress = MeasureProgress(pixels, centerX, centerY, approximateRadius);
         var caughtStrength = MeasureCaughtMark(pixels, centerX, centerY, approximateRadius);
@@ -833,32 +869,64 @@ internal static class FishingMeterDetector
 
     private readonly record struct LmbContrastPair(Point Foreground, Point Background);
 
-    private sealed class BitmapPixels : IDisposable
+    private sealed class BitmapPixels
     {
-        private readonly Bitmap bitmap;
-        private readonly bool ownsBitmap;
-        private readonly BitmapData data;
         private readonly byte[] bytes;
+        private readonly int stride;
 
         internal BitmapPixels(Bitmap source)
+            : this(source, new Rectangle(Point.Empty, source.Size))
         {
-            Width = source.Width;
-            Height = source.Height;
-            if (source.PixelFormat == PixelFormat.Format32bppArgb)
-            {
-                bitmap = source;
-            }
-            else
-            {
-                bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
-                ownsBitmap = true;
-                using var graphics = Graphics.FromImage(bitmap);
-                graphics.DrawImageUnscaled(source, 0, 0);
-            }
+        }
 
-            data = bitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-            bytes = new byte[Math.Abs(data.Stride) * Height];
-            Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+        internal BitmapPixels(Bitmap source, Rectangle region)
+        {
+            Width = region.Width;
+            Height = region.Height;
+            stride = Width * 4;
+            bytes = new byte[stride * Height];
+            // Copy row by row: a region lock on a same-format bitmap points straight
+            // into the source rows, whose stride is the full frame width, so a single
+            // stride*height copy would run past the end of the frame buffer.
+            BitmapData? data = null;
+            try
+            {
+                data = source.LockBits(region, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                for (var row = 0; row < Height; row++)
+                {
+                    Marshal.Copy(IntPtr.Add(data.Scan0, row * data.Stride), bytes, row * stride, stride);
+                }
+            }
+            catch (Exception exception) when (exception is ExternalException or InvalidOperationException or ArgumentException)
+            {
+                // GDI+ could not lock this format directly (indexed or exotic
+                // sources); render the region into a 32bpp bitmap instead.
+                using var converted = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+                using (var graphics = Graphics.FromImage(converted))
+                {
+                    graphics.DrawImage(source, new Rectangle(0, 0, Width, Height), region, GraphicsUnit.Pixel);
+                }
+
+                var convertedData = converted.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                try
+                {
+                    for (var row = 0; row < Height; row++)
+                    {
+                        Marshal.Copy(IntPtr.Add(convertedData.Scan0, row * convertedData.Stride), bytes, row * stride, stride);
+                    }
+                }
+                finally
+                {
+                    converted.UnlockBits(convertedData);
+                }
+            }
+            finally
+            {
+                if (data is not null)
+                {
+                    source.UnlockBits(data);
+                }
+            }
         }
 
         internal int Width { get; }
@@ -868,18 +936,8 @@ internal static class FishingMeterDetector
         {
             x = Math.Clamp(x, 0, Width - 1);
             y = Math.Clamp(y, 0, Height - 1);
-            var row = data.Stride >= 0 ? y : Height - 1 - y;
-            var offset = row * Math.Abs(data.Stride) + x * 4;
+            var offset = y * stride + x * 4;
             return Color.FromArgb(bytes[offset + 2], bytes[offset + 1], bytes[offset]);
-        }
-
-        public void Dispose()
-        {
-            bitmap.UnlockBits(data);
-            if (ownsBitmap)
-            {
-                bitmap.Dispose();
-            }
         }
     }
 }
@@ -1056,9 +1114,9 @@ internal static class FishingMeterService
         {
             if (region.Width < 80 || region.Height < 80 || !inspected.Add(region)) return false;
             candidateCount++;
-            using var meter = frame.Clone(region, PixelFormat.Format32bppArgb);
             var observation = FishingMeterDetector.Analyze(
-                meter,
+                frame,
+                region,
                 out var evidence,
                 requireActiveIdentity: tracker is not null && !tracker.HasLock);
             // Every fresh lock must prove the adjacent live LMB prompt. This
@@ -1151,8 +1209,7 @@ internal static class FishingMeterService
         var evidence = new FishingMeterCandidateEvidence[regions.Count];
         for (var index = 0; index < regions.Count; index++)
         {
-            using var meter = frame.Clone(regions[index], PixelFormat.Format32bppArgb);
-            _ = FishingMeterDetector.Analyze(meter, out var candidate);
+            _ = FishingMeterDetector.Analyze(frame, regions[index], out var candidate, requireActiveIdentity: false);
             evidence[index] = new FishingMeterCandidateEvidence(index, regions[index], candidate);
         }
 
@@ -1345,8 +1402,7 @@ internal static class FishingMeterService
             local.Intersect(cropBounds);
             if (local.Width < 80 || local.Height < 80) continue;
             candidateCount++;
-            using var meter = crop.Clone(local, PixelFormat.Format32bppArgb);
-            var observation = FishingMeterDetector.Analyze(meter, out var evidence, requireActiveIdentity: false);
+            var observation = FishingMeterDetector.Analyze(crop, local, out var evidence, requireActiveIdentity: false);
             var region = local;
             region.Offset(cropOrigin.X, cropOrigin.Y);
             var candidate = new FishingMeterCandidateEvidence(index, region, evidence, IsTracked: true, scale);
