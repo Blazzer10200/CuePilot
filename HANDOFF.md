@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.12 — 2026-09-24
+# Handoff — CuePilot 5.3.15 — 2026-09-26
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.9 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -9,17 +9,54 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | | |
 | --- | --- |
 | Branch | `codex/release-complete` |
-| Source version | 5.3.12, synchronized across all six release files. 5.3.11 committed as `5dfa378` (never tagged) |
+| Source version | **5.3.15**, synchronized across all six release files (`1ee5efd`). 5.3.13, 5.3.14, 5.3.15 are committed, **not tagged, not packaged, not installed** |
 | Published | **v5.3.12 public**, 2026-09-25 00:11 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.12), run 36075163572 green (8 assets; `releases.win.json` lists 5.3.12). Previous public: v5.3.10 |
 | Installed locally | **5.3.12**, installed 2026-09-24 with Setup `--silent` (5.3.11 was not running). The first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall; happens before any tray code); stopping by exact install path and relaunching through Explorer came up in 5.5 s with the sidecar. Close-to-tray, tray registration (`CuePilot`), and relaunch-restore were then checked on the installed build |
 | Package | `release/velopack/` — 5.3.12 built 2026-09-24 18:53: Setup 45.7 MB, full 41.4 MB, delta from 5.3.11 |
-| Last gates | 5.3.12 full gate 2026-09-24: docs 23 / 165 links, dotnet 449, vitest 51, svelte-check 0/0, Playwright 23, rustfmt, clippy, cargo 30 (the first `-All` run failed only on rustfmt in a new test; `-Rust` rerun green after `cargo fmt`) |
+| Last gates | 5.3.15 on 2026-09-26: docs gate green, dotnet **463**, vitest 51, svelte-check 0/0, clippy clean, cargo 30. **Playwright not run** (owner was in game; e2e would steal focus). 5.3.12 full gate on 2026-09-24 was the last `-All` run |
 
 `release/velopack/` also holds `publication-receipt.json` and
 `verification-receipt.json` from the published v5.3.4. Packaging does not
 regenerate them, so never delete that directory to clean up a build.
 
 Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
+
+## 5.3.15 — Fishing performance plan executed (local build)
+
+Plan, evidence, per-item status and the measurement correction live in
+[docs/history/perf-plan-2026-09-26.md](docs/history/perf-plan-2026-09-26.md)
+(execution log at the bottom). Commits: `63c0a73` (Phase A), `7f0074b`
+(B1 + B7), `7b72f72` (C1–C6), `1ee5efd` (bump + CHANGELOG). 5.3.13 and 5.3.14
+(DXGI readback bound, GPU-busy backoff) landed earlier today and are only in
+CHANGELOG.
+
+- **A — park fight loop.** Once the tracker is locked, `CaptureMeter(trackedRegionOnly: true)`
+  captures only the inflated tracked region and `AnalyzeTrackedCrop` reads it in window
+  coordinates; a miss falls back to the full frame so the LMB identity gate is untouched.
+  Samples wait on `HighResolutionSampleClock.WaitUntil(deadline)` (renamed from
+  `PickpocketSampleClock`, same class). Debug session logs `elevated`/pid, `gpuPriority`,
+  a one-time `capture_ready`, per-sample `frameOrigin`; manifest rewrite throttled to 250 ms.
+- **B1** early `Missing` in `AnalyzeCenter` when `darkness < 0.56 && diskContrast < 0.12`.
+  **B7** `FishingMeterDetector.Analyze(bitmap, region, …)` reads the region via `LockBits`
+  (row-by-row copy) instead of `Bitmap.Clone`; `RegionAnalysisMatchesTheClonedCropExactly`
+  proves identical results.
+- **Measurement correction (load-bearing for future perf work):** the "~40 ms per region"
+  in the test host was GDI+ re-decoding the PNG fixture on every `Clone` of a file-backed
+  bitmap. In-memory frames (what live capture makes): tracked hit 0.3–2 ms, full no-meter
+  cascade 11–27 ms, prompt detector 6–19 ms. Per-sample compute in the fight loop is a few
+  ms; the rest is capture plus the deliberate sample deadline. Do not chase detector CPU again
+  without an in-memory probe.
+- **Rejected:** B2 (bypasses LMB gate on fresh lock), B4 (observe-only, traces change,
+  `WaitUntil` blocks async), B6 (prompt roll is intentionally continuous). **Deferred:** B3
+  (prompt scale cache; not worth the stability-gate risk at 6–19 ms), B5 (needs prompt-location
+  logging), C7 (pump coupled to `visible_until`).
+- **Pulse wait** (`AdaptiveRoutineEngine.cs` ~line 730 `WaitOne(decision.PulseMilliseconds)`)
+  deliberately still uses the coarse timer: switching it shortens real pulses by ~8 ms and
+  needs the owner to re-tune the pulse range. Parked with the HAGS experiment.
+
+**Next:** one live fish at the park on a 5.3.15 build, then the three `jq` lines in the
+plan's Phase A gate (capture median < 12 ms, tap→read median < 40 ms, catches ≥ failures).
+Then package/tag only when the owner asks.
 
 ## 5.3.12 — Runs in the background from the tray
 
