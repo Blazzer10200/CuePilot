@@ -173,7 +173,8 @@
     hasTarget: !!target?.processName,
   }));
   const settingsDirty = $derived(
-    !!draft
+    showSettings
+    && !!draft
     && !!shortcutDraft
     && !!lockpickingShortcutDraft
     && !!engine.snapshot

@@ -619,8 +619,8 @@ fn shortcut_string(binding: &Value, key: &str) -> String {
 
 fn emit_shortcut_warning(app: &AppHandle, detail: String) {
     let payload = serde_json::json!({ "name": "fault", "payload": { "detail": detail } });
-    crate::publish_overlay(app, payload.clone());
-    let _ = app.emit("engine://event", payload);
+    crate::publish_overlay(app, &payload);
+    let _ = app.emit_to("main", "engine://event", payload);
 }
 
 fn dispatch_engine_line(app: &AppHandle, pending: &Arc<Mutex<PendingCommands>>, line: &str) {
@@ -654,11 +654,12 @@ fn dispatch_engine_line(app: &AppHandle, pending: &Arc<Mutex<PendingCommands>>, 
         }
         Ok(EngineMessage::Event { name, payload }) => {
             let overlay_payload = serde_json::json!({ "name": name, "payload": payload });
-            crate::publish_overlay(app, overlay_payload.clone());
-            let _ = app.emit("engine://event", overlay_payload);
+            crate::publish_overlay(app, &overlay_payload);
+            let _ = app.emit_to("main", "engine://event", overlay_payload);
         }
         Err(error) => {
-            let _ = app.emit(
+            let _ = app.emit_to(
+                "main",
                 "engine://event",
                 serde_json::json!({
                     "name": "fault",
@@ -682,8 +683,8 @@ fn emit_bridge_state(app: &AppHandle, connected: bool, detail: &str) {
         "name": "bridge_state",
         "payload": { "connected": connected, "detail": detail }
     });
-    crate::publish_overlay(app, payload.clone());
-    let _ = app.emit("engine://event", payload);
+    crate::publish_overlay(app, &payload);
+    let _ = app.emit_to("main", "engine://event", payload);
 }
 
 fn stop_owned_child(mut child: Child) {

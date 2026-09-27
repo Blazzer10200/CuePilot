@@ -40,12 +40,21 @@
   $effect(() => { if (selectedHistoryId && !recent.some(attempt => attempt.id === selectedHistoryId)) selectedHistoryId = ""; });
   $effect(() => {
     if (!pending && status) {
-      policy = status.targetPolicy;
-      inputMode = status.inputMode ?? "Observe";
-      redAdvanceMs = status.redAdvanceMs ?? 11;
-      yellowAdvanceMs = status.yellowAdvanceMs ?? 20;
-      customPriority = [...(status.customPriority ?? defaultPriority)];
-      itemPriority = [...(status.itemPriority ?? defaultItemPriority)];
+      if (policy !== status.targetPolicy) policy = status.targetPolicy;
+      const nextInputMode = status.inputMode ?? "Observe";
+      if (inputMode !== nextInputMode) inputMode = nextInputMode;
+      const nextRedAdvanceMs = status.redAdvanceMs ?? 11;
+      if (redAdvanceMs !== nextRedAdvanceMs) redAdvanceMs = nextRedAdvanceMs;
+      const nextYellowAdvanceMs = status.yellowAdvanceMs ?? 20;
+      if (yellowAdvanceMs !== nextYellowAdvanceMs) yellowAdvanceMs = nextYellowAdvanceMs;
+      const nextCustomPriority = status.customPriority ?? defaultPriority;
+      if (customPriority.length !== nextCustomPriority.length || customPriority.some((value, index) => value !== nextCustomPriority[index])) {
+        customPriority = [...nextCustomPriority];
+      }
+      const nextItemPriority = status.itemPriority ?? defaultItemPriority;
+      if (itemPriority.length !== nextItemPriority.length || itemPriority.some((value, index) => value !== nextItemPriority[index])) {
+        itemPriority = [...nextItemPriority];
+      }
     }
   });
   let now = $state(Date.now());
@@ -65,8 +74,13 @@
   const position = (x: number) => observation?.bar.width ? Math.max(0, Math.min(100, (x - observation.bar.x) / observation.bar.width * 100)) : 0;
   onMount(() => {
     if (status) policy = status.targetPolicy;
-    const timer = setInterval(() => now = Date.now(), 250);
-    return () => clearInterval(timer);
+    let timer = 0;
+    const start = () => { if (!timer) timer = setInterval(() => now = Date.now(), 250); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = 0; } };
+    const visibilityChanged = () => { if (document.hidden) stop(); else start(); };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    start();
+    return () => { document.removeEventListener("visibilitychange", visibilityChanged); stop(); };
   });
   async function toggle() {
     pending = true;

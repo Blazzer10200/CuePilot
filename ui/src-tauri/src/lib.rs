@@ -99,8 +99,8 @@ fn read_tail_lines(path: &std::path::Path, byte_limit: u64, line_limit: usize) -
         .collect()
 }
 
-pub(crate) fn publish_overlay(app: &AppHandle, payload: serde_json::Value) {
-    notifications::consume(app, &payload);
+pub(crate) fn publish_overlay(app: &AppHandle, payload: &serde_json::Value) {
+    notifications::consume(app, payload);
 }
 
 #[tauri::command]
@@ -459,8 +459,8 @@ fn run_shortcut_command(handle: AppHandle, bridge: EngineBridge, command: &'stat
             "command": command,
         },
     });
-    publish_overlay(&handle, shortcut_payload.clone());
-    let _ = handle.emit("engine://event", shortcut_payload);
+    publish_overlay(&handle, &shortcut_payload);
+    let _ = handle.emit_to("main", "engine://event", shortcut_payload);
     thread::spawn(move || match bridge.command(&handle, command, None, None) {
         Ok(result) => notifications::confirm_shortcut(&handle, command, &result, &shortcut_label),
         Err(detail) => {
@@ -468,8 +468,8 @@ fn run_shortcut_command(handle: AppHandle, bridge: EngineBridge, command: &'stat
                 "name": "fault",
                 "payload": { "detail": detail },
             });
-            publish_overlay(&handle, fault_payload.clone());
-            let _ = handle.emit("engine://event", fault_payload);
+            publish_overlay(&handle, &fault_payload);
+            let _ = handle.emit_to("main", "engine://event", fault_payload);
         }
     });
 }

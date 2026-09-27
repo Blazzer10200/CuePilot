@@ -2204,7 +2204,6 @@ button[disabled] {
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
   z-index: 10;
-  backdrop-filter: blur(4px) saturate(0.76);
 }
 
 .settings-drawer .settings-content { overflow-y:auto; min-height:0; flex:1; }

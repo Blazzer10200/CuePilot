@@ -384,16 +384,18 @@ export class EngineClient {
     if (message.name === "status") {
       this.status = message.payload as LiveStatus;
       if (this.snapshot) {
-        this.snapshot = { ...this.snapshot, routineState: this.status.state, status: this.status, debug: this.status.debug };
+        this.snapshot.routineState = this.status.state;
+        this.snapshot.status = this.status;
+        this.snapshot.debug = this.status.debug;
       }
     }
     if (message.name === "lockpicking_status") {
       const lockpicking = message.payload as LockpickingObserveStatus;
-      if (this.snapshot) this.snapshot = { ...this.snapshot, lockpicking };
+      if (this.snapshot) this.snapshot.lockpicking = lockpicking;
     }
     if (message.name === "pickpocket_status") {
       const pickpocket = message.payload as PickpocketObserveStatus;
-      if (this.snapshot) this.snapshot = { ...this.snapshot, pickpocket };
+      if (this.snapshot) this.snapshot.pickpocket = pickpocket;
     }
     if (message.name === "ready" || message.name === "target" || message.name === "settings") {
       try {
