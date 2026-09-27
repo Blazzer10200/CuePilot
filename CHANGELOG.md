@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.3.15 - 2026-09-26 - Fishing samples the meter faster at the park
+
+- Once the meter is locked, Fishing captures only the meter's neighbourhood instead of the whole game window on every sample. On the GDI fallback path used at the state park that is a small screen copy instead of a full 2560x1440 one (about 27 ms per sample before).
+- Samples are now paced on a fixed deadline with the high-resolution timer that Pickpocket already uses, instead of a coarse sleep after each sample. The measured 6-7 ms sleep stretch per sample is gone and the cadence no longer drifts with capture time. Pulse lengths are unchanged.
+- The meter detector stops early when a candidate has no dark disk, skipping the ring, progress, catch and failure scans that could never pass anyway. Regions are read straight from the captured frame instead of being cloned first; on-file replays run about 10x faster and live results are identical (covered by a new test).
+- The debug session now records whether the engine runs elevated, whether the GPU priority raise worked, when capture first became ready, and the crop origin of each sample, so the next park session can be diagnosed from the log alone. The manifest is rewritten at most every 250 ms.
+- Shell and UI tidy-ups: overlay events are emitted to the main window only and without cloning the payload, the settings dirty-check runs only while the settings panel is open, status updates patch the snapshot in place, the Pickpocket live view pauses its clock while hidden, and the modal scrim no longer blurs the whole window.
+
 ## 5.3.14 - 2026-09-26 - Fishing holds a steady rhythm while the GPU is maxed out
 
 - Fix taps thinning out mid-fight at the state park on 5.3.13. When the GPU stayed saturated, the screen duplication often delivered no frame at all; that 250 ms timeout was not treated as "GPU busy", so every sample retried it before falling back. Time between taps grew from about 155 ms to about 550 ms, tension slid from 40% to 10–20%, and the fish escaped.
