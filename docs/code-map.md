@@ -38,9 +38,10 @@ The .NET engine is authoritative for capture, detection, timing, input, and safe
 
 1. [src/Automation/AdaptiveRoutineEngine.cs](../src/Automation/AdaptiveRoutineEngine.cs) — Cast → meter → collect orchestration and safety gates.
 2. [src/Automation/FishingPromptDetector.cs](../src/Automation/FishingPromptDetector.cs) — Cast and Keep Fish prompt recognition.
-3. [src/Automation/FishingMeterDetector.cs](../src/Automation/FishingMeterDetector.cs) — meter identity, tracking, feedback, numeric diagnostics, and `FishingTensionController` (pulse timing, scaled to the measured sample cadence).
-4. [src/Diagnostics/FishingDebugSession.cs](../src/Diagnostics/FishingDebugSession.cs) — bounded session evidence, including per-sample `captureMilliseconds`.
-5. [tests/CuePilot.Tests/FishingPromptTests.cs](../tests/CuePilot.Tests/FishingPromptTests.cs) and `FishingMeterTests.cs` — regressions and live fixtures.
+3. [src/Automation/FishingMeterDetector.cs](../src/Automation/FishingMeterDetector.cs) — meter identity, tracking, feedback, numeric diagnostics, and `FishingTensionController` (pulse timing, scaled to the measured sample cadence). `CaptureAndAnalyze(trackedRegionOnly: true)` captures only the locked meter's neighbourhood and `AnalyzeTrackedCrop` reads it in window coordinates; `Analyze(bitmap, region, …)` reads a region without cloning.
+4. [src/Automation/HighResolutionSampleClock.cs](../src/Automation/HighResolutionSampleClock.cs) — waitable-timer clock shared by the Fishing fight loop (`WaitUntil` sample deadlines) and Pickpocket delivery.
+5. [src/Diagnostics/FishingDebugSession.cs](../src/Diagnostics/FishingDebugSession.cs) — bounded session evidence, including per-sample `captureMilliseconds`, `frameOrigin`, `capture_ready`, and the process `elevated` flag.
+6. [tests/CuePilot.Tests/FishingPromptTests.cs](../tests/CuePilot.Tests/FishingPromptTests.cs) and `FishingMeterTests.cs` — regressions and live fixtures.
 
 If taps feel sparse, check sample latency before touching controller tuning:
 [src/Capture/DxgiFrameSource.cs](../src/Capture/DxgiFrameSource.cs) (region copy,
