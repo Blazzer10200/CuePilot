@@ -10,7 +10,7 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | --- | --- |
 | Branch | `codex/release-complete` |
 | Source version | **5.3.15**, synchronized across all six release files (`1ee5efd`). 5.3.13 and 5.3.14 were packaged locally and 5.3.14 installed; neither was tagged. 5.3.15 is the release candidate |
-| Published | **v5.3.12 public**, 2026-09-25 00:11 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.12), run 36075163572 green (8 assets; `releases.win.json` lists 5.3.12). Previous public: v5.3.10 |
+| Published | **v5.3.15 public**, 2026-09-27 05:09 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.15), run 36295637307 green in 15m55s (8 assets; `releases.win.json` lists 5.3.15 full + delta from 5.3.14). Release commit `f27491c` on `codex/release-complete`. Previous public: v5.3.12 |
 | Installed locally | **5.3.14** (Velopack, per `project-status.ps1` on 2026-09-26); it was fishing at the park while 5.3.15 was built, so 5.3.15 was **not** installed over it. The in-app updater will offer 5.3.15 once published. 5.3.12 notes: the first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall); stopping by exact install path and relaunching through Explorer recovered it; close-to-tray, tray registration, and relaunch-restore were checked on that build |
 | Package | `release/velopack/` — **5.3.15** built 2026-09-26 23:53: Setup 45.7 MB (sha256 `7f7eef91…`), full 41.4 MB, delta from 5.3.14 (4 of 7 files patched); `release-manifest.json` shell 5.3.15 / engine 5.3.15.0. The 5.3.13/5.3.14 local packages are still in the same directory |
 | Last gates | 5.3.15 full `-All` gate 2026-09-26 23:4x (BelowNormal, owner in game): docs 24 / 168 links, dotnet 457, vitest 51, svelte-check 0/0, Playwright 23 (headless), rustfmt, clippy, cargo 30 |
@@ -54,9 +54,9 @@ CHANGELOG.
   deliberately still uses the coarse timer: switching it shortens real pulses by ~8 ms and
   needs the owner to re-tune the pulse range. Parked with the HAGS experiment.
 
-**Next:** one live fish at the park on a 5.3.15 build, then the three `jq` lines in the
+**Next:** accept the in-app update to 5.3.15 (the installed 5.3.14 was fishing during the
+release, so it was not replaced), fish once at the park, then run the three `jq` lines in the
 plan's Phase A gate (capture median < 12 ms, tap→read median < 40 ms, catches ≥ failures).
-Then package/tag only when the owner asks.
 
 ## 5.3.12 — Runs in the background from the tray
 
