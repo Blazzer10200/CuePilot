@@ -1247,7 +1247,8 @@ internal static class FishingMeterService
         IFrameSource frameSource,
         WindowTargetSettings target,
         FishingMeterTracker? tracker,
-        out FrameSourceStatus status)
+        out FrameSourceStatus status,
+        bool trackedRegionOnly = false)
     {
         if (!WindowTargetService.TryResolve(target, out var resolved, out var detail))
         {
@@ -1255,12 +1256,45 @@ internal static class FishingMeterService
             return null;
         }
 
+        var wholeTarget = new Rectangle(Point.Empty, resolved.Bounds.Size);
+
+        // Once the tracker knows where the meter is, a fight only needs the pixels
+        // around it. Reading the whole window through GDI costs ~27 ms at 2560x1440
+        // while the game saturates the GPU (2026-09-26); the tracked crop is a
+        // fraction of that. A miss inside the crop falls through to the full frame
+        // so meter loss is judged exactly as before.
+        if (trackedRegionOnly && tracker?.HasLock == true
+            && GetTrackedCaptureRegion(wholeTarget, tracker) is { } crop)
+        {
+            if (!frameSource.TryCapture(target, crop, out var cropped, out status) || cropped is null)
+            {
+                return null;
+            }
+
+            FishingMeterFrameAnalysis croppedAnalysis;
+            try
+            {
+                croppedAnalysis = AnalyzeTrackedCrop(cropped.Bitmap, crop.Location, wholeTarget, tracker);
+            }
+            catch
+            {
+                cropped.Dispose();
+                throw;
+            }
+
+            if (croppedAnalysis.Observation.IsVisible)
+            {
+                return new FishingMeterFrameSample(cropped, croppedAnalysis, crop.Location);
+            }
+
+            cropped.Dispose();
+        }
+
         // The pulse UI animates while the five candidate positions are being
         // inspected. Capturing them one at a time can therefore combine pixels
         // from different UI states and lose a meter that is visibly present.
         // Capture one coherent FiveM frame, then inspect every calibrated
         // candidate region inside that exact frame.
-        var wholeTarget = new Rectangle(Point.Empty, resolved.Bounds.Size);
         if (!frameSource.TryCapture(target, wholeTarget, out var frame, out status) || frame is null)
         {
             return null;
@@ -1277,15 +1311,79 @@ internal static class FishingMeterService
         }
     }
 
+    // The crop covers the widest tracked rescan (1.10x) plus a 20% margin per side,
+    // so a meter that drifts a little between samples is still inside it.
+    internal static Rectangle? GetTrackedCaptureRegion(Rectangle windowBounds, FishingMeterTracker tracker)
+    {
+        if (tracker.GetRegion(windowBounds, 1.10) is not { } widest) return null;
+        var crop = widest;
+        crop.Inflate(widest.Width / 5, widest.Height / 5);
+        crop.Intersect(windowBounds);
+        return crop.Width >= 80 && crop.Height >= 80 ? crop : null;
+    }
+
+    // Same tracked inspection as AnalyzeFrameDetailed, on a crop whose top-left sits
+    // at cropOrigin inside the window. Regions stay in window coordinates outside
+    // this method so the tracker's ratio maths and the evidence files never see
+    // the crop.
+    internal static FishingMeterFrameAnalysis AnalyzeTrackedCrop(
+        Bitmap crop,
+        Point cropOrigin,
+        Rectangle windowBounds,
+        FishingMeterTracker tracker)
+    {
+        var cropBounds = new Rectangle(Point.Empty, crop.Size);
+        FishingMeterObservation best = FishingMeterObservation.Missing;
+        FishingMeterCandidateEvidence? primary = null;
+        var candidateCount = 0;
+
+        foreach (var (scale, index) in new[] { (1.0, -1), (0.90, -3), (1.10, -4) })
+        {
+            if (tracker.GetRegion(windowBounds, scale) is not { } windowRegion) break;
+            var local = windowRegion;
+            local.Offset(-cropOrigin.X, -cropOrigin.Y);
+            local.Intersect(cropBounds);
+            if (local.Width < 80 || local.Height < 80) continue;
+            candidateCount++;
+            using var meter = crop.Clone(local, PixelFormat.Format32bppArgb);
+            var observation = FishingMeterDetector.Analyze(meter, out var evidence, requireActiveIdentity: false);
+            var region = local;
+            region.Offset(cropOrigin.X, cropOrigin.Y);
+            var candidate = new FishingMeterCandidateEvidence(index, region, evidence, IsTracked: true, scale);
+            if (observation.IsVisible)
+            {
+                best = observation;
+                primary = candidate;
+                break;
+            }
+
+            if (primary is null || evidence.CandidateConfidence > primary.Value.Evidence.CandidateConfidence)
+            {
+                primary = candidate;
+            }
+        }
+
+        if (best.IsVisible)
+        {
+            tracker.Update(windowBounds, primary!.Value);
+        }
+
+        return new FishingMeterFrameAnalysis(best, primary, candidateCount);
+    }
+
 }
 
 internal sealed class FishingMeterFrameSample(
     FrameLease frame,
-    FishingMeterFrameAnalysis analysis) : IDisposable
+    FishingMeterFrameAnalysis analysis,
+    Point origin = default) : IDisposable
 {
     internal FrameLease Frame { get; } = frame;
     internal FishingMeterFrameAnalysis Analysis { get; } = analysis;
     internal FishingMeterObservation Observation => Analysis.Observation;
+    /// <summary>Top-left of <see cref="Frame"/> inside the target window; non-zero for a tracked crop.</summary>
+    internal Point Origin { get; } = origin;
+    internal bool IsCropped => Origin != Point.Empty;
     public void Dispose() => Frame.Dispose();
 }
 

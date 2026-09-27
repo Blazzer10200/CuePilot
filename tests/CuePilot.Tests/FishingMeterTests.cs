@@ -274,6 +274,62 @@ public sealed class FishingMeterTests
     }
 
     [Fact]
+    public void LockedTrackerReadsTheMeterFromASmallCropInWindowCoordinates()
+    {
+        using var frame = LoadFixture("video-day-active.png");
+        var frameBounds = new Rectangle(Point.Empty, frame.Size);
+        var tracker = new FishingMeterTracker();
+        var fullFrame = FishingMeterService.AnalyzeFrameDetailed(frame, tracker);
+        Assert.True(fullFrame.Observation.IsVisible, fullFrame.ToString());
+        Assert.True(tracker.HasLock);
+        var trackedRegion = tracker.GetRegion(frameBounds)!.Value;
+
+        var crop = FishingMeterService.GetTrackedCaptureRegion(frameBounds, tracker);
+        Assert.NotNull(crop);
+        Assert.True(crop.Value.Contains(tracker.GetRegion(frameBounds, 1.10)!.Value), crop.ToString());
+        Assert.True(crop.Value.Width * crop.Value.Height <= trackedRegion.Width * trackedRegion.Height * 3,
+            $"crop {crop} is not a small fraction of the tracked region {trackedRegion}");
+        Assert.True(crop.Value.Width * crop.Value.Height * 4 <= frame.Width * frame.Height,
+            $"crop {crop} should be at most a quarter of the {frame.Size} frame");
+
+        using var cropped = frame.Clone(crop.Value, PixelFormat.Format32bppArgb);
+        var analysis = FishingMeterService.AnalyzeTrackedCrop(cropped, crop.Value.Location, frameBounds, tracker);
+
+        Assert.True(analysis.Observation.IsVisible, analysis.ToString());
+        Assert.True(analysis.UsedTrackedRegion);
+        Assert.Equal(1, analysis.CandidateCount);
+        Assert.InRange(analysis.Observation.TensionRatio, fullFrame.Observation.TensionRatio - 0.02, fullFrame.Observation.TensionRatio + 0.02);
+        Assert.InRange(analysis.Observation.ProgressRatio, fullFrame.Observation.ProgressRatio - 0.02, fullFrame.Observation.ProgressRatio + 0.02);
+        // The candidate region is reported in window space, so it must sit inside
+        // the crop rectangle rather than at the crop's origin.
+        Assert.True(crop.Value.Contains(analysis.PrimaryCandidate!.Value.Region), analysis.PrimaryCandidate.ToString());
+        Assert.Equal(trackedRegion, analysis.PrimaryCandidate.Value.Region);
+        Assert.True(tracker.HasLock);
+        Assert.Equal(trackedRegion.Location, tracker.GetRegion(frameBounds)!.Value.Location);
+    }
+
+    [Fact]
+    public void ACropWithoutTheMeterLeavesTheLockAloneSoTheFullFrameCanJudgeTheLoss()
+    {
+        using var frame = LoadFixture("video-day-active.png");
+        var frameBounds = new Rectangle(Point.Empty, frame.Size);
+        var tracker = new FishingMeterTracker();
+        _ = FishingMeterService.AnalyzeFrameDetailed(frame, tracker);
+        Assert.True(tracker.HasLock);
+        var before = tracker.GetRegion(frameBounds)!.Value;
+        var crop = FishingMeterService.GetTrackedCaptureRegion(frameBounds, tracker)!.Value;
+
+        using var scenery = new Bitmap(crop.Width, crop.Height, PixelFormat.Format32bppArgb);
+        using (var graphics = Graphics.FromImage(scenery)) graphics.Clear(Color.FromArgb(96, 128, 72));
+        var analysis = FishingMeterService.AnalyzeTrackedCrop(scenery, crop.Location, frameBounds, tracker);
+
+        Assert.False(analysis.Observation.IsVisible, analysis.ToString());
+        Assert.Equal(3, analysis.CandidateCount);
+        Assert.True(tracker.HasLock);
+        Assert.Equal(before, tracker.GetRegion(frameBounds)!.Value);
+    }
+
+    [Fact]
     public void LocalContrastKeepsAnExposureLiftedMeterVisible()
     {
         using var source = LoadFixture("video-day-active.png");
@@ -358,7 +414,12 @@ public sealed class FishingMeterTests
             var savedFrame = Assert.Single(manifest.RootElement.GetProperty("frames").EnumerateArray());
             Assert.Equal("meter-confirmed", savedFrame.GetProperty("label").GetString());
             Assert.True(File.Exists(Path.Combine(sessionDirectory, savedFrame.GetProperty("imageName").GetString()!)));
-            Assert.Contains("\"eventName\":\"complete\"", File.ReadAllText(eventsPath));
+            var events = File.ReadAllLines(eventsPath).Where(line => line.Length > 0).ToArray();
+            Assert.Contains(events, line => line.Contains("\"eventName\":\"complete\"", StringComparison.Ordinal));
+            // The manifest is throttled between events but must be current at completion.
+            Assert.Equal(events.Length, manifest.RootElement.GetProperty("eventCount").GetInt32());
+            Assert.Contains(events, line => line.Contains("\"eventName\":\"capture_ready\"", StringComparison.Ordinal) && line.Contains("\"gpuPriority\":", StringComparison.Ordinal));
+            Assert.Contains(events, line => line.Contains("\"eventName\":\"start\"", StringComparison.Ordinal) && line.Contains("\"elevated\":", StringComparison.Ordinal));
         }
         finally
         {

@@ -56,6 +56,11 @@ internal sealed class FishingDebugSession : IDisposable
     private int eventCount;
     private bool active = true;
     private bool disposed;
+    private bool captureReadyRecorded;
+    // The manifest is a full indented snapshot; rewriting it after every event
+    // (~11/s in a fight, 6.6K writes in one 2026-09-26 session) is wasted work.
+    private const long ManifestIntervalMilliseconds = 250;
+    private long lastManifestAt = long.MinValue;
     private string stage = "Starting";
     private string captureHealth = "Not sampled";
     private string lastEvent = "Session created";
@@ -90,7 +95,28 @@ internal sealed class FishingDebugSession : IDisposable
                 settings.TargetWindow.WindowTitle,
             },
             controller = ControllerSettings(),
+            process = new
+            {
+                elevated = IsElevated(),
+                Environment.ProcessId,
+            },
         });
+    }
+
+    // Whether DXGI could raise its GPU scheduling class depends on elevation; both are
+    // logged so a session that rode GDI the whole time can be explained afterwards.
+    private static bool? IsElevated()
+    {
+        try
+        {
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            return new System.Security.Principal.WindowsPrincipal(identity)
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     internal string SessionId { get; }
@@ -122,6 +148,7 @@ internal sealed class FishingDebugSession : IDisposable
     {
         lock (sync) stage = value;
         Record("state", "stage", new { stage = value, detail });
+        QueueManifest(force: true);
     }
 
     internal void RecordCapture(string detector, FrameSourceStatus status, Size? frameSize = null)
@@ -143,6 +170,7 @@ internal sealed class FishingDebugSession : IDisposable
                 captureMilliseconds = status.CaptureMilliseconds,
                 width = frameSize?.Width,
                 height = frameSize?.Height,
+                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
             });
         }
         else if (status.Detail.StartsWith("Fallback active", StringComparison.Ordinal))
@@ -154,6 +182,20 @@ internal sealed class FishingDebugSession : IDisposable
                 captureMilliseconds = status.CaptureMilliseconds,
                 width = frameSize?.Width,
                 height = frameSize?.Height,
+                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
+            });
+        }
+        else if (!captureReadyRecorded)
+        {
+            captureReadyRecorded = true;
+            Record(detector, "capture_ready", new
+            {
+                status.Backend,
+                status.Detail,
+                captureMilliseconds = status.CaptureMilliseconds,
+                width = frameSize?.Width,
+                height = frameSize?.Height,
+                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
             });
         }
     }
@@ -204,7 +246,10 @@ internal sealed class FishingDebugSession : IDisposable
         }
     }
 
-    internal void RecordMeter(FishingMeterFrameAnalysis analysis, FrameLease? frame, int sampleCount)
+    // frameOrigin is the frame's top-left inside the target window. It is non-zero
+    // when the fight loop captured only the tracked meter crop; candidate regions
+    // stay in window coordinates, so the saved crop needs its offset to be replayable.
+    internal void RecordMeter(FishingMeterFrameAnalysis analysis, FrameLease? frame, int sampleCount, Point frameOrigin = default)
     {
         var observation = analysis.Observation;
         var candidate = analysis.PrimaryCandidate;
@@ -230,13 +275,16 @@ internal sealed class FishingDebugSession : IDisposable
                 analysis.CandidateCount,
                 sampleCount,
                 captureMilliseconds = frame?.Status.CaptureMilliseconds,
+                frameOrigin,
+                frameWidth = frame?.Bitmap.Width,
+                frameHeight = frame?.Bitmap.Height,
             });
         }
 
         if (frame is not null)
         {
             var label = observation.IsVisible ? "meter-confirmed" : "meter-best-near-miss";
-            SaveBestFrame(label, confidence, frame.Bitmap, new { observation, candidate, analysis.CandidateCount, sampleCount });
+            SaveBestFrame(label, confidence, frame.Bitmap, new { observation, candidate, analysis.CandidateCount, sampleCount, frameOrigin });
         }
     }
 
@@ -282,7 +330,7 @@ internal sealed class FishingDebugSession : IDisposable
         }, CompactJson);
         lock (sync) lastEvent = $"{category}: {eventName}";
         Queue(new DebugWrite(DebugWriteKind.AppendEvent, eventsPath, payload + Environment.NewLine));
-        QueueManifest();
+        QueueManifest(force: false);
     }
 
     internal void Complete(string result)
@@ -388,11 +436,16 @@ internal sealed class FishingDebugSession : IDisposable
         QueueManifest();
     }
 
-    private void QueueManifest()
+    // Stage changes, saved frames, completion and disposal always write the manifest;
+    // plain events only refresh it every ManifestIntervalMilliseconds.
+    private void QueueManifest(bool force = true)
     {
         object manifest;
         lock (sync)
         {
+            var now = clock.ElapsedMilliseconds;
+            if (!force && now - lastManifestAt < ManifestIntervalMilliseconds) return;
+            lastManifestAt = now;
             manifest = new
             {
                 sessionId = SessionId,

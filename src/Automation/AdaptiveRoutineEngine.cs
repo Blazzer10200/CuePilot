@@ -367,10 +367,12 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             "No stable fishing meter or verified fishing action prompt appeared for 120 seconds. Automation stopped instead of leaving the loop stalled.");
     }
 
-    private FishingMeterFrameSample? CaptureMeter(out FrameSourceStatus status)
+    // trackedRegionOnly is reserved for the fight loop: the meter-wait phase also runs
+    // prompt checks on the same frame, so it always needs the whole window.
+    private FishingMeterFrameSample? CaptureMeter(out FrameSourceStatus status, bool trackedRegionOnly = false)
     {
         var source = frameSource ?? throw new InvalidOperationException("No frame source is configured.");
-        return FishingMeterService.CaptureAndAnalyze(source, settings.TargetWindow, meterTracker, out status);
+        return FishingMeterService.CaptureAndAnalyze(source, settings.TargetWindow, meterTracker, out status, trackedRegionOnly);
     }
 
     private async Task WaitForPromptAndPressAsync(FishingPromptKind expected, CancellationToken token, FishingDebugSession debugSession)
@@ -624,6 +626,11 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             settings.FishingMaximumPulseMilliseconds,
             settings.FishingMinimumRestMilliseconds);
         using var diagnostics = new FishingDiagnosticLog();
+        // The sample period is a deadline from the start of the sample, not a sleep
+        // after it. A plain WaitOne(40) from this background process stretches to
+        // ~47 ms while the game runs, and it used to follow the capture and the
+        // pulse instead of overlapping them.
+        using var sampleClock = new HighResolutionSampleClock();
         var clock = Stopwatch.StartNew();
 
         try
@@ -631,7 +638,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             while (!token.IsCancellationRequested && clock.Elapsed < TimeSpan.FromSeconds(settings.MaximumDurationSeconds))
             {
                 var sampleStartedAt = clock.Elapsed;
-                using var sample = CaptureMeter(out var captureStatus);
+                var sampleDeadline = HighResolutionSampleClock.NowMilliseconds + settings.FishingSampleMilliseconds;
+                using var sample = CaptureMeter(out var captureStatus, trackedRegionOnly: true);
                 var observation = sample?.Observation ?? FishingMeterObservation.Missing;
                 debugSession.RecordCapture("regulation", captureStatus, sample?.Frame.Bitmap.Size);
                 token.ThrowIfCancellationRequested();
@@ -644,7 +652,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                 sampleCount++;
                 if (sample is not null)
                 {
-                    debugSession.RecordMeter(sample.Analysis, sample.Frame, sampleCount);
+                    debugSession.RecordMeter(sample.Analysis, sample.Frame, sampleCount, sample.Origin);
                 }
                 highestProgress = Math.Max(highestProgress, observation.ProgressRatio);
                 missingSamples = observation.IsVisible ? 0 : missingSamples + 1;
@@ -703,11 +711,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                             sampleCount, observation.Confidence));
                     }
 
-                    if (token.WaitHandle.WaitOne(settings.FishingSampleMilliseconds))
-                    {
-                        token.ThrowIfCancellationRequested();
-                    }
-
+                    sampleClock.WaitUntil(sampleDeadline, token);
                     continue;
                 }
 
@@ -751,10 +755,7 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
                         sampleCount, observation.Confidence));
                 }
 
-                if (token.WaitHandle.WaitOne(settings.FishingSampleMilliseconds))
-                {
-                    token.ThrowIfCancellationRequested();
-                }
+                sampleClock.WaitUntil(sampleDeadline, token);
             }
 
             return new CycleResult(settings.CollectOnTimeout, settings.CollectOnTimeout

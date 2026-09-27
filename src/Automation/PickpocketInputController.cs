@@ -19,7 +19,7 @@ internal sealed class PickpocketInputController
     internal PickpocketInputController(Action<bool>? send = null, Func<double>? now = null)
     {
         this.send = send ?? (up => InputSender.SendVirtualKey(InputKey.Space, up));
-        this.now = now ?? (() => PickpocketSampleClock.NowMilliseconds);
+        this.now = now ?? (() => HighResolutionSampleClock.NowMilliseconds);
         gate = new(new InputReleaseSafety((_, up) => this.send(up), _ => { }));
     }
 

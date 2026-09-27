@@ -71,7 +71,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
         this.createDiagnostics = createDiagnostics ?? ((policy, target) => new(policy, target));
         this.input = input ?? new();
         this.analyze = analyze ?? ((bitmap, prior) => PickpocketDetector.Analyze(bitmap, previous: prior));
-        this.clockNow = clockNow ?? (() => PickpocketSampleClock.NowMilliseconds);
+        this.clockNow = clockNow ?? (() => HighResolutionSampleClock.NowMilliseconds);
         this.waitUntil = waitUntil;
         this.sessionState = sessionState ?? new();
         var remaining = this.sessionState.RemainingMs;
@@ -140,7 +140,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
             latest = latest with { Debug = diagnostics.Snapshot() };
             Publish(latest);
             using var source = createSource();
-            using var sampleClock = new PickpocketSampleClock();
+            using var sampleClock = new HighResolutionSampleClock();
             Action<double, CancellationToken> wait = waitUntil ?? sampleClock.WaitUntil;
             Action<double, CancellationToken> inputWait = waitUntil ?? sampleClock.WaitForInputDeadline;
             var predictor = new PickpocketTimingPredictor();

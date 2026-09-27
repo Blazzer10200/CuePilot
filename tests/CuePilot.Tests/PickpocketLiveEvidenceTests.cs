@@ -200,33 +200,33 @@ public sealed class PickpocketLiveEvidenceTests(ITestOutputHelper output)
     [InlineData(true)]
     public void SampleTimerCanBeInterruptedAndDoesNotSkipItsDeadline(bool inputDeadline)
     {
-        using var clock = new PickpocketSampleClock();
+        using var clock = new HighResolutionSampleClock();
         Action<double, CancellationToken> wait = inputDeadline ? clock.WaitForInputDeadline : clock.WaitUntil;
-        var start = PickpocketSampleClock.NowMilliseconds;
+        var start = HighResolutionSampleClock.NowMilliseconds;
         wait(start + 16, CancellationToken.None);
-        Assert.True(PickpocketSampleClock.NowMilliseconds - start >= 15);
+        Assert.True(HighResolutionSampleClock.NowMilliseconds - start >= 15);
         using var cancel = new CancellationTokenSource();
         cancel.CancelAfter(20);
         var watch = Stopwatch.StartNew();
-        Assert.Throws<OperationCanceledException>(() => wait(PickpocketSampleClock.NowMilliseconds + 2000, cancel.Token));
+        Assert.Throws<OperationCanceledException>(() => wait(HighResolutionSampleClock.NowMilliseconds + 2000, cancel.Token));
         Assert.True(watch.ElapsedMilliseconds < 1000);
     }
 
     [Fact]
     public async Task CompareWaitPacingAtMeasuredLiveWorkDuration()
     {
-        using var clock = new PickpocketSampleClock();
+        using var clock = new HighResolutionSampleClock();
         var oldIntervals = new List<double>();
         var newIntervals = new List<double>();
         for (var mode = 0; mode < 2; mode++)
         for (var i = 0; i < 40; i++)
         {
-            var start = PickpocketSampleClock.NowMilliseconds;
+            var start = HighResolutionSampleClock.NowMilliseconds;
             // Bounded CPU work approximates the live run's measured ~9 ms processing.
-            while (PickpocketSampleClock.NowMilliseconds - start < 9) Thread.SpinWait(50);
-            if (mode == 0) await Task.Delay(Math.Max(2, (int)Math.Ceiling(16 - (PickpocketSampleClock.NowMilliseconds - start))));
+            while (HighResolutionSampleClock.NowMilliseconds - start < 9) Thread.SpinWait(50);
+            if (mode == 0) await Task.Delay(Math.Max(2, (int)Math.Ceiling(16 - (HighResolutionSampleClock.NowMilliseconds - start))));
             else clock.WaitUntil(start + 16, CancellationToken.None);
-            (mode == 0 ? oldIntervals : newIntervals).Add(PickpocketSampleClock.NowMilliseconds - start);
+            (mode == 0 ? oldIntervals : newIntervals).Add(HighResolutionSampleClock.NowMilliseconds - start);
         }
         output.WriteLine($"Pacing benchmark (not live capture): Task.Delay mean={oldIntervals.Average():F2} ms; waitable timer mean={newIntervals.Average():F2} ms, max={newIntervals.Max():F2} ms");
         Assert.All(newIntervals, interval => Assert.True(interval >= 15));

@@ -5,8 +5,13 @@ using Microsoft.Win32.SafeHandles;
 
 namespace CuePilot;
 
-/// <summary>Per-observer high-resolution wait; no global timer-resolution change or spinning.</summary>
-internal sealed class PickpocketSampleClock : IDisposable
+/// <summary>
+/// Per-loop high-resolution wait shared by the Pickpocket, Fishing and Lockpicking
+/// sample loops; no global timer-resolution change or spinning. A kernel wait from
+/// this background process stretches by ~7 ms while the game runs (2026-09-26:
+/// WaitOne(40) → 46.6 ms, Sleep(16) → 31 ms); this timer lands within 0.5 ms.
+/// </summary>
+internal sealed class HighResolutionSampleClock : IDisposable
 {
     private sealed class TimerHandle(SafeWaitHandle handle) : WaitHandle
     {
@@ -14,11 +19,11 @@ internal sealed class PickpocketSampleClock : IDisposable
     }
     private readonly TimerHandle timer;
 
-    internal PickpocketSampleClock()
+    internal HighResolutionSampleClock()
     {
         // Unnamed, auto-reset high-resolution timer; Windows 10 1803+.
         var handle = CreateWaitableTimerExW(IntPtr.Zero, null, 2, 0x00100002);
-        if (handle.IsInvalid) { var error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error, "Could not create the pickpocket sample timer."); }
+        if (handle.IsInvalid) { var error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error, "Could not create the sample timer."); }
         timer = new(handle);
         timer.Initialize();
     }
@@ -41,7 +46,7 @@ internal sealed class PickpocketSampleClock : IDisposable
         if (!yieldOnOverrun && remaining <= 0) return;
         var due = -(long)Math.Ceiling((yieldOnOverrun ? Math.Max(1, remaining) : remaining) * 10_000);
         if (!SetWaitableTimerEx(timer.SafeWaitHandle, ref due, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 0))
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not arm the pickpocket sample timer.");
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not arm the sample timer.");
         WaitHandle.WaitAny([timer, token.WaitHandle]);
         token.ThrowIfCancellationRequested();
     }

@@ -25,7 +25,7 @@ public sealed class PickpocketInputTests
             (_, _) =>
             {
                 count++;
-                var time = PickpocketSampleClock.NowMilliseconds;
+                var time = HighResolutionSampleClock.NowMilliseconds;
                 if (started == 0) started = time;
                 var elapsed = time - started;
                 var state = preparation && count <= 2 ? PickpocketVisualState.Preparing
