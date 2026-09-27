@@ -8,12 +8,12 @@ The current checkout, installed build, and package state are recorded in
 
 ## Open issues
 
-Concrete items left open by the 5.3.7 - 5.3.11 batches. Each names where the work
+Concrete items left open by the 5.3.7 - 5.3.15 batches. Each names where the work
 lands, so a session can start from the file rather than from a search.
 
 | # | Issue | Where | Notes |
 | --- | --- | --- | --- |
-| 1 | Fishing fix not yet confirmed in live play | `src/Capture/DxgiFrameSource.cs`, `src/Automation/FishingMeterDetector.cs` (`FishingTensionController`) | The 150 ms+ capture stall was measured from a real session but not reproduced during the probes, because game load was light. Fish under normal load and read `captureMilliseconds` in the Fishing debug session (or the status line). Healthy is well under 40 ms; a controller `cadenceScale` above 1 means capture is still slow. Re-picking the FiveM target also refreshes the stale saved process id. |
+| 1 | 5.3.15 Fishing changes not yet measured in live play | `src/Automation/AdaptiveRoutineEngine.cs` (`RegulateFishingMeter`), `src/Automation/FishingMeterDetector.cs` (`CaptureAndAnalyze`, `AnalyzeTrackedCrop`) | 5.3.13/5.3.14 were confirmed at the state park (7 catches / 0 failures, capture median ~27 ms on GDI). 5.3.15 captures only the tracked crop and paces samples on the high-resolution timer; nobody has fished on it yet. Fish once at the park, then run the three `jq` lines in [history/perf-plan-2026-09-26.md](history/perf-plan-2026-09-26.md) (Phase A gate) against the new session's `events.jsonl`. Targets: capture median < 12 ms, tap→read median < 40 ms, catches ≥ failures. If tension drifts low, the parked pulse-wait correction in that plan is the next lever. |
 | 2 | Mouse-hook shortcuts unverified in-game | `ui/src-tauri/src/mouse_shortcuts.rs` | Mouse 4 / Mouse 5 have never been pressed against the live hook (Playwright cannot send X buttons; middle click is covered). Behavior against FiveM is unknown, including whether the swallowed press stays swallowed. |
 | 3 | Pickpocket shortcut confirmation unverified in-game | `ui/src-tauri/src/lib.rs` (`run_shortcut_command`), `notifications.rs` (`confirm_shortcut`) | Only the preview path was screenshot-checked. A real press with FiveM running has not been observed. |
 | 4 | Notifications untested against a game window | `ui/src-tauri/src/notifications.rs` | Popups have not been shown over live gameplay or exclusive fullscreen presentation. Click-through and non-activating behavior are asserted by design, not observed in-game. |

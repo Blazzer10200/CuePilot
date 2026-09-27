@@ -9,9 +9,9 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | | |
 | --- | --- |
 | Branch | `codex/release-complete` |
-| Source version | **5.3.15**, synchronized across all six release files (`1ee5efd`). 5.3.13, 5.3.14, 5.3.15 are committed, **not tagged, not packaged, not installed** |
+| Source version | **5.3.15**, synchronized across all six release files (`1ee5efd`). 5.3.13 and 5.3.14 were packaged locally and 5.3.14 installed; neither was tagged. 5.3.15 is the release candidate |
 | Published | **v5.3.12 public**, 2026-09-25 00:11 UTC, marked Latest: [release](https://github.com/Blazzer10200/CuePilot/releases/tag/v5.3.12), run 36075163572 green (8 assets; `releases.win.json` lists 5.3.12). Previous public: v5.3.10 |
-| Installed locally | **5.3.12**, installed 2026-09-24 with Setup `--silent` (5.3.11 was not running). The first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall; happens before any tray code); stopping by exact install path and relaunching through Explorer came up in 5.5 s with the sidecar. Close-to-tray, tray registration (`CuePilot`), and relaunch-restore were then checked on the installed build |
+| Installed locally | **5.3.14** (Velopack, per `project-status.ps1` on 2026-09-26); it was fishing at the park while 5.3.15 was built, so 5.3.15 was **not** installed over it. The in-app updater will offer 5.3.15 once published. 5.3.12 notes: the first shortcut launch stalled before `setup_begin` (the 5.3.3 hidden-launch stall); stopping by exact install path and relaunching through Explorer recovered it; close-to-tray, tray registration, and relaunch-restore were checked on that build |
 | Package | `release/velopack/` — 5.3.12 built 2026-09-24 18:53: Setup 45.7 MB, full 41.4 MB, delta from 5.3.11 |
 | Last gates | 5.3.15 on 2026-09-26: docs gate green, dotnet **463**, vitest 51, svelte-check 0/0, clippy clean, cargo 30. **Playwright not run** (owner was in game; e2e would steal focus). 5.3.12 full gate on 2026-09-24 was the last `-All` run |
 
