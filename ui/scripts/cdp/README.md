@@ -49,10 +49,10 @@ bash scripts/cdp/c.sh look
   the settled page, console errors, and a screenshot.
 - `look [selector]` writes a screenshot and reports current page state/errors.
 - `state [full]` prints the live engine and UI state as text (connection, selected
-  activity, target, routine state, Pickpocket/Lockpicking status, open panels)
+  activity, target, routine state, Pickpocket status, open panels)
   through the development-only `window.__cuepilot` hook that `App.svelte`
   installs on mount. `full` returns the entire engine snapshot.
-- `nav <dest>` jumps to `home`, `fishing`, `pickpocket`, `lockpicking`,
+- `nav <dest>` jumps to `home`, `fishing`, `pickpocket`,
   `settings`, `diagnostics`, or `close` (Escape) and returns the settled page in
   one round-trip; activity destinations route through Home automatically, and
   `settings` opens the Fishing workspace first when called from Home because the

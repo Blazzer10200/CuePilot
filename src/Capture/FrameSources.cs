@@ -50,7 +50,7 @@ internal static class FrameSourceFactory
     // saturates the GPU, a DXGI readback can queue for seconds (2026-09-26: 10.6 s and
     // 11.2 s samples while the meter was up) while GDI still returns in ~22 ms, so the
     // responsive source bounds the GPU wait and rides GDI until the GPU frees up.
-    // Pickpocket and Lockpicking keep the default: they need DXGI presentation timing.
+    // Pickpocket keeps the default: it needs DXGI presentation timing.
     internal static readonly TimeSpan ResponsiveGpuWaitLimit = TimeSpan.FromMilliseconds(100);
     internal static readonly TimeSpan ResponsiveGpuBusyHold = TimeSpan.FromSeconds(2);
 

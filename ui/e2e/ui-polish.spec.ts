@@ -4,10 +4,9 @@ for (const viewport of [{ width: 760, height: 620 }, { width: 820, height: 700 }
   test(`activity library remains readable at ${viewport.width}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/?scenario=history");
-    for (const activity of ["Pickpocket", "Fishing", "Lockpicking"]) {
+    for (const activity of ["Pickpocket", "Fishing"]) {
       await expect(page.getByRole("button", { name: `Open ${activity}`, exact: true })).toBeInViewport({ ratio: 1 });
     }
-    await expect(page.locator("#activity-description-vehicle-lockpicking")).toBeVisible();
     expect(await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }))).toEqual(viewport);
     await page.screenshot({ path: `test-results/library-${viewport.width}.png` });
   });
@@ -15,7 +14,7 @@ for (const viewport of [{ width: 760, height: 620 }, { width: 820, height: 700 }
 
 test("diagnostics returns focus to its opener in every workspace", async ({ page }) => {
   await page.goto("/?scenario=history");
-  for (const activity of [null, "Pickpocket", "Fishing", "Lockpicking"]) {
+  for (const activity of [null, "Pickpocket", "Fishing"]) {
     if (activity) await page.getByRole("button", { name: `Open ${activity}`, exact: true }).click();
     const opener = page.getByRole("button", { name: "About and diagnostics", exact: true });
     await opener.focus();
@@ -23,7 +22,7 @@ test("diagnostics returns focus to its opener in every workspace", async ({ page
     await expect(page.getByRole("button", { name: "Close diagnostics", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(opener).toBeFocused();
-    if (activity) await page.getByRole("button", { name: "Activities", exact: true }).click();
+    if (activity) await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
 });
 
@@ -49,7 +48,7 @@ test("save failure is visible on Run and remains visible across controls", async
 
 test("shared workspace tools retain context and keyboard focus", async ({ page }) => {
   await page.goto("/?scenario=history");
-  for (const [name, diagnostic] of [["Pickpocket", "pickpocket"], ["Fishing", "fishing"], ["Lockpicking", "lockpicking"]]) {
+  for (const [name, diagnostic] of [["Pickpocket", "pickpocket"], ["Fishing", "fishing"]]) {
     await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
     const tools = page.getByRole("group", { name: "Workspace tools" });
     const target = tools.getByRole("button", { name: "Change FiveM window" });
@@ -64,7 +63,7 @@ test("shared workspace tools retain context and keyboard focus", async ({ page }
     await expect(page.getByRole("combobox", { name: "Diagnostic activity" })).toHaveValue(diagnostic);
     await page.keyboard.press("Escape");
     await expect(tools.getByRole("button", { name: "Open diagnostics" })).toBeFocused();
-    await page.getByRole("button", { name: "Activities", exact: true }).click();
+    await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
 });
 
@@ -82,11 +81,11 @@ for (const [scenario, label] of [["history", "Idle · input off"], ["running", "
 test("intermediate window size and reference view remain usable", async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 700 });
   await page.goto("/?scenario=history");
-  for (const name of ["Pickpocket", "Fishing", "Lockpicking"]) {
+  for (const name of ["Pickpocket", "Fishing"]) {
     await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollHeight), `${name} fits at 820×700`).toBe(700);
     await page.screenshot({ path: `test-results/${name}-820.png`, animations: "disabled" });
-    await page.getByRole("button", { name: "Activities", exact: true }).click();
+    await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
   await page.getByRole("button", { name: "Open Pickpocket", exact: true }).click();
   await page.getByRole("button", { name: "Reference", exact: true }).click();

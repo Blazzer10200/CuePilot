@@ -44,8 +44,13 @@ public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
             using (var graphics = Graphics.FromImage(erased))
             using (var brush = new SolidBrush(background))
                 graphics.FillRectangle(brush, 505, 75, 155, 33);
+            // The game animates its header, so an unreadable header on an unchanged
+            // bar continues the tracked panel, but only for a bounded run.
+            var continued = PickpocketDetector.Analyze(erased, null, previous);
+            Assert.Equal(PickpocketVisualState.Active, continued.State);
+            Assert.Equal(1, continued.HeaderlessFrames);
             clock.Restart();
-            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(erased, null, previous).State);
+            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(erased, null, previous with { HeaderlessFrames = 30 }).State);
             output.WriteLine($"erased_header={background} elapsed_ms={clock.Elapsed.TotalMilliseconds:F3}");
             Assert.True(clock.Elapsed.TotalMilliseconds < 100, "A missing header caused an unbounded search.");
         }

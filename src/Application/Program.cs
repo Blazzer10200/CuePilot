@@ -61,30 +61,6 @@ internal static class Program
         var fishingReplay = ArgumentValue(args, "--replay-fishing");
         if (fishingReplay is not null) return ReplayFishing(fishingReplay);
 
-        var lockpicking = ArgumentValue(args, "--analyze-lockpicking");
-        if (lockpicking is not null)
-        {
-            using var bitmap = new Bitmap(lockpicking);
-            var clock = System.Diagnostics.Stopwatch.StartNew();
-            var observation = LockpickingDetector.Analyze(bitmap);
-            clock.Stop();
-            var approachRatio = observation.Target?.ApproachRatio ?? 0;
-            var labels = observation.Targets is null
-                ? "-"
-                : string.Join(',', observation.Targets.Select(target => target.Number?.ToString() ?? "?"));
-            Console.WriteLine($"state={observation.State} confidence={observation.Confidence:P1} hud=({observation.HudCenterX:P1},{observation.HudCenterY:P1}) radius={observation.HudRadius:P1} targets={observation.VisibleTargetCount} labels=[{labels}] target_phase={observation.Target?.Phase} target=({observation.Target?.CenterX:P1},{observation.Target?.CenterY:P1}) number={observation.Target?.Number?.ToString() ?? "-"} literal={observation.Target?.HasLiteralNumber ?? false} approach={approachRatio:F2} fill={observation.Target?.FillDensity ?? 0:F2} action={observation.PredictedAction} detector_ms={clock.Elapsed.TotalMilliseconds:F2}");
-            var evidence = LockpickingDetector.Inspect(bitmap);
-            Console.WriteLine($"hud={evidence.HudConfidence:F3} open={evidence.OpenRingCoverage:F3} spin={evidence.SpinRingCoverage:F3} label={evidence.BottomLabelSignal:F3} arcs=[{string.Join(',', evidence.ArcProfile.Select(value => value.ToString("F3")))}]");
-            Console.WriteLine(observation.Reason);
-            return observation.State == LockpickingVisualState.Hidden ? 2 : 0;
-        }
-
-        var lockpickingReplay = ArgumentValue(args, "--replay-lockpicking");
-        if (lockpickingReplay is not null)
-        {
-            return ReplayLockpicking(lockpickingReplay, ArgumentDouble(args, "--fps", 30));
-        }
-
         var replay = ArgumentValue(args, "--replay-session");
         if (replay is not null) return ReplayDebugSession(replay);
 
@@ -110,63 +86,6 @@ internal static class Program
         && value > 0
             ? value
             : fallback;
-
-    private static int ReplayLockpicking(string directory, double framesPerSecond)
-    {
-        if (!Directory.Exists(directory))
-        {
-            Console.Error.WriteLine($"LOCKPICKING_REPLAY_FAILED missing={directory}");
-            return 2;
-        }
-
-        var files = Directory.EnumerateFiles(directory)
-            .Where(path => Path.GetExtension(path).Equals(".png", StringComparison.OrdinalIgnoreCase)
-                || Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase)
-                || Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (files.Length == 0)
-        {
-            Console.Error.WriteLine("LOCKPICKING_REPLAY_FAILED no image frames found.");
-            return 2;
-        }
-
-        var tracker = new LockpickingObservationTracker();
-        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-        var start = System.Diagnostics.Stopwatch.GetTimestamp();
-        var ticksPerFrame = System.Diagnostics.Stopwatch.Frequency / framesPerSecond;
-        var lastKey = string.Empty;
-        var detectorTicks = 0L;
-        LockpickingObservation? previousRawObservation = null;
-        for (var index = 0; index < files.Length; index++)
-        {
-            using var bitmap = new Bitmap(files[index]);
-            var detectorStarted = System.Diagnostics.Stopwatch.GetTimestamp();
-            var rawObservation = LockpickingDetector.Analyze(bitmap, previousRawObservation);
-            detectorTicks += System.Diagnostics.Stopwatch.GetTimestamp() - detectorStarted;
-            previousRawObservation = rawObservation;
-            var observation = tracker.Track(
-                rawObservation,
-                start + (long)Math.Round(index * ticksPerFrame),
-                TimeSpan.Zero,
-                0);
-            var key = $"{observation.State}:{observation.PredictedAction}";
-            counts[key] = counts.GetValueOrDefault(key) + 1;
-            var transitionKey = $"{key}:{observation.Target?.Number}:{observation.Target?.Phase}";
-            if (!transitionKey.Equals(lastKey, StringComparison.Ordinal))
-            {
-                Console.WriteLine(
-                    $"t={index / framesPerSecond:F3}s state={observation.State} target={observation.Target?.Number?.ToString() ?? "-"} " +
-                    $"phase={observation.Target?.Phase.ToString() ?? "None"} approach={observation.Target?.ApproachRatio ?? 0:F2} " +
-                    $"eta_ms={observation.Target?.TimeToReadyMilliseconds?.ToString("F0") ?? "-"} action=\"{observation.PredictedAction}\"");
-                lastKey = transitionKey;
-            }
-        }
-
-        var detectorMeanMilliseconds = detectorTicks * 1000d / System.Diagnostics.Stopwatch.Frequency / files.Length;
-        Console.WriteLine($"frames={files.Length} fps={framesPerSecond:F2} detector_mean_ms={detectorMeanMilliseconds:F2} summary=[{string.Join(',', counts.OrderBy(item => item.Key).Select(item => $"{item.Key}={item.Value}"))}]");
-        return 0;
-    }
 
     private static int ReplayFishing(string directory)
     {
@@ -253,7 +172,6 @@ internal static class Program
             $"CAPTURE_PROBE_OK backend={status!.Backend} cold_ms={captureMilliseconds[0]:F2} " +
             $"steady_median_ms={steady[steady.Length / 2]:F2} steady_max_ms={steady[^1]:F2} " +
             $"sample_median_ms={steadySamples[steadySamples.Length / 2]:F2} " +
-            $"gpu_priority={(DxgiFrameSource.GpuPriorityRaised ? "raised" : "normal")} " +
             $"visible={observation.IsVisible} failed={observation.IsFailed} confidence={observation.Confidence:P0}");
         return 0;
     }

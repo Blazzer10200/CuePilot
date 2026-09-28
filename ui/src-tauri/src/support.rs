@@ -40,7 +40,6 @@ pub(crate) fn support_log(kind: String, detail: String) -> Result<(), String> {
 fn activity_directory(activity: &str) -> Result<PathBuf, String> {
     Ok(root()?.join(match activity {
         "fishing" => "sessions",
-        "lockpicking" => "lockpicking",
         "pickpocket" => "pickpocket",
         _ => return Err("Unknown activity.".into()),
     }))

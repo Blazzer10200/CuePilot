@@ -15,7 +15,7 @@ CuePilot is a Svelte/Tauri desktop app backed by a local, headless .NET engine. 
 1. Open the [latest CuePilot release](https://github.com/Blazzer10200/CuePilot/releases/latest).
 2. Download `CuePilotDesktop-win-Setup.exe` and run it. The Velopack installer is per-user, so it does not require administrator access.
 3. Launch **CuePilot** from the Start menu, open an activity, and select the running FiveM window once.
-4. Use `F10` for Fishing and `Pause / Break` for an immediate emergency stop. `F9` remains reserved but cannot start automatic lockpicking while Class C calibration stays gated. Both activity shortcuts can be changed in Settings.
+4. Use `F10` for Fishing, `F7` for Pickpocket, and `Pause / Break` for an immediate emergency stop. Both activity shortcuts can be changed in Settings.
 
 CuePilot supports Windows 10/11 x64 and bundles its self-contained .NET engine. Velopack checks for WebView2 during installation, so users do not need Node.js, Rust, the .NET SDK, or repository files. A matching SHA-256 checksum and release manifest are attached to every GitHub release. Because this community build is not code-signed, Windows SmartScreen may require **More info → Run anyway** on first installation.
 
@@ -26,10 +26,9 @@ Velopack releases began with 5.2.0. Their pack ID is `CuePilotDesktop`, delibera
 ## Activities
 
 - **Fishing — Ready:** the current deterministic prompt and tension-meter controller.
-- **Vehicle Lockpicking — live calibration:** input-free observation while concurrent Class C target-label evidence is validated. All automated lockpicking input remains gated.
 - **Pickpocket — timing and priorities:** observe or explicitly arm one timed Space press, choose color and item priorities, adjust timing, and review persistent attempt history. Live timing still depends on the setup; a sent press or recorded card label does not independently verify inventory acquisition.
 
-The app opens on the activity library. Returning there stops any running activity and releases held input before changing workspaces. See [Activity architecture](docs/activities.md) for the module boundary and Lockpicking evidence checklist.
+The app opens on the activity library. Returning there stops any running activity and releases held input before changing workspaces. See [Activity architecture](docs/activities.md) for the module boundary.
 
 ## Fishing profile
 
@@ -49,7 +48,6 @@ Every LMB hold is independently capped at 35–90 ms by the feedback controller.
 - Each activity shares FiveM window selection, Settings, and Diagnostics. The Support Center provides local build health, recorded sessions, and text report export.
 - Pickpocket uses `F7` for Start / Stop by default. `F8` is reserved for the FiveM console.
 - The Fishing Start / Stop shortcut is rebound by clicking its field in Settings and pressing any key or combo (`Ctrl`/`Shift`/`Alt` plus a key), or a side or middle mouse button (Mouse 4, Mouse 5, middle click). It works while FiveM remains focused. `F8`, `Escape`, the Windows key, and the left and right mouse buttons cannot be bound.
-- The reserved Lockpicking shortcut defaults to `F9` and is rebound the same way; it cannot enable Class C input until the evidence gate passes.
 - `Pause / Break` is the global emergency stop and releases held input.
 - Closing the window hides CuePilot to the notification area; the engine, a running activity, shortcuts, and popups keep working. Left-click the tray icon (or launch CuePilot again) to bring it back, and right-click it → **Quit CuePilot** to exit.
 - Fishing stops if FiveM stops being the active visible window.
@@ -97,7 +95,7 @@ See the [development guide](docs/development.md) for focused checks, architectur
 ## Project structure
 
 - `src/Application` — headless engine startup, persistence, and the versioned stdin/stdout bridge.
-- `src/Automation` — Fishing, Lockpicking, and Pickpocket detectors, temporal trackers, class profiles, controllers, and state machines.
+- `src/Automation` — Fishing and Pickpocket detectors, temporal trackers, class profiles, controllers, and state machines.
 - `src/Capture` — visible-desktop frame capture.
 - `src/Input` — foreground-only physical input delivery and safety checks.
 - `src/Platform` — Windows target resolution and interop.
@@ -105,7 +103,7 @@ See the [development guide](docs/development.md) for focused checks, architectur
 - `ui/src/lib/activities` — activity picker and minigame-specific workspaces.
 - `ui/src-tauri` — Tauri window, sidecar lifecycle, global shortcut, diagnostics access, and Velopack update service.
 - `scripts/package-velopack.ps1` — allowlisted release staging, Velopack packaging, checksums, and release manifest generation.
-- `tests/CuePilot.Tests` — Fishing, Lockpicking, Pickpocket, migration, input, capture, and bridge contracts.
+- `tests/CuePilot.Tests` — Fishing, Pickpocket, migration, input, capture, and bridge contracts.
 - `docs` — activity architecture, development workflow, and operator-facing project references.
 
 For task-oriented entry points and search recipes, use the [code map](docs/code-map.md).

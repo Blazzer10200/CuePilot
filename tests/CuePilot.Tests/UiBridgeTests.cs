@@ -61,7 +61,7 @@ public sealed class UiBridgeTests
     public void AddingPickpocketBindingPreservesExistingShortcutsAndSettings()
     {
         var restored = SettingsStore.DeserializeAndMigrateForTest("""
-            {"formatVersion":9,"startStop":{"key":"F7"},"lockpickingStartStop":{"key":"F9"},"routine":{"fishingLowerTensionPercent":60}}
+            {"formatVersion":9,"startStop":{"key":"F7"},"removedActivityStartStop":{"key":"F9"},"routine":{"fishingLowerTensionPercent":60}}
             """);
         Assert.Equal("F7", restored.StartStop.Key);
         Assert.Equal("F6", restored.PickpocketStartStop.Key);
@@ -351,7 +351,6 @@ public sealed class UiBridgeTests
         incoming.Routine.FishingLowerTensionPercent = 60;
         incoming.Routine.TargetWindow = new WindowTargetSettings { ProcessName = "ChatGPT", WindowTitle = "ChatGPT" };
         incoming.StartStop.Key = "F11";
-        incoming.LockpickingStartStop.Key = "F6";
         incoming.EmergencyStop.Key = "F12";
         var request = JsonSerializer.Serialize(new
         {
@@ -367,31 +366,7 @@ public sealed class UiBridgeTests
         Assert.Equal(60, saved.Routine.FishingLowerTensionPercent);
         Assert.Equal("FiveM", saved.Routine.TargetWindow.ProcessName);
         Assert.Equal("F11", saved.StartStop.Key);
-        Assert.Equal("F6", saved.LockpickingStartStop.Key);
         Assert.Equal("Pause", saved.EmergencyStop.Key);
-    }
-
-    [Fact]
-    public void LockpickingShortcutRejectsUnavailableClassCAutomation()
-    {
-        var settings = AppSettings.Defaults();
-        settings.Routine.TargetWindow = new WindowTargetSettings
-        {
-            ProcessId = 3258,
-            ProcessName = "FiveM_b3258_GTAProcess",
-            WindowTitle = "FiveM",
-        };
-
-        var messages = RunBridge(
-            settings,
-            """
-            {"id":"lockpicking-toggle-1","command":"toggle_lockpicking_class_c"}
-            """,
-            findTargets: () => [Candidate(3258, "FiveM")]);
-
-        var response = FindResponse(messages, "lockpicking-toggle-1");
-        Assert.False(response.GetProperty("ok").GetBoolean());
-        Assert.Contains("Class C automation is unavailable", response.GetProperty("error").GetString());
     }
 
     [Theory]

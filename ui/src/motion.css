@@ -1,0 +1,67 @@
+/* CuePilot motion tokens. Import after app.css in ui/src/main.ts:
+   import "./app.css";
+   import "./motion.css";
+   Curves are chosen to equal Svelte's easing functions, so CSS and Svelte transitions share one feel. */
+
+:root {
+  --dur-press: 80ms;   /* press feedback only */
+  --dur-fast: 120ms;   /* hover, color, focus ring */
+  --dur-base: 180ms;   /* menus, inline errors, card lift */
+  --dur-slow: 240ms;   /* drawers, toasts, state swaps, gauge */
+  --dur-enter: 340ms;  /* workspace and card entry */
+  --dur-pulse: 2400ms; /* every live indicator */
+  --dur-spin: 1000ms;  /* loading spinner */
+  --dur-orbit: 8000ms; /* gauge inner ring */
+
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);        /* = svelte/easing cubicOut */
+  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);         /* = svelte/easing cubicIn (exits only) */
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1); /* = svelte/easing quintOut */
+
+  --lift-card: -2px;
+  --press-scale: 0.98;
+  --enter-distance: 6px;
+  --stagger: 40ms;
+}
+
+@keyframes live-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  70%, 100% { transform: scale(var(--pulse-scale, 2.2)); opacity: 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes enter-up {
+  from { opacity: 0; transform: translateY(var(--enter-distance)); }
+}
+
+/* Ring for any live dot. The dot is the parent; the ring sits on its own compositor layer. */
+.live-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  pointer-events: none;
+  animation: live-pulse var(--dur-pulse) var(--ease-out) infinite;
+}
+
+.spin {
+  animation: spin var(--dur-spin) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-press: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-enter: 0ms;
+  }
+
+  .live-ring,
+  .spin,
+  .control-orbit .orbit-ring--inner {
+    animation: none !important;
+  }
+}

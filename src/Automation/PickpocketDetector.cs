@@ -16,6 +16,8 @@ internal sealed record PickpocketObservation(
     PickpocketVisualState State, Rectangle Bar, double MarkerX,
     IReadOnlyList<PickpocketBand> Bands, double Confidence, string Reason)
 {
+    /// <summary>Consecutive frames kept Active by tracked continuation while the status header was unreadable.</summary>
+    internal int HeaderlessFrames { get; init; }
     internal static PickpocketObservation Missing => new(PickpocketVisualState.Hidden, Rectangle.Empty, 0, [], 0, "No verified pickpocket panel.");
 }
 
@@ -181,6 +183,7 @@ internal static class PickpocketDetector
     {
         var y = top + length / 2;
         if (IsMarker(pixels.At(x - 6, y)) || IsMarker(pixels.At(x + 6, y))) return null;
+        if (ContinueTrackedPanel(pixels, x, y, previous, searchWork) is { } continued) return continued;
         // Anchor the panel to the status header and marker geometry, independently
         // of item count, ordering, spacing, and duplicate colors.
         var panel = LocatePanel(pixels, x, y, length, previous, searchWork);
@@ -193,6 +196,59 @@ internal static class PickpocketDetector
         // A miss tints the whole bar red. It is a result, never a giant target.
         if (state == PickpocketVisualState.Missed)
             return new PickpocketObservation(state, bar, x, [], confidence, "Missed result verified; target intervals are no longer actionable.");
+        var bands = ReadBands(pixels, left, right, x, y, scale);
+        if (bands.Count is < 1 or > 16) return null;
+        return new PickpocketObservation(state, bar, x, bands, confidence, "Status header, marker, and current target intervals verified independently.");
+    }
+
+    // ~0.5 s of play at the 16 ms Active cadence; the live header glitch lasts up to ~250 ms.
+    private const int MaximumHeaderlessFrames = 30;
+
+    /// <summary>
+    /// The game animates the status header, so a tracked panel loses its header
+    /// match for several frames mid-sweep. Keep it Active only when the marker
+    /// sits on the same bar and every wide target interval away from the marker
+    /// is still at the same pixels, with nothing new inside the bar; scenery
+    /// cannot reproduce that layout. A readable header of any state takes the
+    /// verified path, and the run of header-less frames is bounded.
+    /// </summary>
+    private static PickpocketObservation? ContinueTrackedPanel(Pixels pixels, int x, int y, PickpocketObservation? previous, HeaderSearch searchWork)
+    {
+        if (previous is not { State: PickpocketVisualState.Active } prior || prior.Bar.Width <= 0
+            || prior.HeaderlessFrames >= MaximumHeaderlessFrames
+            || Math.Abs(prior.Bar.Top + prior.Bar.Height / 2 - y) > 3
+            || x < prior.Bar.Left - 3 || x > prior.Bar.Right + 3) return null;
+        var scale = prior.Bar.Width / 576d;
+        // Same key LocatePanel tries first, so this costs no extra header work.
+        if (searchWork.Match(pixels, prior.Bar.Left, y, scale).Score >= .85) return null;
+        var bands = ReadBands(pixels, prior.Bar.Left, prior.Bar.Right - 1, x, y, scale);
+        if (!SameTargets(bands, prior.Bands, x, scale)) return null;
+        return new PickpocketObservation(PickpocketVisualState.Active, prior.Bar, x, bands, .8,
+            "Status header unreadable; bar and target intervals match the tracked panel.") { HeaderlessFrames = prior.HeaderlessFrames + 1 };
+    }
+
+    private static bool SameTargets(IReadOnlyList<PickpocketBand> current, IReadOnlyList<PickpocketBand> prior, double markerX, double scale)
+    {
+        var tolerance = Math.Max(2, 2 * scale);
+        var occlusion = 6 * scale + tolerance;
+        bool Wide(PickpocketBand band) => band.Width > 2 * scale;
+        var matched = 0;
+        foreach (var old in prior.Where(Wide))
+        {
+            // The marker can hide or split an interval it overlaps.
+            if (markerX >= old.Left - occlusion && markerX <= old.Right + occlusion) continue;
+            if (!current.Any(band => band.Color == old.Color && Math.Abs(band.Left - old.Left) <= tolerance && Math.Abs(band.Right - old.Right) <= tolerance))
+                return false;
+            matched++;
+        }
+        // Overlap, not containment: the previous frame's marker may have hidden an edge.
+        var nothingNew = current.Where(Wide).All(band => prior.Any(old => old.Color == band.Color
+            && band.Left <= old.Right + tolerance && band.Right >= old.Left - tolerance));
+        return matched >= 1 && nothingNew;
+    }
+
+    private static List<PickpocketBand> ReadBands(Pixels pixels, int left, int right, int x, int y, double scale)
+    {
         var bands = new List<PickpocketBand>();
         PickpocketBandColor? current = null;
         var start = left;
@@ -223,8 +279,7 @@ internal static class PickpocketDetector
                 bands.RemoveAt(i);
             }
         }
-        if (bands.Count is < 1 or > 16) return null;
-        return new PickpocketObservation(state, bar, x, bands, confidence, "Status header, marker, and current target intervals verified independently.");
+        return bands;
     }
 
     private static (int Left, double Scale, PickpocketVisualState State, double Confidence)? LocatePanel(

@@ -1,24 +1,24 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
-  import { fade, fly } from "svelte/transition";
+  import { onMount, tick, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
-    Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
-    Gauge, Hand, KeyRound, Layers3, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
+    Activity, AlertTriangle, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
+    Gauge, Hand, KeyRound, Layers3, Minus, OctagonX, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
     ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
-  import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
+  import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
   import { activities, getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
-  import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
   import PickpocketWorkspace from "./lib/activities/PickpocketWorkspace.svelte";
+  import { pickpocketSession, type PickpocketView } from "./lib/activities/pickpocket-session";
   import UpdateCenter from "./lib/UpdateCenter.svelte";
   import SupportCenter from "./lib/SupportCenter.svelte";
   import NotificationSettings from "./lib/NotificationSettings.svelte";
   import HotkeyCapture from "./lib/HotkeyCapture.svelte";
   import { hotkeyDisplay, sameHotkey } from "./lib/hotkeys";
   import { updates } from "./lib/updates.svelte";
+  import { enter, leave, phaseLock, tweenNumber } from "./lib/motion";
 
   const developmentBuild = import.meta.env.DEV;
   const applicationName = developmentBuild ? "CuePilot Dev" : "CuePilot";
@@ -82,28 +82,10 @@
   let settingsAdvanced = $state(false);
   const defaultShortcuts = {
     fishing: { key: "F10", control: false, shift: false, alt: false },
-    lockpicking: { key: "F9", control: false, shift: false, alt: false },
     pickpocket: { key: "F7", control: false, shift: false, alt: false },
   } as const satisfies Record<string, HotkeyBinding>;
 
   const engine = new EngineClient();
-  const stoppedLockpicking: LockpickingObserveStatus = {
-    observing: false,
-    state: "Stopped",
-    detail: "Connect the local engine to begin observation.",
-    sampleCount: 0,
-    confidence: 0,
-    captureBackend: "None",
-    captureMilliseconds: 0,
-    accumulatedFrames: 1,
-    spin: null,
-    inputEnabled: false,
-    vehicleClass: "",
-    actionCount: 0,
-    spinInputActive: false,
-    evidenceDirectory: "",
-    observation: { state: "Hidden", confidence: 0, hudCenterX: 0, hudCenterY: 0, hudRadius: 0, target: null, visibleTargetCount: 0, predictedAction: "WAIT", reason: "Lockpicking HUD not found." },
-  };
   let selectedActivity = $state<ActivityId | null>(null);
   const lastActivityKey = "cuepilot.lastActivity";
   let homeFocusActivity = $state<ActivityId | null>(null);
@@ -122,7 +104,6 @@
   let settingsError = $state<string | null>(null);
   let draft = $state<RoutineSettings | null>(null);
   let shortcutDraft = $state<HotkeyBinding | null>(null);
-  let lockpickingShortcutDraft = $state<HotkeyBinding | null>(null);
   let pickpocketShortcutDraft = $state<HotkeyBinding | null>(null);
   let settingsOpener: HTMLElement | null = null;
   let diagnosticsOpener: HTMLElement | null = null;
@@ -138,7 +119,6 @@
   let settingsCloseButton = $state<HTMLButtonElement | null>(null);
   let diagnosticsCloseButton = $state<HTMLButtonElement | null>(null);
   let activePanel = $state<HTMLDivElement | null>(null);
-  let reduceMotion = $state(false);
   let notice = $state<{ message: string; tone: "success" | "info" } | null>(null);
   let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -148,8 +128,43 @@
   const target = $derived(engine.snapshot?.settings.routine.targetWindow);
   const targetValid = $derived(engine.snapshot?.targetValid ?? false);
   const confidence = $derived(Math.round(engine.status.confidence * 100));
+  // The gauge number eases with the ring instead of jumping ahead of it.
+  let displayedConfidence = $state(0);
+  $effect(() => {
+    const next = confidence;
+    return tweenNumber(untrack(() => displayedConfidence), next, (value) => displayedConfidence = value);
+  });
   const currentStep = $derived(cycleStep(engine.status.state));
-  const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing || !!engine.snapshot?.lockpicking.observing);
+  const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing);
+  const workspaceStatus = $derived.by(() => {
+    if (fishingSelected && engine.status.state === "Faulted") return { label: "Paused", tone: "danger" };
+    if (fishingSelected ? active : !!engine.snapshot?.pickpocket?.observing) return { label: "Running", tone: "accent" };
+    if (!engine.connected) return { label: "Connecting", tone: "warning" };
+    if (!targetValid) return { label: "Select target", tone: "warning" };
+    return { label: "Ready", tone: "success" };
+  });
+  let pickpocketView = $state<PickpocketView>("live");
+  // The header badge needs a clock only while a cooldown is counting down.
+  let clock = $state(Date.now());
+  $effect(() => {
+    const until = engine.snapshot?.pickpocket?.cooldownUntilUnixMs ?? 0;
+    if (selectedActivity !== "pickpocket" || until <= Date.now()) return;
+    clock = Date.now();
+    const timer = setInterval(() => clock = Date.now(), 1000);
+    return () => clearInterval(timer);
+  });
+  const pickpocketBadge = $derived(pickpocketSession(engine.snapshot?.pickpocket, engine.connected, clock));
+  const pickpocketObserving = $derived(engine.connected && !!engine.snapshot?.pickpocket?.observing);
+  $effect(() => { if (pickpocketObserving && pickpocketView === "reference") pickpocketView = "live"; });
+  function showPickpocketView(next: PickpocketView) {
+    pickpocketView = next;
+    window.scrollTo({ top: 0 });
+  }
+  const setupChecks = $derived((["target", "capture", "input"] as const).map((key) => {
+    const name = key[0].toUpperCase() + key.slice(1);
+    if (!setupVerification) return { label: `${name} unverified`, tone: "unverified" };
+    return setupVerification[key].passed ? { label: name, tone: "passed" } : { label: `${name} blocked`, tone: "blocked" };
+  }));
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -176,13 +191,27 @@
     showSettings
     && !!draft
     && !!shortcutDraft
-    && !!lockpickingShortcutDraft
     && !!engine.snapshot
     && (JSON.stringify(draft) !== JSON.stringify(engine.snapshot.settings.routine)
       || JSON.stringify(shortcutDraft) !== JSON.stringify(engine.snapshot.settings.startStop)
-      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })
-      || JSON.stringify(lockpickingShortcutDraft) !== JSON.stringify(engine.snapshot.settings.lockpickingStartStop)),
+      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })),
   );
+  const savedRoutine = $derived(engine.snapshot?.settings.routine);
+  // Each changed field counts once, so the footer can say how much Apply will change.
+  const unsavedCount = $derived.by(() => {
+    if (!settingsDirty || !draft || !savedRoutine || !engine.snapshot) return 0;
+    const routine = draft;
+    const saved = savedRoutine;
+    const fields = (Object.keys(routine) as (keyof RoutineSettings)[]).filter((key) => JSON.stringify(routine[key]) !== JSON.stringify(saved[key])).length;
+    const shortcuts = [
+      [shortcutDraft, engine.snapshot.settings.startStop],
+      [pickpocketShortcutDraft, engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false }],
+    ].filter(([next, current]) => JSON.stringify(next) !== JSON.stringify(current)).length;
+    return fields + shortcuts;
+  });
+  const lowerChanged = $derived(!!draft && !!savedRoutine && draft.fishingLowerTensionPercent !== savedRoutine.fishingLowerTensionPercent);
+  const upperChanged = $derived(!!draft && !!savedRoutine && draft.fishingUpperTensionPercent !== savedRoutine.fishingUpperTensionPercent);
+  const percent = (value: number) => Math.max(0, Math.min(100, Number(value) || 0));
   const selectedDelivery = $derived(
     deliveryOptions.find((option) => option.value === draft?.inputMode) ?? deliveryOptions[0],
   );
@@ -194,10 +223,6 @@
       const savedActivity = localStorage.getItem(lastActivityKey);
       if (savedActivity && getActivity(savedActivity as ActivityId)) selectedActivity = savedActivity as ActivityId;
     } catch { /* Navigation persistence is optional. */ }
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncMotionPreference = () => reduceMotion = motionQuery.matches;
-    syncMotionPreference();
-    motionQuery.addEventListener("change", syncMotionPreference);
     const syncIdle = () => document.documentElement.classList.toggle("app-idle", document.hidden || !document.hasFocus());
     syncIdle();
     document.addEventListener("visibilitychange", syncIdle);
@@ -229,7 +254,6 @@
       };
     }
     return () => {
-      motionQuery.removeEventListener("change", syncMotionPreference);
       document.removeEventListener("visibilitychange", syncIdle);
       window.removeEventListener("blur", syncIdle);
       window.removeEventListener("focus", syncIdle);
@@ -255,43 +279,43 @@
     hasTarget: boolean;
   }) {
     if (!connected) return {
-      context: "RESTORING LOCAL LINK",
+      context: "Restoring local link",
       title: "Connecting the engine",
       detail: "CuePilot is restoring its local control link. Your saved target and settings stay on this PC.",
     };
     if (selectingTarget) return {
-      context: "TARGET ACQUISITION",
+      context: "Target acquisition",
       title: "Finding your FiveM window",
       detail: "Scanning this desktop for an available FiveM target…",
     };
     if (state === "Faulted") return {
-      context: "CONTROL SAFEGUARD",
+      context: "Control safeguard",
       title: "Automation paused",
       detail: "CuePilot released input. Review the target, then start again when everything is ready.",
     };
     if (state !== "Stopped") {
       const live = {
-        Casting: ["CAST", "Casting the line", "CuePilot is sending the bounded cast action."],
-        Armed: ["METER WATCH", "Watching for the meter", "The reader is waiting for a confirmed tension prompt."],
-        Regulating: ["TENSION CONTROL", "Managing tension", "Live detector confidence guides the next safe pulse."],
-        Collecting: ["COLLECT", "Collecting the catch", "Completing the current fishing cycle."],
-        Stowing: ["NEXT CAST", "Preparing the next cast", "The completed cycle is settling before CuePilot continues."],
+        Casting: ["Cast", "Casting the line", "CuePilot is sending the bounded cast action."],
+        Armed: ["Meter watch", "Watching for the meter", "The reader is waiting for a confirmed tension prompt."],
+        Regulating: ["Tension control", "Managing tension", "Live detector confidence guides the next safe pulse."],
+        Collecting: ["Collect", "Collecting the catch", "Completing the current fishing cycle."],
+        Stowing: ["Next cast", "Preparing the next cast", "The completed cycle is settling before CuePilot continues."],
       } as const;
       const [context, title, detail] = live[state];
       return { context, title, detail };
     }
     if (hasTarget && !targetValid) return {
-      context: "TARGET NEEDS ATTENTION",
+      context: "Target needs attention",
       title: "FiveM target unavailable",
       detail: "The saved window is not ready. Select its current FiveM window before starting automation.",
     };
     if (!targetValid) return {
-      context: "WELCOME BACK",
+      context: "Welcome back",
       title: "Select your FiveM target",
       detail: "Choose the game window once, then CuePilot will keep capture and input safely scoped to it.",
     };
     return {
-      context: "WELCOME BACK · TARGET RESTORED",
+      context: "Target restored",
       title: "Ready to fish",
       detail: "Your saved FiveM target is ready. Start here, or use your in-game shortcut while FiveM is focused.",
     };
@@ -396,10 +420,9 @@
     return { ...binding };
   }
 
-  function takenShortcuts(except: "fishing" | "lockpicking" | "pickpocket") {
+  function takenShortcuts(except: "fishing" | "pickpocket") {
     const owners = [
       { id: "fishing", binding: shortcutDraft, owner: "Fishing Start / Stop" },
-      { id: "lockpicking", binding: lockpickingShortcutDraft, owner: "the reserved Class C shortcut" },
       { id: "pickpocket", binding: pickpocketShortcutDraft, owner: "Pickpocket Start / Stop" },
       { id: "emergency", binding: engine.snapshot?.settings.emergencyStop ?? null, owner: "Emergency stop" },
     ];
@@ -424,9 +447,10 @@
     closeTargetPicker(false);
     closePanels();
     homeFocusActivity = activityId;
+    pickpocketView = "live";
     selectedActivity = activityId;
     try { localStorage.setItem(lastActivityKey, activityId); } catch { /* Continue without navigation persistence. */ }
-    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   async function toggleRun() {
@@ -462,7 +486,7 @@
     closeTargetPicker(false);
     closePanels();
     selectedActivity = null;
-    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   async function findTarget() {
@@ -541,7 +565,6 @@
     settingsOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     draft = cloneRoutine(engine.snapshot.settings.routine);
     shortcutDraft = cloneHotkey(engine.snapshot.settings.startStop);
-    lockpickingShortcutDraft = cloneHotkey(engine.snapshot.settings.lockpickingStartStop);
     pickpocketShortcutDraft = cloneHotkey(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false });
     settingsError = null;
     closeTargetPicker(false);
@@ -552,12 +575,12 @@
   }
 
   async function saveSettings() {
-    if (!draft || !shortcutDraft || !lockpickingShortcutDraft || !pickpocketShortcutDraft || !engine.snapshot) return;
+    if (!draft || !shortcutDraft || !pickpocketShortcutDraft || !engine.snapshot) return;
     if (draft.fishingUpperTensionPercent < draft.fishingLowerTensionPercent + 5) {
       settingsError = "Target tension must be at least 5% above the pulse threshold.";
       return;
     }
-    const bindings = [shortcutDraft, lockpickingShortcutDraft, pickpocketShortcutDraft, engine.snapshot.settings.emergencyStop];
+    const bindings = [shortcutDraft, pickpocketShortcutDraft, engine.snapshot.settings.emergencyStop];
     if (bindings.some((binding, index) => bindings.slice(index + 1).some(other => sameHotkey(binding, other)))) {
       settingsError = "Each activity and emergency stop must use a different shortcut.";
       return;
@@ -568,7 +591,6 @@
       await engine.saveSettings({
         ...engine.snapshot.settings,
         startStop: cloneHotkey(shortcutDraft),
-        lockpickingStartStop: cloneHotkey(lockpickingShortcutDraft),
         pickpocketStartStop: cloneHotkey(pickpocketShortcutDraft),
         routine: cloneRoutine(draft),
       });
@@ -733,14 +755,15 @@
   <div class="titlebar" role="group" aria-label="Window controls" onpointerdown={startDragging}>
     <div class="brand">
       <div class="mark" aria-hidden="true"><img src={brandIcon} alt="" /></div>
-      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
+      <span class="brand__name">CuePilot</span>
+      {#if developmentBuild}<strong class="brand__dev">DEV</strong>{/if}
+      <button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button>
     </div>
     <div class="top-actions">
-      <button aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={15} /></button>
-      <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
-      <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
-      <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
-      <button class="close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
+      <div class:offline={!engine.connected} class="engine-pill"><span class="engine-pill__dot" aria-hidden="true">{#if engine.connected}<i class="live-ring" use:phaseLock></i>{/if}</span>{engine.connected ? "Engine online" : "Connecting…"}</div>
+      <button class="window-button" aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
+      <button class="window-button" aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Square size={13} /></button>
+      <button class="window-button close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
     </div>
   </div>
 
@@ -750,45 +773,81 @@
     <i class="rail__divider" aria-hidden="true"></i>
     {#each activities as activity (activity.id)}
       <button class="rail__item" data-rail={activity.id} class:active={selectedActivity === activity.id} aria-current={selectedActivity === activity.id ? "page" : undefined} aria-label={`Switch to ${activity.shortName}`} title={activity.name} onclick={() => selectActivity(activity.id)} disabled={!!runPending || selectedActivity === activity.id}>
-        {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else if activity.id === "pickpocket"}<Hand size={18} strokeWidth={1.8} />{:else}<KeyRound size={18} strokeWidth={1.8} />{/if}
-        <span>{activity.id === "fishing" ? "Fish" : activity.id === "pickpocket" ? "Pocket" : "Lock"}</span>
-        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"></b>{/if}
+        {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else}<Hand size={18} strokeWidth={1.8} />{/if}
+        <span>{activity.id === "fishing" ? "Fish" : "Pocket"}</span>
+        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"><i class="live-ring" use:phaseLock></i></b>{/if}
       </button>
     {/each}
+    <i class="rail__divider" aria-hidden="true"></i>
+    <button class="rail__item rail__item--utility" aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={17} strokeWidth={1.8} /></button>
   </nav>
+  {#key selectedActivity}
   <div class="app-content">
 
   {#if currentActivity}
-  <div class="workspace-header">
-    <nav class="workspace-path" aria-label="Activity navigation">
-      <button onclick={returnToActivities} disabled={!!runPending}><ArrowLeft size={14} strokeWidth={2} /> Activities</button>
-      <ChevronRight size={12} aria-hidden="true" />
-      <span aria-current="page">{currentActivity.shortName}</span>
-    </nav>
+  <div class="workspace-header" class:with-views={selectedActivity === "pickpocket"}>
+    <div class="workspace-heading">
+      <h2 class="workspace-title">{currentActivity.name}</h2>
+      {#if selectedActivity === "pickpocket"}
+        <span class={`status-pill input-badge ${pickpocketBadge.tone}`} role="status"><i aria-hidden="true"></i>{pickpocketBadge.label}</span>
+      {:else}
+        <span class={`status-pill ${workspaceStatus.tone}`}><i aria-hidden="true"></i>{workspaceStatus.label}</span>
+      {/if}
+    </div>
+    {#if selectedActivity === "pickpocket"}
+      <nav class="segmented workspace-views" aria-label="Pickpocket workspace">
+        <button class:active={pickpocketView === "live"} aria-pressed={pickpocketView === "live"} onclick={() => showPickpocketView("live")}>Live</button>
+        <button class:active={pickpocketView === "history"} aria-pressed={pickpocketView === "history"} onclick={() => showPickpocketView("history")}>History</button>
+        <button class:active={pickpocketView === "reference"} aria-pressed={pickpocketView === "reference"} onclick={() => showPickpocketView("reference")} disabled={pickpocketObserving} title={pickpocketObserving ? "Stop observing to open the reference" : undefined}>Reference</button>
+      </nav>
+    {/if}
     <div class="workspace-tools" role="group" aria-label="Workspace tools">
-      <button bind:this={targetButton} class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
-        <Monitor size={14} /><span>{selectingTarget ? "Scanning…" : targetValid ? "FiveM selected" : "Select FiveM"}</span>
+      <button bind:this={targetButton} class="target-chip" class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
+        <Monitor size={15} class="target-chip__icon" /><span class="target-chip__name">{selectingTarget ? "Scanning…" : targetValid ? (target?.processName || "FiveM selected") : "Select FiveM"}</span><i class="target-chip__dot" aria-hidden="true"></i><ChevronDown size={14} class="target-chip__chevron" />
       </button>
-      <button bind:this={settingsButton} onclick={openSettings} disabled={anyActivityRunning || !!runPending || !engine.connected || !engine.snapshot}><Settings2 size={14} /> Settings</button>
-      <button bind:this={diagnosticsButton} aria-label="Open diagnostics" onclick={inspectDiagnostics}><FolderOpen size={14} /> Diagnostics</button>
+      <button bind:this={settingsButton} onclick={openSettings} disabled={anyActivityRunning || !!runPending || !engine.connected || !engine.snapshot}><Settings2 size={15} /> Settings</button>
+      <button bind:this={diagnosticsButton} aria-label="Open diagnostics" onclick={inspectDiagnostics}><FolderOpen size={15} /> Diagnostics</button>
     </div>
   </div>
   {/if}
 
   {#if selectedActivity === null}
-    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} onselect={selectActivity} />
+    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} shortcuts={{ fishing: hotkeyDisplay(engine.snapshot?.settings.startStop ?? defaultShortcuts.fishing), pickpocket: hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket) }} onselect={selectActivity} />
   {:else if fishingSelected}
 
-  <section class="hero" aria-labelledby="state-heading">
-    <div class="hero-copy">
+  <section class="fishing-hero" aria-labelledby="state-heading">
+    <div class="fishing-hero__copy">
       {#key hero.title}
-        <div class="hero-state" in:fly={{ y: reduceMotion ? 0 : 6, duration: reduceMotion ? 0 : 220 }} out:fade={{ duration: reduceMotion ? 0 : 110 }}>
-          <p class="eyebrow"><Activity size={14} strokeWidth={1.9} /> {hero.context}</p>
-          <h1 id="state-heading" class="state-title">{hero.title}</h1>
-          <p class="detail" aria-live="polite">{hero.detail}</p>
+        <div class="hero-state" in:enter={"swap"} out:leave={"swap"}>
+          <p class="fishing-hero__context">{hero.context}</p>
+          <h1 id="state-heading" class="fishing-hero__title">{hero.title}</h1>
+          <p class="fishing-hero__detail" aria-live="polite">{hero.detail}</p>
         </div>
       {/key}
-      {#if engine.error}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 160 }}><AlertTriangle size={15} strokeWidth={1.9} /> {engine.error}</p>{/if}
+      {#if engine.error}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {engine.error}</p>{/if}
+      <div class="fishing-hero__actions">
+        <button
+          class:stop={active}
+          class:loading={!!runPending}
+          class="primary-action run-action"
+          onclick={toggleRun}
+          disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
+        >
+          {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
+          {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
+          {:else if active}<OctagonX size={16} strokeWidth={1.9} /> Stop Fishing
+          {:else}<Play size={14} fill="currentColor" /> Start Fishing{/if}
+          <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
+        </button>
+        <button
+          class:loading={verifyingSetup}
+          class="sub-action fishing-verify"
+          onclick={verifySetup}
+          disabled={active || verifyingSetup || selectingTarget || !!runPending || !engine.connected}
+        >
+          {#if verifyingSetup}<RefreshCw size={16} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={16} strokeWidth={1.9} /> Verify setup{/if}
+        </button>
+      </div>
     </div>
     <div
       class:running={active}
@@ -806,122 +865,61 @@
       <div class="orbit-ticks" aria-hidden="true"></div>
       <div class="orbit-ring"></div>
       <div class="orbit-ring orbit-ring--inner"></div>
-      <div class="orbit-core"><strong>{confidence}%</strong><span>{gaugeLabel}</span></div>
+      {#if active}<i class="live-ring" use:phaseLock></i>{/if}
+      <div class="orbit-core"><strong>{displayedConfidence}%</strong><span>{gaugeLabel}</span></div>
     </div>
   </section>
 
-  <div class="fishing-body">
-  <section class="instrument" aria-label="Live engine telemetry">
-    <article class="target-card">
-      <header class="target-card__header">
-        <div class="card-kicker"><Crosshair size={14} strokeWidth={1.9} /> Game target</div>
-        <div class="target-card__actions">
-          <button
-            class:loading={verifyingSetup}
-            class="target-button target-button--verify"
-            onclick={verifySetup}
-            disabled={active || verifyingSetup || selectingTarget || !!runPending || !engine.connected}
-          >
-            {#if verifyingSetup}<RefreshCw size={14} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={14} strokeWidth={1.9} /> Verify setup{/if}
-          </button>
-        </div>
-      </header>
-      <div class="target-copy">
-        <strong>{target?.processName || "No target selected"}</strong>
-        <span class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
-      </div>
-      {#if setupVerification}
-        <div class:ready={setupVerification.ready} class="setup-check" aria-live="polite">
-          <strong>{setupVerification.ready ? "Setup verified" : "Setup needs attention"}</strong>
-          <span>{setupVerification.detail}</span>
-          <small>Target {setupVerification.target.passed ? "ready" : "blocked"} · Input {setupVerification.input.passed ? "ready" : "blocked"} · Capture {setupVerification.capture.passed ? "ready" : "blocked"}</small>
-        </div>
-      {/if}
-    </article>
-    <aside class="telemetry" aria-label="Compact telemetry">
-      <div class="metric">
-        <span>Samples</span>
-        <strong>{engine.status.sampleCount.toLocaleString()}</strong>
-        <small>Detector frames</small>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="metric">
-        <span>Input mode</span>
-        <strong>{engine.snapshot?.settings.routine.inputMode || "—"}</strong>
-        <small>{engine.connected ? "Local delivery" : "Waiting for engine"}</small>
-      </div>
-    </aside>
-  </section>
-
-  <aside class="fishing-run" aria-label="Routine controls">
-  <section class="cycle" aria-label="Routine cycle">
-    {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
+  <section class="fishing-steps" aria-label="Routine cycle">
+    {#each ["Target", "Cast line", "Cast bar", "Tension", "Collect"] as step, index}
       {@const stepState = cycleStepState(index)}
       <div
         class:complete={stepState === "complete"}
         class:current={stepState === "active" || stepState === "ready" || stepState === "fault"}
         class:live={stepState === "active"}
-        class:ready={stepState === "ready"}
         class:fault={stepState === "fault"}
-        class="cycle-step"
+        class="fishing-step"
         aria-current={stepState === "active" || stepState === "ready" || stepState === "fault" ? "step" : undefined}
         aria-label={`${step}: ${stepState}`}
       >
-        <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
-        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{/if}</span>
-        <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
+        <span class="fishing-step__marker" aria-hidden="true">{#if stepState === "complete"}<Check size={11} strokeWidth={2.6} />{:else}{index + 1}{/if}{#if stepState === "active"}<i class="live-ring" use:phaseLock></i>{/if}</span>
+        <span class="fishing-step__copy"><span class="fishing-step__label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
       </div>
     {/each}
   </section>
 
-  <section class="actions fishing-actions">
-    <button
-      class:stop={active}
-      class:loading={!!runPending}
-      class="primary-action run-action"
-      onclick={toggleRun}
-      disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
-      aria-describedby="run-action-hint"
-    >
-      {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
-      {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
-      {:else if active}<Square size={14} fill="currentColor" /> Stop Fishing
-      {:else}<Play size={16} fill="currentColor" /> Start Fishing{/if}
-      <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
-    </button>
-    <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
-  </section>
-  </aside>
+  <div class="fishing-cards">
+    <article class="fishing-card" aria-labelledby="fishing-target-title">
+      <h3 id="fishing-target-title" class="fishing-card__title"><Crosshair size={14} strokeWidth={1.9} /> Game target</h3>
+      <strong class="fishing-card__process">{target?.processName || "No target selected"}</strong>
+      <span class="fishing-card__window" class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
+      <div class="setup-chips" aria-live="polite" aria-label={!setupVerification ? "Setup not verified" : setupVerification.ready ? "Setup verified" : "Setup needs attention"}>
+        {#each setupChecks as check (check.label)}<span class={`setup-chip ${check.tone}`}><i aria-hidden="true"></i>{check.label}</span>{/each}
+      </div>
+      {#if setupVerification && !setupVerification.ready}<span class="fishing-card__note">{setupVerification.detail}</span>{/if}
+    </article>
+    <article class="fishing-card fishing-card--telemetry" aria-labelledby="fishing-telemetry-title">
+      <h3 id="fishing-telemetry-title" class="fishing-card__title"><Activity size={14} strokeWidth={1.9} /> Telemetry</h3>
+      <div class="fishing-metric"><span>Detector frames</span><strong>{engine.status.sampleCount.toLocaleString()}</strong></div>
+      <div class="fishing-metric"><span>Input mode</span><strong class="fishing-metric__text">{engine.snapshot?.settings.routine.inputMode || "—"}</strong></div>
+    </article>
+    <article class="fishing-card fishing-card--safety" aria-labelledby="fishing-safety-title">
+      <h3 id="fishing-safety-title" class="fishing-card__title"><ShieldCheck size={14} strokeWidth={1.9} /> Safe control</h3>
+      <kbd>Pause / Break</kbd>
+      <p>Always releases held input. Fishing input only reaches FiveM while it is in the foreground.</p>
+    </article>
   </div>
-
-  <footer class="status-footer">
-    <div class="safety-summary">
-      <ShieldCheck size={15} strokeWidth={1.9} />
-      <p><strong>Safe control</strong><i></i><kbd>Pause / Break</kbd> always releases input<i></i>FiveM must remain foreground</p>
-    </div>
-    <div class="system-status" aria-label="System status">
-      <span><i></i>Local only</span>
-      <b aria-hidden="true"></b>
-      <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
-    </div>
-  </footer>
-  {:else if selectedActivity === "pickpocket"}
+  {:else}
     <PickpocketWorkspace
+      bind:view={pickpocketView}
       shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
       onpolicy={async (policy, inputMode, timing) => { await engine.configurePickpocket(policy, inputMode, timing); }}
       status={engine.snapshot?.pickpocket} connected={engine.connected} {targetValid}
       error={engine.error}
       onmode={async (mode, policy, inputMode) => { await engine.setPickpocket(mode, policy, inputMode); }} />
-  {:else}
-    <LockpickingWorkspace
-      connected={engine.connected}
-      error={engine.error}
-      {targetValid}
-      status={engine.snapshot?.lockpicking ?? stoppedLockpicking}
-      onmode={async (mode) => { await engine.setLockpicking(mode); }}
-    />
   {/if}
   </div>
+  {/key}
   </div>
       {#if targetPickerOpen}
         <div
@@ -931,7 +929,7 @@
           role="dialog"
           aria-label="Available FiveM windows"
           tabindex="-1"
-          transition:fly={{ y: reduceMotion ? 0 : -5, duration: reduceMotion ? 0 : 170 }}
+          in:enter={"menu"} out:leave={"menu"}
         >
           <header class="target-picker__header">
             <div>
@@ -986,62 +984,44 @@
 
 </main>
 
-<UpdateCenter automationActive={active || engine.snapshot?.lockpicking.observing === true || engine.snapshot?.pickpocket?.observing === true} />
+<UpdateCenter automationActive={active || engine.snapshot?.pickpocket?.observing === true} />
 
-{#if showSettings && draft && shortcutDraft && lockpickingShortcutDraft && pickpocketShortcutDraft}
-  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
-  <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
+{#if showSettings && draft && shortcutDraft && pickpocketShortcutDraft}
+  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} in:enter={"scrim"} out:leave={"scrim"}></div>
+  <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} in:enter={"drawer"} out:leave={"drawer"}>
     <header class="panel-header">
-      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : selectedActivity === "pickpocket" ? "Pickpocket profile" : "Lockpicking profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : selectedActivity === "pickpocket" ? "Pickpocket controls" : "Lockpicking controls"}</h2></div>
-      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
+      <div><p class="panel-kicker">{fishingSelected ? "Fishing profile" : "Pickpocket profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Pickpocket controls"}</h2></div>
+      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={16} strokeWidth={2.2} class="icon" /></button>
     </header>
-    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : selectedActivity === "pickpocket" ? "Choose your in-game start/stop toggle. The selected run mode and target apply to both the button and shortcut." : "Review the shortcut reserved for Class C. Automated lockpicking remains unavailable until calibration evidence passes its release gate."}</p>
-    <p class:visible={settingsDirty} class="settings-change-note" aria-live="polite"><i></i>{settingsDirty ? "Unsaved changes" : "Profile is up to date"}</p>
 
-    {#if fishingSelected}<nav class="settings-view-tabs" aria-label="Settings view"><button aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
+    {#if fishingSelected}<nav class="segmented segmented--inset segmented--fill settings-view-tabs" aria-label="Settings view"><button class:active={!settingsAdvanced} aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button class:active={settingsAdvanced} aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
     <div class="settings-content">
     {#if !settingsAdvanced || !fishingSelected}
-    <div class="settings-tier"><strong>Basic</strong><span>{fishingSelected ? "The controls most people need." : "In-game shortcut preference."}</span></div>
     {#if fishingSelected}
       <section class="settings-group shortcut-setting" aria-labelledby="shortcut-heading">
         <header class="settings-group__header">
-          <div><p>Global control</p><h3 id="shortcut-heading">Fishing Start / Stop shortcut</h3></div>
+          <h3 id="shortcut-heading">Start / Stop shortcut</h3>
           <span>{hotkeyDisplay(shortcutDraft)}</span>
         </header>
         <HotkeyCapture
           bind:value={shortcutDraft}
           label="Fishing start and stop shortcut"
-          title="Toggle Fishing from FiveM"
-          description="Press once to start. Press again to stop and release input."
+          descriptionId="settings-description"
+          description="Press once in FiveM to start, again to stop and release input. F8, Esc, Windows, and left/right click can't be bound."
           defaultBinding={defaultShortcuts.fishing}
           taken={takenShortcuts("fishing")}
         />
       </section>
-    {:else if selectedActivity === "pickpocket"}
+    {:else}
       <section class="settings-group shortcut-setting" aria-labelledby="pickpocket-shortcut-heading">
-        <header class="settings-group__header"><div><p>Global control</p><h3 id="pickpocket-shortcut-heading">Pickpocket Start / Stop shortcut</h3></div><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
+        <header class="settings-group__header"><h3 id="pickpocket-shortcut-heading">Start / Stop shortcut</h3><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
         <HotkeyCapture
           bind:value={pickpocketShortcutDraft}
           label="Pickpocket start and stop shortcut"
-          title="Toggle Pickpocket from FiveM"
+          descriptionId="settings-description"
           description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
           defaultBinding={defaultShortcuts.pickpocket}
           taken={takenShortcuts("pickpocket")}
-        />
-      </section>
-    {:else}
-      <section class="settings-group shortcut-setting" aria-labelledby="lockpicking-shortcut-heading">
-        <header class="settings-group__header">
-          <div><p>Future control</p><h3 id="lockpicking-shortcut-heading">Reserved Class C shortcut</h3></div>
-          <span>{hotkeyDisplay(lockpickingShortcutDraft)}</span>
-        </header>
-        <HotkeyCapture
-          bind:value={lockpickingShortcutDraft}
-          label="Reserved Class C shortcut"
-          title="Reserved Class C shortcut"
-          description="Class C input is unavailable until the evidence gate passes. This binding is saved for that future release."
-          defaultBinding={defaultShortcuts.lockpicking}
-          taken={takenShortcuts("lockpicking")}
         />
       </section>
     {/if}
@@ -1049,22 +1029,26 @@
     {#if fishingSelected}
     <section class="settings-group" aria-labelledby="tension-heading">
       <header class="settings-group__header">
-        <div><p>Control window</p><h3 id="tension-heading">Tension envelope</h3></div>
-        <span>{draft.fishingLowerTensionPercent}–{draft.fishingUpperTensionPercent}%</span>
+        <h3 id="tension-heading">Tension envelope</h3>
+        <span class="settings-group__range">{draft.fishingLowerTensionPercent}–{draft.fishingUpperTensionPercent}%</span>
       </header>
+      <div class="tension-track" aria-hidden="true">
+        <span class="tension-track__fill" style:left={`${percent(draft.fishingLowerTensionPercent)}%`} style:width={`${Math.max(0, percent(draft.fishingUpperTensionPercent) - percent(draft.fishingLowerTensionPercent))}%`}></span>
+        <i style:left={`${percent(draft.fishingLowerTensionPercent)}%`}></i><i style:left={`${percent(draft.fishingUpperTensionPercent)}%`}></i>
+      </div>
+      <div class="tension-scale" aria-hidden="true"><span>0</span><span>50</span><span>100%</span></div>
       <div class="form-grid form-grid--tension">
-        <label><span class="field-label">Pulse threshold</span><span class="field-control"><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>%</small></span><small class="field-help">CuePilot begins adding tension below this level.</small></label>
-        <label><span class="field-label">Target tension</span><span class="field-control"><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>%</small></span><small class="field-help">The safe upper edge CuePilot aims to stay under.</small></label>
+        <label><span class="field-label">Pulse threshold</span><span class="field-control" class:changed={lowerChanged}><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>{lowerChanged ? `% · was ${savedRoutine?.fishingLowerTensionPercent}` : "%"}</small></span><small class="field-help">Adds tension below this.</small></label>
+        <label><span class="field-label">Target tension</span><span class="field-control" class:changed={upperChanged}><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>{upperChanged ? `% · was ${savedRoutine?.fishingUpperTensionPercent}` : "%"}</small></span><small class="field-help">Upper edge to stay under.</small></label>
       </div>
     </section>
 
     {/if}
     {/if}
     {#if fishingSelected && settingsAdvanced}
-    <div class="settings-tier settings-tier--advanced"><strong>Advanced</strong><span>Timing and delivery guardrails. Defaults are recommended unless detection evidence shows a problem.</span></div>
     <section class="settings-group" aria-labelledby="timing-heading">
       <header class="settings-group__header">
-        <div><p>Timing guardrails</p><h3 id="timing-heading">Control cadence</h3></div>
+        <h3 id="timing-heading">Control cadence</h3>
         <span>{draft.fishingSampleMilliseconds} ms sample</span>
       </header>
       <div class="form-grid">
@@ -1095,7 +1079,7 @@
           <ChevronDown size={15} strokeWidth={2} class="delivery-chevron" />
         </button>
         {#if deliveryOpen}
-          <div id="delivery-menu" class="delivery-menu" role="listbox" aria-label="Input delivery" transition:fly={{ y: reduceMotion ? 0 : -4, duration: reduceMotion ? 0 : 150 }}>
+          <div id="delivery-menu" class="delivery-menu" role="listbox" aria-label="Input delivery" in:enter={"menu"} out:leave={"menu"}>
             {#each deliveryOptions as option, index}
               <button
                 type="button"
@@ -1122,18 +1106,18 @@
     {/if}
     <NotificationSettings />
     </div>
-    {#if settingsError}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 150 }}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
-    <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
+    {#if settingsError}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
+    <div class="panel-actions"><p class="unsaved-count" aria-live="polite">{#if unsavedCount}<i aria-hidden="true"></i>{unsavedCount} unsaved {unsavedCount === 1 ? "change" : "changes"}{/if}</p><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
   </div>
 {/if}
 
 {#if showDiagnostics}
-  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
-  <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
+  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} in:enter={"scrim"} out:leave={"scrim"}></div>
+  <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} in:enter={"drawer"} out:leave={"drawer"}>
     <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" title="Close detection review" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
     <p class="panel-copy" id="diagnostics-description">Review build health and saved sessions. Choose an attempt to inspect its decisions or export a local report.</p>
     <div class="diagnostics-scroll">
-    <SupportCenter connected={engine.connected} engineVersion={engine.snapshot?.engineVersion} initialActivity={selectedActivity === "vehicle-lockpicking" ? "lockpicking" : selectedActivity ?? "pickpocket"} />
+    <SupportCenter connected={engine.connected} engineVersion={engine.snapshot?.engineVersion} initialActivity={selectedActivity ?? "pickpocket"} />
     {#if fishingSelected}
     {#if diagnosticsLoading && !diagnostics}
       <div class="empty-state diagnostics-empty"><RefreshCw size={16} class="spin" /> Loading diagnostics…</div>
@@ -1265,7 +1249,7 @@
 {/if}
 
 {#if notice}
-  <div class:info={notice.tone === "info"} class="status-toast" role="status" aria-live="polite" transition:fly={{ y: reduceMotion ? 0 : 8, duration: reduceMotion ? 0 : 180 }}>
+  <div class:info={notice.tone === "info"} class="status-toast" role="status" aria-live="polite" in:enter={"toast"} out:leave={"toast"}>
     <span>{#if notice.tone === "success"}<Check size={14} strokeWidth={2.4} />{:else}<Radio size={14} strokeWidth={2} />{/if}</span>
     <p>{notice.message}</p>
   </div>

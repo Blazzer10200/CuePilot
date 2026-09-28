@@ -11,7 +11,7 @@ CuePilot has three runtime layers. Keep their responsibilities separate so UI wo
 The layers communicate through the versioned newline-JSON bridge. A bridge change is complete only when its .NET command/response, Rust transport, Svelte client, and focused tests agree.
 
 Use the [documentation index](README.md) to choose a guide and the task-oriented
-[code map](code-map.md) before broad searches. It lists the Fishing, Lockpicking,
+[code map](code-map.md) before broad searches. It lists the Fishing,
 Pickpocket, bridge, UI, and packaging call paths plus their matching tests.
 
 ## Prerequisites
@@ -149,21 +149,6 @@ dotnet run --project .\CuePilot.csproj -- --replay-fishing .\tests\CuePilot.Test
 Replay reports each frame's current decision and named gate. A confirmed frame that the current detector rejects returns a nonzero exit code, providing a deterministic regression loop without reopening FiveM.
 
 `--replay-fishing` accepts an ordered directory of PNG/JPEG frames and reuses the live prompt-state and meter tracker without creating a routine or input router. It prints only state changes plus a summary, making it appropriate for daylight/video regression checks.
-
-### Vehicle Lockpicking observation and Class C evidence gate
-
-Start Lockpicking from its workspace. `Observe only` reuses the selected FiveM window and shared capture backend without sending input. Class C input is intentionally unavailable while saved concurrent-target evidence cannot prove every literal label. The workspace reports the HUD boundary, target/ring evidence, confidence, predicted action, capture timing, and observation state.
-
-Starting Observe arms a waiting state and resumes capture when FiveM is foreground. Pause / Break, focus loss, capture failure, HUD disappearance, and uncertain states stop observation rather than guessing. Do not map the saved Class C timing evidence to A, B, or D.
-
-Per-session saves cap non-numbered transitions at 72 frames, numbered evidence at 180 frames, and SPIN crops at 30 frames under `%LOCALAPPDATA%\CuePilot\diagnostics\lockpicking\<session-id>`. Image encoding, JSONL appends, and the optional target-trace detector run on a bounded background writer instead of the capture loop. Target traces are sampled at no more than 10 Hz and 900 frames per session. Cross-session retention keeps the newest eight sessions within a 500 MB total ceiling; cleanup is best-effort and runs when a new session starts. Each JSONL entry includes the source frame and crop bounds, capture timing, frame age/batch, and cursor-derived spin telemetry. Replay any saved or fixture frame through the same production detector:
-
-```powershell
-dotnet run --project .\CuePilot.csproj -- --analyze-lockpicking C:\path\to\full-frame.jpg
-dotnet run --project .\CuePilot.csproj -- --replay-lockpicking C:\path\to\ordered-frames --fps 30
-```
-
-Before promoting another vehicle class, capture its own complete numbered and SPIN evidence, add regression fixtures, and calibrate its cadence independently. OPEN remains a terminal visual state unless direct evidence proves another required action.
 
 ### Launch timing
 

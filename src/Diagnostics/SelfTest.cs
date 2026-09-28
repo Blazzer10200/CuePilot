@@ -15,7 +15,6 @@ internal static class SelfTest
             var defaults = AppSettings.Defaults();
             if (!SettingsStore.IsValid(defaults)
                 || defaults.StartStop.DisplayText != "F10"
-                || defaults.LockpickingStartStop.DisplayText != "F9"
                 || defaults.EmergencyStop.DisplayText != "PAUSE / BREAK")
                 throw new InvalidOperationException("Global shortcut defaults are invalid.");
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.3.16 - 2026-09-28 - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup
+
+- New interface pass across the whole app: a sentence-case title bar with an engine status pill, a slimmer side rail with Diagnostics, and a workspace header that shows the activity's status and the FiveM window in one row.
+- Home lists activities as two-column cards with status pills, live shortcut keys, and an availability footer.
+- Fishing opens on a hero with the current state and the Run and Verify actions beside a larger gauge, followed by a five-step routine strip and target, telemetry and safety cards.
+- Pickpocket's Live, History and Reference views are tabs in the header. The live view fits the window without scrolling: current bar, precision controls, next attempt and the last result side by side.
+- Settings: Basic/Advanced toggle, a larger click-to-capture shortcut field, a tension range preview that marks changed values with their saved value, and a footer that counts unsaved changes.
+- Motion, text, type and radius now come from shared design tokens. Animations use one set of durations and easings, the gauge moves smoothly, and pulses stay in step. Looping animations pause while the window is idle; one-shot transitions no longer do.
+- Every control uses the same keyboard focus ring.
+
+- Pickpocket keeps tracking when the game animates or glitches the "TIME LEFT" header instead of losing the run: it tolerates a bounded 30-frame continuation as long as targets still match.
+- Removed the GPU scheduling priority boost from capture; it was preempting the game and causing hitching.
+- Vehicle Lockpicking is removed entirely (engine, tests, Tauri shell, Svelte UI, e2e, CDP inspection). Settings files carrying the old `lockpickingStartStop` shortcut still load.
+- The Tauri shell now installs its low-level mouse hook only when a mouse button is bound as a shortcut, instead of at startup.
+
 ## 5.3.15 - 2026-09-26 - Fishing samples the meter faster at the park
 
 - Once the meter is locked, Fishing captures only the meter's neighbourhood instead of the whole game window on every sample. On the GDI fallback path used at the state park that is a small screen copy instead of a full 2560x1440 one (about 27 ms per sample before).

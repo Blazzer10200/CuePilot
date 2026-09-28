@@ -46,7 +46,6 @@ pub(crate) struct EngineBridge {
     /// shortcuts pass through to the page instead of firing commands.
     capture_suspended: Arc<AtomicBool>,
     start_stop_shortcut: Arc<Mutex<Option<String>>>,
-    lockpicking_start_stop_shortcut: Arc<Mutex<Option<String>>>,
     pickpocket_start_stop_shortcut: Arc<Mutex<Option<String>>>,
     emergency_shortcut: Arc<Mutex<Option<String>>>,
 }
@@ -79,14 +78,9 @@ impl EngineBridge {
         self.shortcuts_enabled.store(enabled, Ordering::Relaxed);
     }
 
-    fn shortcut_slots(&self) -> [(&Mutex<Option<String>>, &'static str, &'static str); 4] {
+    fn shortcut_slots(&self) -> [(&Mutex<Option<String>>, &'static str, &'static str); 3] {
         [
             (&self.start_stop_shortcut, "F10", "Start / Stop"),
-            (
-                &self.lockpicking_start_stop_shortcut,
-                "F9",
-                "Lockpicking Start / Stop",
-            ),
             (&self.emergency_shortcut, "Pause", "Emergency stop"),
             (
                 &self.pickpocket_start_stop_shortcut,
@@ -140,7 +134,6 @@ impl EngineBridge {
     pub(crate) fn registered_shortcut(&self, command: &str) -> Option<String> {
         let (slot, fallback) = match command {
             "toggle" => (&self.start_stop_shortcut, "F10"),
-            "toggle_lockpicking_class_c" => (&self.lockpicking_start_stop_shortcut, "F9"),
             "stop" => (&self.emergency_shortcut, "Pause"),
             "toggle_pickpocket_observe" => (&self.pickpocket_start_stop_shortcut, "F7"),
             _ => return None,
@@ -167,8 +160,6 @@ impl EngineBridge {
         };
         if matches(&self.start_stop_shortcut) {
             Some("toggle")
-        } else if matches(&self.lockpicking_start_stop_shortcut) {
-            Some("toggle_lockpicking_class_c")
         } else if matches(&self.emergency_shortcut) {
             Some("stop")
         } else if matches(&self.pickpocket_start_stop_shortcut) {
@@ -180,12 +171,6 @@ impl EngineBridge {
 
     pub(crate) fn register_default_shortcuts(&self, app: &AppHandle) {
         register_initial_shortcut(app, &self.start_stop_shortcut, "F10", "Start / Stop");
-        register_initial_shortcut(
-            app,
-            &self.lockpicking_start_stop_shortcut,
-            "F9",
-            "Lockpicking Start / Stop",
-        );
         register_initial_shortcut(app, &self.emergency_shortcut, "Pause", "Emergency stop");
         register_initial_shortcut(
             app,
@@ -432,8 +417,6 @@ impl EngineBridge {
         }
         if shortcut_matches(&self.start_stop_shortcut, "F10", shortcut) {
             Some("toggle")
-        } else if shortcut_matches(&self.lockpicking_start_stop_shortcut, "F9", shortcut) {
-            Some("toggle_lockpicking_class_c")
         } else if shortcut_matches(&self.emergency_shortcut, "Pause", shortcut) {
             Some("stop")
         } else if shortcut_matches(&self.pickpocket_start_stop_shortcut, "F7", shortcut) {
@@ -461,12 +444,6 @@ impl EngineBridge {
             &self.start_stop_shortcut,
             settings.get("startStop"),
             "Start / Stop",
-        );
-        sync_registered_shortcut(
-            app,
-            &self.lockpicking_start_stop_shortcut,
-            settings.get("lockpickingStartStop"),
-            "Lockpicking Start / Stop",
         );
         sync_registered_shortcut(
             app,
@@ -571,6 +548,10 @@ fn sync_registered_shortcut(
     }
     if is_mouse_shortcut(&shortcut) {
         *registered = Some(shortcut);
+        // The low-level hook sees every mouse event system-wide, so it is only
+        // installed once a mouse button is actually bound. Idempotent.
+        #[cfg(windows)]
+        crate::mouse_shortcuts::install(app.clone());
         return;
     }
     match shortcuts.register(shortcut.as_str()) {
@@ -790,19 +771,13 @@ mod tests {
         let bridge = EngineBridge::default();
         bridge.set_shortcuts_enabled(true);
         *bridge.start_stop_shortcut.lock().unwrap() = Some("F11".into());
-        *bridge.lockpicking_start_stop_shortcut.lock().unwrap() = Some("F9".into());
         *bridge.emergency_shortcut.lock().unwrap() = Some("Pause".into());
 
         let start_stop = Shortcut::from_str("F11").unwrap();
-        let lockpicking_start_stop = Shortcut::from_str("F9").unwrap();
         let emergency = Shortcut::from_str("Pause").unwrap();
         let unrelated = Shortcut::from_str("F10").unwrap();
 
         assert_eq!(bridge.command_for_shortcut(&start_stop), Some("toggle"));
-        assert_eq!(
-            bridge.command_for_shortcut(&lockpicking_start_stop),
-            Some("toggle_lockpicking_class_c")
-        );
         assert_eq!(bridge.command_for_shortcut(&emergency), Some("stop"));
         assert_eq!(bridge.command_for_shortcut(&unrelated), None);
     }
@@ -812,11 +787,9 @@ mod tests {
         let bridge = EngineBridge::default();
         bridge.set_shortcuts_enabled(false);
         let start_stop = Shortcut::from_str("F10").unwrap();
-        let lockpicking_start_stop = Shortcut::from_str("F9").unwrap();
         let emergency = Shortcut::from_str("Pause").unwrap();
 
         assert_eq!(bridge.command_for_shortcut(&start_stop), None);
-        assert_eq!(bridge.command_for_shortcut(&lockpicking_start_stop), None);
         assert_eq!(bridge.command_for_shortcut(&emergency), None);
         assert_eq!(
             bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),

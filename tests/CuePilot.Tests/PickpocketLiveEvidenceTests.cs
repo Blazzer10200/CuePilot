@@ -31,6 +31,36 @@ public sealed class PickpocketLiveEvidenceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void GlitchedStatusHeaderKeepsTheTrackedPanelOnlyWhileTargetsMatch()
+    {
+        // 2026-09-28 11:05Z: the game's animated "TIME LEFT" header broke the
+        // header match every ~250 ms mid-sweep, resetting the tracker until the
+        // Purple center had passed. Pairs are (clean, glitched) from that session.
+        foreach (var (clean, glitched) in new[] { ("085", "087"), ("097", "101") })
+        {
+            using var before = new Bitmap(Path.Combine(DirectoryPath, $"header-glitch-{clean}.png"));
+            using var frame = new Bitmap(Path.Combine(DirectoryPath, $"header-glitch-{glitched}.png"));
+            var prior = PickpocketDetector.Analyze(before);
+            Assert.Equal(PickpocketVisualState.Active, prior.State);
+            // Acquisition still requires a readable header.
+            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame).State);
+
+            var tracked = PickpocketDetector.Analyze(frame, previous: prior);
+            Assert.Equal(PickpocketVisualState.Active, tracked.State);
+            Assert.Equal(1, tracked.HeaderlessFrames);
+            Assert.Equal(prior.Bar, tracked.Bar);
+            Assert.InRange(tracked.MarkerX, prior.MarkerX, prior.MarkerX + 60);
+            var purple = Assert.Single(prior.Bands, b => b.Color == PickpocketBandColor.Purple);
+            Assert.InRange(Assert.Single(tracked.Bands, b => b.Color == PickpocketBandColor.Purple).Center, purple.Center - 2, purple.Center + 2);
+
+            // Moved targets, or an exhausted header-less run, cannot continue.
+            var moved = prior with { Bands = prior.Bands.Select(b => b with { Left = b.Left + 20, Right = b.Right + 20 }).ToArray() };
+            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame, previous: moved).State);
+            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame, previous: prior with { HeaderlessFrames = 30 }).State);
+        }
+    }
+
+    [Fact]
     public void ThirdLivePixelsPreserveOnlyTheMarkerOccludedEdge()
     {
         using var before = new Bitmap(Path.Combine(DirectoryPath, "third-117.png"));

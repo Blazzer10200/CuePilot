@@ -49,7 +49,6 @@ internal sealed class AppSettings
     public int FormatVersion { get; set; } = 9;
     public string SelectedProfile { get; set; } = "fishing";
     public HotkeyBinding StartStop { get; set; } = DefaultStartStop();
-    public HotkeyBinding LockpickingStartStop { get; set; } = DefaultLockpickingStartStop();
     public HotkeyBinding PickpocketStartStop { get; set; } = new() { Key = "F7" };
     public HotkeyBinding EmergencyStop { get; set; } = DefaultEmergencyStop();
     public FishingRoutineSettings Routine { get; set; } = new();
@@ -62,7 +61,6 @@ internal sealed class AppSettings
         FormatVersion = FormatVersion,
         SelectedProfile = SelectedProfile,
         StartStop = StartStop.Copy(),
-        LockpickingStartStop = LockpickingStartStop.Copy(),
         PickpocketStartStop = PickpocketStartStop.Copy(),
         EmergencyStop = EmergencyStop.Copy(),
         Routine = Routine.Copy(),
@@ -70,8 +68,6 @@ internal sealed class AppSettings
     };
 
     internal static HotkeyBinding DefaultStartStop() => new() { Key = "F10" };
-
-    internal static HotkeyBinding DefaultLockpickingStartStop() => new() { Key = "F9" };
 
     internal static HotkeyBinding DefaultEmergencyStop() => new() { Key = "Pause" };
 }
@@ -145,12 +141,11 @@ internal static class SettingsStore
         settings.Routine.TargetWindow ??= new WindowTargetSettings();
         settings.Routine.TargetWindow.WindowTitle = NormalizeLegacyWindowTitle(settings.Routine.TargetWindow.WindowTitle);
         settings.StartStop ??= AppSettings.DefaultStartStop();
-        settings.LockpickingStartStop ??= AppSettings.DefaultLockpickingStartStop();
         settings.EmergencyStop ??= AppSettings.DefaultEmergencyStop();
         if (!document.RootElement.TryGetProperty("pickpocketStartStop", out var pickpocketBinding) || pickpocketBinding.ValueKind == JsonValueKind.Null)
         {
             settings.PickpocketStartStop = new HotkeyBinding { Key = new[] { "F7", "F6", "F11", "F12", "F5" }
-                .First(key => !new[] { settings.StartStop, settings.LockpickingStartStop, settings.EmergencyStop }
+                .First(key => !new[] { settings.StartStop, settings.EmergencyStop }
                     .Any(binding => SameBinding(binding, new HotkeyBinding { Key = key }))) };
         }
         if (string.IsNullOrWhiteSpace(settings.SelectedProfile)) settings.SelectedProfile = "fishing";
@@ -172,16 +167,12 @@ internal static class SettingsStore
 
     internal static bool IsValid(AppSettings settings) =>
         IsValid(settings.StartStop)
-        && IsValid(settings.LockpickingStartStop)
         && IsValid(settings.EmergencyStop)
         && settings.PickpocketStartStop is not null && IsValid(settings.PickpocketStartStop)
         && !settings.PickpocketStartStop.Key.Equals("F8", StringComparison.OrdinalIgnoreCase)
         && !SameBinding(settings.PickpocketStartStop, settings.StartStop)
-        && !SameBinding(settings.PickpocketStartStop, settings.LockpickingStartStop)
         && !SameBinding(settings.PickpocketStartStop, settings.EmergencyStop)
-        && !SameBinding(settings.StartStop, settings.LockpickingStartStop)
-        && !SameBinding(settings.StartStop, settings.EmergencyStop)
-        && !SameBinding(settings.LockpickingStartStop, settings.EmergencyStop);
+        && !SameBinding(settings.StartStop, settings.EmergencyStop);
 
     // Bare modifiers and the Windows key can't be shortcuts; Escape is the capture
     // cancel key; left and right mouse buttons always stay with the game.

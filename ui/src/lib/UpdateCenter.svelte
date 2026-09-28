@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from "svelte";
-  import { fade, fly } from "svelte/transition";
+  import { enter, leave } from "./motion";
   import {
     AlertTriangle,
     CheckCircle2,
@@ -63,7 +63,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if updates.state === "available" && !updates.dismissed && !updates.dialogOpen}
-  <aside class="update-banner" aria-label="CuePilot update available" transition:fly={{ y: -8, duration: 180 }}>
+  <aside class="update-banner" aria-label="CuePilot update available" in:enter={"menu"} out:leave={"menu"}>
     <span><Download size={14} /></span>
     <p><strong>CuePilot v{updates.info?.version} is ready</strong><small>{updates.sizeLabel || "Update"} · installs after confirmation</small></p>
     <button type="button" class="review" onclick={() => updates.open()}>Review</button>
@@ -72,8 +72,8 @@
 {/if}
 
 {#if updates.dialogOpen}
-  <div class="update-backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && updates.close()} transition:fade={{ duration: 120 }}>
-    <div class="update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title" tabindex="-1" bind:this={dialog} transition:fly={{ y: 8, duration: 180 }}>
+  <div class="update-backdrop" role="presentation" onclick={(event) => event.target === event.currentTarget && updates.close()} in:enter={"scrim"} out:leave={"scrim"}>
+    <div class="update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-title" tabindex="-1" bind:this={dialog} in:enter={"toast"} out:leave={"toast"}>
       <header>
         <div><span>RELEASE CHANNEL</span><h2 id="update-title">CuePilot updates</h2></div>
         <button type="button" aria-label="Close updates" onclick={() => updates.close()} disabled={updates.state === "installing"}><X size={16} /></button>
@@ -187,7 +187,7 @@
   .update-hero p { max-width: 390px; margin: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
   .progress-number { color: var(--accent); font-size: 30px; }
   .progress-track { width: min(340px, 100%); height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .1); }
-  .progress-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width 160ms ease; }
+  .progress-track i { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width var(--dur-slow) var(--ease-out); }
   .release-notes { margin: 0 16px 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(32, 31, 30, .38); }
   .release-notes ul { margin: 9px 0 0; padding-left: 17px; color: #d6d5d4; font-size: 10.5px; line-height: 1.55; }
   .release-notes li + li { margin-top: 4px; }

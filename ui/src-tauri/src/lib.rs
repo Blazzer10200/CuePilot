@@ -124,13 +124,9 @@ fn engine_command(
         "snapshot"
         | "start"
         | "stop"
-        | "start_lockpicking_observe"
         | "start_pickpocket_observe"
         | "toggle_pickpocket_observe"
         | "stop_pickpocket_observe"
-        | "start_lockpicking_class_c"
-        | "toggle_lockpicking_class_c"
-        | "stop_lockpicking_observe"
         | "verify_setup"
         | "list_targets" => bridge.command(&app, &command, None, None),
         "select_target" if target_process_id.is_some() => {
@@ -380,8 +376,6 @@ pub fn run() {
             bridge.set_shortcuts_enabled(owns_global_shortcuts);
             if owns_global_shortcuts {
                 bridge.register_default_shortcuts(app.handle());
-                #[cfg(windows)]
-                mouse_shortcuts::install(app.handle().clone());
             }
             record_startup_phase("setup_end");
             // Normally the webview reports in about a tenth of a second later
