@@ -11,6 +11,7 @@
   import { activities, getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
   import PickpocketWorkspace from "./lib/activities/PickpocketWorkspace.svelte";
+  import { pickpocketSession, type PickpocketView } from "./lib/activities/pickpocket-session";
   import UpdateCenter from "./lib/UpdateCenter.svelte";
   import SupportCenter from "./lib/SupportCenter.svelte";
   import NotificationSettings from "./lib/NotificationSettings.svelte";
@@ -142,6 +143,23 @@
     if (!targetValid) return { label: "Select target", tone: "warning" };
     return { label: "Ready", tone: "success" };
   });
+  let pickpocketView = $state<PickpocketView>("live");
+  // The header badge needs a clock only while a cooldown is counting down.
+  let clock = $state(Date.now());
+  $effect(() => {
+    const until = engine.snapshot?.pickpocket?.cooldownUntilUnixMs ?? 0;
+    if (selectedActivity !== "pickpocket" || until <= Date.now()) return;
+    clock = Date.now();
+    const timer = setInterval(() => clock = Date.now(), 1000);
+    return () => clearInterval(timer);
+  });
+  const pickpocketBadge = $derived(pickpocketSession(engine.snapshot?.pickpocket, engine.connected, clock));
+  const pickpocketObserving = $derived(engine.connected && !!engine.snapshot?.pickpocket?.observing);
+  $effect(() => { if (pickpocketObserving && pickpocketView === "reference") pickpocketView = "live"; });
+  function showPickpocketView(next: PickpocketView) {
+    pickpocketView = next;
+    window.scrollTo({ top: 0 });
+  }
   const setupChecks = $derived((["target", "capture", "input"] as const).map((key) => {
     const name = key[0].toUpperCase() + key.slice(1);
     if (!setupVerification) return { label: `${name} unverified`, tone: "unverified" };
@@ -413,6 +431,7 @@
     closeTargetPicker(false);
     closePanels();
     homeFocusActivity = activityId;
+    pickpocketView = "live";
     selectedActivity = activityId;
     try { localStorage.setItem(lastActivityKey, activityId); } catch { /* Continue without navigation persistence. */ }
     window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -750,11 +769,22 @@
   <div class="app-content">
 
   {#if currentActivity}
-  <div class="workspace-header">
+  <div class="workspace-header" class:with-views={selectedActivity === "pickpocket"}>
     <div class="workspace-heading">
       <h2 class="workspace-title">{currentActivity.name}</h2>
-      <span class={`status-pill ${workspaceStatus.tone}`}><i aria-hidden="true"></i>{workspaceStatus.label}</span>
+      {#if selectedActivity === "pickpocket"}
+        <span class={`status-pill input-badge ${pickpocketBadge.tone}`} role="status"><i aria-hidden="true"></i>{pickpocketBadge.label}</span>
+      {:else}
+        <span class={`status-pill ${workspaceStatus.tone}`}><i aria-hidden="true"></i>{workspaceStatus.label}</span>
+      {/if}
     </div>
+    {#if selectedActivity === "pickpocket"}
+      <nav class="segmented workspace-views" aria-label="Pickpocket workspace">
+        <button class:active={pickpocketView === "live"} aria-pressed={pickpocketView === "live"} onclick={() => showPickpocketView("live")}>Live</button>
+        <button class:active={pickpocketView === "history"} aria-pressed={pickpocketView === "history"} onclick={() => showPickpocketView("history")}>History</button>
+        <button class:active={pickpocketView === "reference"} aria-pressed={pickpocketView === "reference"} onclick={() => showPickpocketView("reference")} disabled={pickpocketObserving} title={pickpocketObserving ? "Stop observing to open the reference" : undefined}>Reference</button>
+      </nav>
+    {/if}
     <div class="workspace-tools" role="group" aria-label="Workspace tools">
       <button bind:this={targetButton} class="target-chip" class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
         <Monitor size={15} class="target-chip__icon" /><span class="target-chip__name">{selectingTarget ? "Scanning…" : targetValid ? (target?.processName || "FiveM selected") : "Select FiveM"}</span><i class="target-chip__dot" aria-hidden="true"></i><ChevronDown size={14} class="target-chip__chevron" />
@@ -865,6 +895,7 @@
   </div>
   {:else}
     <PickpocketWorkspace
+      bind:view={pickpocketView}
       shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
       onpolicy={async (policy, inputMode, timing) => { await engine.configurePickpocket(policy, inputMode, timing); }}
       status={engine.snapshot?.pickpocket} connected={engine.connected} {targetValid}
