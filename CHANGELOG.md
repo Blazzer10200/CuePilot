@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Pickpocket reacts faster again. Removing the GPU priority boost in 5.3.16 made each capture queue behind the game's own frames: median capture went from ~3.5 ms to ~8.5 ms, the slowest frames from ~25 ms to over 60 ms old, and a thin red target was missed 5 px late. Capture now raises GPU priority only while the minigame is on screen and a shot is still possible, then drops it straight back. Fishing never raises it, so the hitching fix stays.
+
 ## 5.3.16 - 2026-09-28 - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup
 
 - New interface pass across the whole app: a sentence-case title bar with an engine status pill, a slimmer side rail with Diagnostics, and a workspace header that shows the activity's status and the FiveM window in one row.

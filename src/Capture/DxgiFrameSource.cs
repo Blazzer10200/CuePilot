@@ -20,8 +20,45 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
     private Size stagingSize;
     private Format stagingFormat;
     private Rectangle outputBounds;
+    private bool gpuPriorityRequested;
+    private bool gpuPriorityRaised;
 
     public string Name => "DXGI Desktop Duplication";
+
+    // At default priority each readback queues behind a GPU-bound game's frames: live
+    // Pickpocket capture went from ~3.5 ms median / 25 ms worst frame age with the raise
+    // to 8.5 ms median / 62 ms without it, and 23 frames missed the 40 ms timing gate
+    // (2026-09-28). Keeping the raise on for whole runs made the game and system hitch,
+    // so callers request it only for the few seconds that need it.
+    public void SetGpuPriority(bool raised)
+    {
+        if (gpuPriorityRequested == raised)
+        {
+            return;
+        }
+
+        gpuPriorityRequested = raised;
+        ApplyGpuPriority();
+    }
+
+    // Best-effort: HIGH needs elevation (CuePilot runs as admin). Without it capture
+    // still works, only slower under load, which the capture detail and timings show.
+    // Thread priority belongs to the device; the scheduling class belongs to the process
+    // and outlives the device, so it is always set back explicitly.
+    private void ApplyGpuPriority()
+    {
+        var threadRaised = false;
+        if (device is not null)
+        {
+            using var dxgiDevice = device.QueryInterface<IDXGIDevice>();
+            threadRaised = dxgiDevice.SetGPUThreadPriority(gpuPriorityRequested ? 7 : 0).Success && gpuPriorityRequested;
+        }
+
+        using var process = Process.GetCurrentProcess();
+        var scheduling = NativeMethods.D3DKMTSetProcessSchedulingPriorityClass(process.Handle,
+            gpuPriorityRequested ? NativeMethods.GpuSchedulingPriorityHigh : NativeMethods.GpuSchedulingPriorityNormal);
+        gpuPriorityRaised = threadRaised && scheduling == 0;
+    }
 
     public bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status)
     {
@@ -101,7 +138,8 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
                         var bitmap = CopyMapped(mapped, region.Size);
                         var frameAge = CalculateFrameAge(frameInfo.LastPresentTime);
                         status = new FrameSourceStatus(FrameSourceState.Ready, Name,
-                            "Desktop duplication frame ready.", frameAge, clock.Elapsed.TotalMilliseconds,
+                            gpuPriorityRaised ? "Desktop duplication frame ready; GPU priority raised." : "Desktop duplication frame ready.",
+                            frameAge, clock.Elapsed.TotalMilliseconds,
                             frameInfo.AccumulatedFrames,
                             frameInfo.LastPresentTime > 0 ? frameInfo.LastPresentTime * 1000d / Stopwatch.Frequency : null);
                         frame = new FrameLease(bitmap, status);
@@ -194,10 +232,12 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
             out device,
             out context).CheckError();
 
-        // GPU scheduling priority stays at the default on purpose. Raising it (thread
-        // priority 7 + process class HIGH, as OBS does when elevated) let each sample
-        // preempt the game mid-frame and was removed after the owner reported game and
-        // system hitching while CuePilot ran (2026-09-28).
+        // A recreated device starts at default thread priority.
+        if (gpuPriorityRequested)
+        {
+            ApplyGpuPriority();
+        }
+
         using var dxgiDevice = device!.QueryInterface<IDXGIDevice>();
         dxgiDevice.GetAdapter(out var adapter).CheckError();
         using (adapter)
@@ -304,5 +344,9 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
         outputBounds = Rectangle.Empty;
     }
 
-    public void Dispose() => Reset();
+    public void Dispose()
+    {
+        SetGpuPriority(false);
+        Reset();
+    }
 }

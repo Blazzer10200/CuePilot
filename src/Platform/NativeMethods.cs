@@ -76,6 +76,13 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint count, ref Input input, int size);
 
+    // D3DKMT_SCHEDULINGPRIORITYCLASS; values above NORMAL need an elevated process.
+    internal const int GpuSchedulingPriorityNormal = 2;
+    internal const int GpuSchedulingPriorityHigh = 4;
+
+    [DllImport("gdi32.dll")]
+    internal static extern int D3DKMTSetProcessSchedulingPriorityClass(IntPtr process, int priority);
+
     [DllImport("user32.dll")]
     internal static extern uint MapVirtualKey(uint code, uint mapType);
 

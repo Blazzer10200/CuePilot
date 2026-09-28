@@ -42,6 +42,9 @@ internal interface IFrameSource : IDisposable
 {
     string Name { get; }
     bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status);
+
+    /// <summary>Raises or restores GPU scheduling priority for this source's captures; a no-op where it doesn't apply.</summary>
+    void SetGpuPriority(bool raised) { }
 }
 
 internal static class FrameSourceFactory
@@ -92,6 +95,8 @@ internal sealed class FallbackFrameSource(
     private long holdUntil;
 
     public string Name => primary.Name;
+
+    public void SetGpuPriority(bool raised) => primary.SetGpuPriority(raised);
 
     public bool TryCapture(WindowTargetSettings target, Rectangle relativeRegion, out FrameLease? frame, out FrameSourceStatus status)
     {

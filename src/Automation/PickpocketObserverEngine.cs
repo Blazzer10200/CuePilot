@@ -188,6 +188,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         predictor.Reset();
                         targetTracker.Reset();
                         input.ReleaseIfDue(immediately: true);
+                        source.SetGpuPriority(false);
                         latest = latest with { State = "Waiting", Prediction = null, SelectedBandIndex = null, Observation = PickpocketObservation.Missing,
                             Detail = "FiveM is not in front. Paused; return to FiveM and start a new pickpocket." };
                         diagnostics.Queue(latest, null, false);
@@ -246,6 +247,10 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     // Never clear the one-tap latch when changing target geometry.
                     if (selectionRevision != targetTracker.Revision && input.PressCount == 0 && predictions == 0) predictor.Reset();
                     var cooldown = attempts.RemainingMs(analyzedAt);
+                    // Raise GPU priority only while a shot is still possible, so fresh
+                    // frames reach the timing without the whole run hitching the game.
+                    source.SetGpuPriority(cooldown == 0 && !(automatic && input.Consumed)
+                        && observation.State is PickpocketVisualState.Preparing or PickpocketVisualState.Active);
                     var prediction = PickpocketTimingPrediction.Wait(policy != "Widest" && observation.State == PickpocketVisualState.Active
                         && ResolveTargetColor(observation, policy, customPriority) is null
                         ? IsPriorityPolicy(policy) ? "No color from the selected priority order is visible. Waiting for an eligible target."
