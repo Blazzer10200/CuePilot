@@ -252,23 +252,6 @@ main {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* The pulse ring scales and fades on its own layer instead of repainting box-shadow. */
-.rail__dot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: 0 0 0 3px var(--accent-soft);
-  animation: rail-pulse 1.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes rail-pulse {
-  50% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-}
 
 .icon {
   display: inline-block;
@@ -429,6 +412,13 @@ main {
   color: var(--warning);
 }
 
+.title-signal__dot {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
 .activity-home .app-content {
   gap: 0;
 }
@@ -491,9 +481,6 @@ main {
   animation: none;
 }
 
-.fishing-run .cycle-step::after {
-  display: none;
-}
 
 .fishing-run .actions {
   padding: 12px 12px 11px;
@@ -926,6 +913,13 @@ main:has(.live-layout) .app-content { gap: 8px; }
 
 .hero-copy {
   min-width: 0;
+  display: grid;
+  align-content: start;
+}
+
+/* Old and new hero states share one cell during the swap, so nothing below them jumps. */
+.hero-copy > .hero-state {
+  grid-area: 1 / 1;
 }
 
 .eyebrow {
@@ -950,10 +944,6 @@ h1 {
   letter-spacing: -0.04em;
   font-weight: 680;
   transition: color var(--duration-base) var(--ease-soft), opacity var(--duration-base) var(--ease-soft);
-}
-
-.state-title {
-  animation: stateReveal var(--duration-slow) var(--ease-soft) both;
 }
 
 .detail {
@@ -989,7 +979,7 @@ h1 {
     rgba(34, 33, 31, 0.58);
   color: #ececea;
   transition:
-    --lock-progress 420ms var(--ease-standard),
+    --lock-progress var(--dur-slow) var(--ease-out),
     color var(--duration-base) var(--ease-soft),
     border-color var(--duration-base) var(--ease-soft),
     background-color var(--duration-base) var(--ease-soft),
@@ -997,7 +987,6 @@ h1 {
     box-shadow var(--duration-slow) var(--ease-soft);
 }
 
-.control-orbit.running::after,
 .control-orbit.capturing::after,
 .control-orbit.strong::after,
 .control-orbit.good::after,
@@ -1010,9 +999,10 @@ h1 {
   opacity: 0;
 }
 
-.control-orbit.running::after {
-  animation: lockPulse 2.6s ease-in-out infinite;
-  color: var(--success);
+.control-orbit > .live-ring {
+  inset: -7px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 45%, transparent);
+  --pulse-scale: 1.06;
 }
 
 .control-orbit.strong::after,
@@ -1619,16 +1609,6 @@ h1 {
   transition: transform var(--duration-slow) var(--ease-soft), opacity var(--duration-base) var(--ease-soft);
 }
 
-.cycle-step::after {
-  content: "";
-  position: absolute;
-  inset: auto auto 0 0;
-  width: 38%;
-  height: 1px;
-  opacity: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
-  transform: translateX(-120%);
-}
 
 .cycle-step .step-index {
   color: #706d68;
@@ -1639,6 +1619,7 @@ h1 {
 }
 
 .cycle-step .step-marker {
+  position: relative;
   width: 12px;
   height: 12px;
   border: 1px solid #625f5b;
@@ -2906,9 +2887,6 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   line-height: 1.4;
 }
 
-.spin {
-  animation: orbit 1.2s linear infinite;
-}
 
 .log-viewer {
   margin-top: 10px;
@@ -3440,49 +3418,25 @@ summary:focus-visible {
   .actions button { min-height:38px; }
 }
 
+/* The workspace wrapper is keyed on the selected activity, so it enters once per switch. */
+.activity-workspace .app-content {
+  animation: enter-up var(--dur-enter) var(--ease-emphasized) both;
+}
+
+.activity-card {
+  animation: enter-up var(--dur-enter) var(--ease-emphasized) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+
+.control-orbit.running .orbit-ring--inner,
+.control-orbit.capturing .orbit-ring--inner,
+.control-orbit.searching .orbit-ring--inner {
+  animation: orbit var(--dur-orbit) linear infinite;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .activity-workspace > :not(.titlebar) {
-    animation: workspaceEnter var(--duration-enter) var(--ease-emphasized) both;
-  }
-
-  .activity-card {
-    animation: cardEnter var(--duration-enter) var(--ease-emphasized) both;
-  }
-
-  .activity-card:nth-child(2) {
-    animation-delay: 45ms;
-  }
-
-  .control-orbit.running .orbit-ring--inner,
-  .control-orbit.capturing .orbit-ring--inner,
-  .control-orbit.searching .orbit-ring--inner {
-    animation: orbit 8s linear infinite;
-  }
-
-  .title-signal:not(.offline) > svg {
-    animation: signalPulse 2.4s ease-in-out infinite;
-  }
-
   .cycle-step.current::before {
     animation: stepSweep 0.45s var(--ease-soft);
-  }
-
-  .cycle-step.live .step-marker {
-    position: relative;
-  }
-
-  .cycle-step.live .step-marker::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.08);
-    animation: stepPulse 1.9s ease-in-out infinite;
-    pointer-events: none;
-  }
-
-  .cycle-step.live::after {
-    animation: stepTrace 2.4s var(--ease-standard) infinite;
   }
 }
 
@@ -3499,14 +3453,8 @@ summary:focus-visible {
   .running .orbit-ring,
   .running .orbit-ring--inner,
   .spin,
-  .title-signal > svg,
-  .control-orbit::after,
   .cycle-step.complete::before,
-  .cycle-step.current::before,
-  .cycle-step.live .step-marker::after,
-  .cycle-step.live::after,
-  .rail__dot::after,
-  .state-title {
+  .cycle-step.current::before {
     animation: none !important;
   }
 }
@@ -3525,92 +3473,11 @@ summary:focus-visible {
   }
 }
 
-@keyframes workspaceEnter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes cardEnter {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes signalPulse {
-  0%,
-  90%,
-  100% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  45% {
-    transform: scale(1.28);
-    opacity: 0.4;
-  }
-}
-
-@keyframes stateReveal {
-  from {
-    transform: translateY(4px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-@keyframes lockPulse {
-  0%,
-  100% {
-    transform: scale(0.97);
-    opacity: 0.22;
-  }
-  60% {
-    transform: scale(1.02);
-    opacity: 0;
-  }
-}
-
 @keyframes stepSweep {
   from {
     transform: scaleX(0);
   }
   to {
     transform: scaleX(1);
-  }
-}
-
-@keyframes stepPulse {
-  50% {
-    transform: scale(1.35);
-    opacity: 0.2;
-  }
-}
-
-@keyframes stepTrace {
-  0%,
-  18% {
-    transform: translateX(-120%);
-    opacity: 0;
-  }
-  42% {
-    opacity: 0.75;
-  }
-  72%,
-  100% {
-    transform: translateX(260%);
-    opacity: 0;
   }
 }

@@ -25,7 +25,7 @@
 
 @keyframes live-pulse {
   0% { transform: scale(1); opacity: 0.55; }
-  70%, 100% { transform: scale(2.2); opacity: 0; }
+  70%, 100% { transform: scale(var(--pulse-scale, 2.2)); opacity: 0; }
 }
 
 @keyframes spin {

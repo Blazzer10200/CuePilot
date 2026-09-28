@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import { fade, fly } from "svelte/transition";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -18,6 +18,7 @@
   import HotkeyCapture from "./lib/HotkeyCapture.svelte";
   import { hotkeyDisplay, sameHotkey } from "./lib/hotkeys";
   import { updates } from "./lib/updates.svelte";
+  import { enter, leave, phaseLock, tweenNumber } from "./lib/motion";
 
   const developmentBuild = import.meta.env.DEV;
   const applicationName = developmentBuild ? "CuePilot Dev" : "CuePilot";
@@ -128,6 +129,12 @@
   const target = $derived(engine.snapshot?.settings.routine.targetWindow);
   const targetValid = $derived(engine.snapshot?.targetValid ?? false);
   const confidence = $derived(Math.round(engine.status.confidence * 100));
+  // The gauge number eases with the ring instead of jumping ahead of it.
+  let displayedConfidence = $state(0);
+  $effect(() => {
+    const next = confidence;
+    return tweenNumber(untrack(() => displayedConfidence), next, (value) => displayedConfidence = value);
+  });
   const currentStep = $derived(cycleStep(engine.status.state));
   const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing);
   const gaugeLabel = $derived(
@@ -712,7 +719,7 @@
     </div>
     <div class="top-actions">
       <button aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={15} /></button>
-      <div class:offline={!engine.connected} class="title-signal"><Radio size={13} /> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
+      <div class:offline={!engine.connected} class="title-signal"><span class="title-signal__dot"><Radio size={13} />{#if engine.connected}<i class="live-ring" use:phaseLock></i>{/if}</span> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
       <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
       <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
       <button class="close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
@@ -727,10 +734,11 @@
       <button class="rail__item" data-rail={activity.id} class:active={selectedActivity === activity.id} aria-current={selectedActivity === activity.id ? "page" : undefined} aria-label={`Switch to ${activity.shortName}`} title={activity.name} onclick={() => selectActivity(activity.id)} disabled={!!runPending || selectedActivity === activity.id}>
         {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else}<Hand size={18} strokeWidth={1.8} />{/if}
         <span>{activity.id === "fishing" ? "Fish" : "Pocket"}</span>
-        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"></b>{/if}
+        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"><i class="live-ring" use:phaseLock></i></b>{/if}
       </button>
     {/each}
   </nav>
+  {#key selectedActivity}
   <div class="app-content">
 
   {#if currentActivity}
@@ -757,7 +765,7 @@
   <section class="hero" aria-labelledby="state-heading">
     <div class="hero-copy">
       {#key hero.title}
-        <div class="hero-state" in:fly={{ y: reduceMotion ? 0 : 6, duration: reduceMotion ? 0 : 220 }} out:fade={{ duration: reduceMotion ? 0 : 110 }}>
+        <div class="hero-state" in:enter={"swap"} out:leave={"swap"}>
           <p class="eyebrow"><Activity size={14} strokeWidth={1.9} /> {hero.context}</p>
           <h1 id="state-heading" class="state-title">{hero.title}</h1>
           <p class="detail" aria-live="polite">{hero.detail}</p>
@@ -781,7 +789,8 @@
       <div class="orbit-ticks" aria-hidden="true"></div>
       <div class="orbit-ring"></div>
       <div class="orbit-ring orbit-ring--inner"></div>
-      <div class="orbit-core"><strong>{confidence}%</strong><span>{gaugeLabel}</span></div>
+      {#if active}<i class="live-ring" use:phaseLock></i>{/if}
+      <div class="orbit-core"><strong>{displayedConfidence}%</strong><span>{gaugeLabel}</span></div>
     </div>
   </section>
 
@@ -843,7 +852,7 @@
         aria-label={`${step}: ${stepState}`}
       >
         <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
-        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{/if}</span>
+        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{:else if stepState === "active"}<i class="live-ring" use:phaseLock></i>{/if}</span>
         <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
       </div>
     {/each}
@@ -889,6 +898,7 @@
       onmode={async (mode, policy, inputMode) => { await engine.setPickpocket(mode, policy, inputMode); }} />
   {/if}
   </div>
+  {/key}
   </div>
       {#if targetPickerOpen}
         <div

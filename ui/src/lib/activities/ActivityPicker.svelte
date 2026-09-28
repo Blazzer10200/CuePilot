@@ -42,6 +42,7 @@
       class:preview={activity.availability === "preview"}
       class="activity-card"
       data-activity={activity.id}
+      style={`--i:${index}`}
       bind:this={activityCardNodes[activity.id]}
       onclick={() => onselect(activity.id)}
       aria-label={`Open ${activity.shortName}`}
