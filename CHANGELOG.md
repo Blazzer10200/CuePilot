@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased - Vehicle Lockpicking removed, capture and mouse-hook cleanup
+## Unreleased - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup
+
+- New interface pass across the whole app: a sentence-case title bar with an engine status pill, a slimmer side rail with Diagnostics, and a workspace header that shows the activity's status and the FiveM window in one row.
+- Home lists activities as two-column cards with status pills, live shortcut keys, and an availability footer.
+- Fishing opens on a hero with the current state and the Run and Verify actions beside a larger gauge, followed by a five-step routine strip and target, telemetry and safety cards.
+- Pickpocket's Live, History and Reference views are tabs in the header. The live view fits the window without scrolling: current bar, precision controls, next attempt and the last result side by side.
+- Settings: Basic/Advanced toggle, a larger click-to-capture shortcut field, a tension range preview that marks changed values with their saved value, and a footer that counts unsaved changes.
+- Motion, text, type and radius now come from shared design tokens. Animations use one set of durations and easings, the gauge moves smoothly, and pulses stay in step. Looping animations pause while the window is idle; one-shot transitions no longer do.
+- Every control uses the same keyboard focus ring.
 
 - Pickpocket keeps tracking when the game animates or glitches the "TIME LEFT" header instead of losing the run: it tolerates a bounded 30-frame continuation as long as targets still match.
 - Removed the GPU scheduling priority boost from capture; it was preempting the game and causing hitching.
