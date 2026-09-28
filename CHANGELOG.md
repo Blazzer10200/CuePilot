@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup
+## 5.3.16 - 2026-09-28 - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup
 
 - New interface pass across the whole app: a sentence-case title bar with an engine status pill, a slimmer side rail with Diagnostics, and a workspace header that shows the activity's status and the FiveM window in one row.
 - Home lists activities as two-column cards with status pills, live shortcut keys, and an availability footer.
