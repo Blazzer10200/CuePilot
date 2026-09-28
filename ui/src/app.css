@@ -58,13 +58,6 @@
   --radius-md: 9px;
   --radius-sm: 6px;
   --focus-ring: 0 0 0 3px rgba(217, 119, 87, 0.28);
-  --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 240ms;
-  --duration-enter: 340ms;
-  --ease-soft: cubic-bezier(0.22, 0.62, 0.28, 1);
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-emphasized: cubic-bezier(0.16, 0.9, 0.3, 1);
   color: var(--text);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -162,6 +155,12 @@ main {
   gap: 11px;
 }
 
+/* One press style for every control. Buttons never lift on hover; only cards do. */
+button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  transition-duration: var(--dur-press);
+}
+
 .rail {
   position: sticky;
   top: 12px;
@@ -193,18 +192,14 @@ main {
   text-transform: uppercase;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    transform var(--duration-fast) var(--ease-soft);
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .rail__item:hover:not(:disabled) {
   color: var(--text);
   background: rgba(255, 255, 255, 0.05);
-}
-
-.rail__item:active:not(:disabled) {
-  transform: translateY(1px);
 }
 
 .rail__item:focus-visible {
@@ -329,7 +324,7 @@ main {
   letter-spacing: 0.035em;
   vertical-align: 1px;
   cursor: pointer;
-  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease, background var(--duration-fast) ease;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
 .brand .app-version:hover,
@@ -368,9 +363,9 @@ main {
   place-items: center;
   cursor: pointer;
   transition:
-    color var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    transform var(--duration-fast) var(--ease-soft);
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .top-actions button:hover {
@@ -381,10 +376,6 @@ main {
 .top-actions button.close:hover {
   background: rgba(229, 105, 95, 0.2);
   color: #fff2f2;
-}
-
-.top-actions button:active {
-  transform: translateY(1px);
 }
 
 .top-actions button:focus-visible {
@@ -589,11 +580,11 @@ main {
   flex-direction: column;
   cursor: pointer;
   transition:
-    transform var(--duration-base) var(--ease-soft),
-    border-color var(--duration-base) var(--ease-soft),
-    background-color var(--duration-base) var(--ease-soft),
-    box-shadow var(--duration-base) var(--ease-soft),
-    opacity var(--duration-enter) var(--ease-emphasized);
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out),
+    opacity var(--dur-enter) var(--ease-emphasized);
 }
 
 .activity-card::after {
@@ -609,7 +600,7 @@ main {
 }
 
 .activity-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(var(--lift-card));
   border-color: color-mix(in srgb, var(--accent) 34%, transparent);
   background: linear-gradient(135deg, rgba(46, 45, 43, 0.92), rgba(38, 37, 35, 0.8));
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.16);
@@ -617,10 +608,6 @@ main {
 
 .activity-card:focus-visible {
   border-color: color-mix(in srgb, var(--accent) 54%, var(--line-strong));
-}
-
-.activity-card:active {
-  transform: translateY(0);
 }
 
 .activity-card:focus-visible,
@@ -657,7 +644,7 @@ main {
   height: 6px;
   border-radius: 50%;
   background: #898580;
-  transition: transform var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft), box-shadow var(--duration-base) var(--ease-soft);
+  transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 
 .activity-card.ready .activity-card__status {
@@ -696,7 +683,7 @@ main {
   background: rgba(255, 255, 255, 0.04);
   display: grid;
   place-items: center;
-  transition: transform var(--duration-base) var(--ease-emphasized), border-color var(--duration-base) var(--ease-soft), background-color var(--duration-base) var(--ease-soft);
+  transition: transform var(--dur-base) var(--ease-emphasized), border-color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out);
 }
 
 .activity-card__copy {
@@ -768,7 +755,7 @@ main {
 }
 
 .activity-card__action svg {
-  transition: transform var(--duration-fast) var(--ease-soft);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
 .activity-card:hover .activity-card__action svg {
@@ -776,13 +763,11 @@ main {
 }
 
 .activity-card:hover .activity-card__icon {
-  transform: translateY(-1px) scale(1.035);
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .activity-card.ready:hover .activity-card__status i {
-  transform: scale(1.15);
   box-shadow: 0 0 0 4px rgba(217, 119, 87, 0.08);
 }
 
@@ -835,7 +820,7 @@ main {
   border-radius: 6px;
   color: #9a9792;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .workspace-path button:hover:not(:disabled) {
@@ -943,7 +928,7 @@ h1 {
   line-height: 1.04;
   letter-spacing: -0.04em;
   font-weight: 680;
-  transition: color var(--duration-base) var(--ease-soft), opacity var(--duration-base) var(--ease-soft);
+  transition: color var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
 }
 
 .detail {
@@ -952,7 +937,7 @@ h1 {
   color: #a4a29e;
   font-size: 13px;
   line-height: 1.5;
-  transition: color var(--duration-base) var(--ease-soft);
+  transition: color var(--dur-base) var(--ease-out);
 }
 
 .error {
@@ -980,11 +965,11 @@ h1 {
   color: #ececea;
   transition:
     --lock-progress var(--dur-slow) var(--ease-out),
-    color var(--duration-base) var(--ease-soft),
-    border-color var(--duration-base) var(--ease-soft),
-    background-color var(--duration-base) var(--ease-soft),
-    transform var(--duration-slow) var(--ease-soft),
-    box-shadow var(--duration-slow) var(--ease-soft);
+    color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out),
+    box-shadow var(--dur-slow) var(--ease-out);
 }
 
 .control-orbit.capturing::after,
@@ -1050,7 +1035,7 @@ h1 {
   opacity: 0.56;
   -webkit-mask: radial-gradient(circle, transparent 70%, #000 71%);
   mask: radial-gradient(circle, transparent 70%, #000 71%);
-  transition: opacity var(--duration-base) var(--ease-soft);
+  transition: opacity var(--dur-base) var(--ease-out);
 }
 
 .control-orbit .orbit-ticks {
@@ -1070,8 +1055,8 @@ h1 {
   inset: 13px;
   border: 1px solid color-mix(in srgb, var(--ring-color, var(--accent)) 52%, transparent);
   transition:
-    inset var(--duration-base) var(--ease-soft),
-    border-color var(--duration-base) var(--ease-soft);
+    inset var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
 }
 
 .control-orbit .orbit-ring--inner {
@@ -1098,7 +1083,7 @@ h1 {
   line-height: 1;
   letter-spacing: -0.03em;
   font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  transition: color var(--duration-fast) var(--ease-soft), transform var(--duration-fast) var(--ease-soft);
+  transition: color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 
 .orbit-core span {
@@ -1142,7 +1127,7 @@ h1 {
   flex-direction: column;
   justify-content: space-between;
   gap: 16px;
-  transition: border-color var(--duration-base) var(--ease-soft), background-color var(--duration-base) var(--ease-soft);
+  transition: border-color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out);
 }
 
 .target-card:hover {
@@ -1222,12 +1207,12 @@ h1 {
   white-space: nowrap;
   cursor: pointer;
   transition:
-    transform var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    box-shadow var(--duration-fast) var(--ease-soft),
-    border-color var(--duration-fast) var(--ease-soft),
-    color var(--duration-fast) var(--ease-soft),
-    opacity var(--duration-fast) var(--ease-soft);
+    transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 
 .target-button--verify {
@@ -1255,14 +1240,8 @@ h1 {
 .setup-check small { color: #827e79; font-size: 9px; }
 
 .target-button:hover:not(:disabled) {
-  transform: translateY(-1px);
   border-color: rgba(217, 119, 87, 0.38);
   background: rgba(217, 119, 87, 0.1);
-  box-shadow: 0 7px 16px rgba(0, 0, 0, 0.2);
-}
-
-.target-button:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .target-button:disabled {
@@ -1329,7 +1308,7 @@ h1 {
   place-items: center;
   color: #a19f9b;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .target-picker__header > button:hover {
@@ -1367,7 +1346,7 @@ h1 {
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--duration-fast) var(--ease-soft), color var(--duration-fast) var(--ease-soft);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
 .target-option:last-child {
@@ -1501,7 +1480,7 @@ h1 {
   font-size: 10.5px;
   font-weight: 580;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .target-picker__footer button:hover:not(:disabled) {
@@ -1532,7 +1511,7 @@ h1 {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  transition: background-color var(--duration-fast) var(--ease-soft);
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 .metric span {
@@ -1589,8 +1568,8 @@ h1 {
   background: transparent;
   font-size: 12px;
   transition:
-    background-color var(--duration-base) var(--ease-soft),
-    color var(--duration-base) var(--ease-soft);
+    background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out);
 }
 
 .cycle-step:last-child {
@@ -1606,7 +1585,7 @@ h1 {
   transform: scaleX(0);
   transform-origin: left;
   opacity: 0;
-  transition: transform var(--duration-slow) var(--ease-soft), opacity var(--duration-base) var(--ease-soft);
+  transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out);
 }
 
 
@@ -1627,10 +1606,10 @@ h1 {
   display: grid;
   place-items: center;
   transition:
-    transform var(--duration-base) var(--ease-soft),
-    border-color var(--duration-base) var(--ease-soft),
-    background-color var(--duration-base) var(--ease-soft),
-    box-shadow var(--duration-base) var(--ease-soft);
+    transform var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
 .cycle-step .step-label {
@@ -1761,12 +1740,12 @@ h1 {
   border-radius: 10px;
   white-space: nowrap;
   transition:
-    transform var(--duration-fast) var(--ease-soft),
-    box-shadow var(--duration-fast) var(--ease-soft),
-    border-color var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    color var(--duration-fast) var(--ease-soft),
-    opacity var(--duration-fast) var(--ease-soft);
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 
 .primary-action {
@@ -1812,12 +1791,7 @@ h1 {
 }
 
 .primary-action:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.3), 0 9px 22px rgba(0, 0, 0, 0.22);
-}
-
-.primary-action:active:not(:disabled) {
-  transform: translateY(0) scale(0.995);
+  background-color: var(--accent-strong);
 }
 
 .sub-action {
@@ -1842,12 +1816,6 @@ h1 {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--line-strong));
   color: #f6f6f5;
   background: rgba(46, 44, 43, 0.78);
-  transform: translateY(-1px);
-}
-
-.sub-action:active:not(:disabled),
-.sub-action--mini:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .primary-action:disabled,
@@ -2107,7 +2075,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: color var(--duration-base) var(--ease-soft), opacity var(--duration-base) var(--ease-soft);
+  transition: color var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
 }
 
 .settings-change-note i {
@@ -2115,7 +2083,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   height: 5px;
   border-radius: 50%;
   background: #807d78;
-  transition: background-color var(--duration-base) var(--ease-soft), box-shadow var(--duration-base) var(--ease-soft);
+  transition: background-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
 }
 
 .settings-change-note.visible {
@@ -2213,7 +2181,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
 .shortcut-control:focus-within {
@@ -2276,8 +2244,8 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   font-size: 12.5px;
   font-weight: 590;
   transition:
-    border-color var(--duration-base) var(--ease-soft),
-    box-shadow var(--duration-base) var(--ease-soft);
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 
 .form-grid input:hover {
@@ -2346,9 +2314,9 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   text-align: left;
   cursor: pointer;
   transition:
-    border-color var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    box-shadow var(--duration-fast) var(--ease-soft);
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .delivery-trigger:hover,
@@ -2387,7 +2355,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
 .delivery-chevron {
   flex: 0 0 auto;
   color: #928f8b;
-  transition: transform var(--duration-fast) var(--ease-soft), color var(--duration-fast) var(--ease-soft);
+  transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
 .delivery-trigger.open .delivery-chevron {
@@ -2419,7 +2387,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   color: #e1e0df;
   text-align: left;
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
 }
 
 .delivery-menu button:hover,
@@ -2465,9 +2433,9 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   border-radius: 999px;
   background: var(--bg-elev);
   transition:
-    border-color var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft),
-    box-shadow var(--duration-fast) var(--ease-soft);
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .toggle-track i {
@@ -2477,8 +2445,8 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   border-radius: 50%;
   background: #a19f9b;
   transition:
-    transform var(--duration-fast) var(--ease-soft),
-    background-color var(--duration-fast) var(--ease-soft);
+    transform var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
 }
 
 .toggle-setting input:checked + .toggle-track {
@@ -2561,7 +2529,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   min-height: 0;
   display: grid;
   gap: 10px;
-  transition: opacity var(--duration-fast) var(--ease-soft);
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 
 .diagnostics-content.refreshing {
@@ -2955,8 +2923,8 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   padding: 8px 10px 9px;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
   transition:
-    background-color var(--duration-fast) var(--ease-soft),
-    border-color var(--duration-fast) var(--ease-soft);
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 
 .log-entry::before {
@@ -2966,7 +2934,7 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
   width: 2px;
   border-radius: 0 2px 2px 0;
   background: transparent;
-  transition: background-color var(--duration-fast) var(--ease-soft);
+  transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 .log-entry:hover {
@@ -3436,20 +3404,11 @@ summary:focus-visible {
 
 @media (prefers-reduced-motion: no-preference) {
   .cycle-step.current::before {
-    animation: stepSweep 0.45s var(--ease-soft);
+    animation: stepSweep var(--dur-enter) var(--ease-out);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
   .running .orbit-ring,
   .running .orbit-ring--inner,
   .spin,

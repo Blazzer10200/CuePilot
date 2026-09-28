@@ -10,7 +10,7 @@ const toMs = (value: string) =>
   value.split(",").map((v) => v.trim()).filter(Boolean).map((v) => (v.endsWith("ms") ? parseFloat(v) : parseFloat(v) * 1000));
 
 for (const scenario of ["history", "running", "armed", "cooldown", "disconnected"]) {
-  test.fixme(`motion tokens only · ${scenario}`, async ({ page }) => {
+  test(`motion tokens only · ${scenario}`, async ({ page }) => {
     await page.goto(`/?scenario=${scenario}`);
     const screens: Array<string | null> = [null, "Pickpocket", "Fishing"];
     for (const activity of screens) {

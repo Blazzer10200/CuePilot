@@ -175,7 +175,7 @@
   .pp-section-heading h2 { font-size:17px; margin:7px 0 0; font-weight:570; letter-spacing:-.3px; }
   .pp-caption { font-size:10px; color:var(--text-muted); }
   .pp-targets { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; padding:0; border:0; margin:0; }
-  .pp-target { position:relative; display:flex; flex-direction:column; padding:12px 11px 14px; min-height:171px; border:1px solid var(--line); border-radius:9px; background:rgba(35, 34, 32, .6); cursor:pointer; transition:background 120ms,border-color 120ms; }
+  .pp-target { position:relative; display:flex; flex-direction:column; padding:12px 11px 14px; min-height:171px; border:1px solid var(--line); border-radius:9px; background:rgba(35, 34, 32, .6); cursor:pointer; transition:background var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out); }
   .pp-target.selected { border-color:var(--item-color); background:color-mix(in srgb,var(--item-color) 9%,#272624); box-shadow:inset 0 -3px var(--item-color); }
   .pp-target:hover { border-color:var(--item-color); }
   .pp-target input { position:absolute; width:1px; height:1px; opacity:0; }
@@ -241,7 +241,6 @@
   @media(max-width:1000px) { .pp-layout { grid-template-columns:minmax(0,1fr) 240px; gap:12px; } .pp-reader,.pp-summary { padding:18px; } .pp-target { padding:10px 8px; } .pp-caption { display:none; } }
   @media(max-width:800px) { .pp-layout { grid-template-columns:1fr; } .pp-summary { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; } .pp-summary-top,.pp-facts,.pp-live-state,.pp-saved { grid-column:1/-1; } .pp-summary h2 { grid-column:1; margin:16px 0 7px; } .pp-target-color { grid-column:1; } .pp-window-value { grid-column:2; grid-row:2/4; align-self:center; margin:0; } .pp-window-label { grid-column:2; } .pp-difficulty { grid-column:1; grid-row:4; } .pp-target-description { grid-column:1/-1; } }
   @media(max-width:480px) { .pp-targets { grid-template-columns:repeat(2,minmax(0,1fr)); } .pp-target { min-height:150px; } .pp-heading h1 { font-size:28px; } .pp-phase { flex-wrap:wrap; } .pp-speed { margin-left:0; } .pp-speed select { max-width:60px; } .pp-speed { font-size:0; } .pp-time { font-size:10px; } .pp-footer { align-items:flex-start; gap:10px; flex-direction:column; } }
-  @media(prefers-reduced-motion:reduce) { * { transition:none !important; } }
   @media(min-width:620px) {
     .pp-heading { padding:0; gap:12px; }
     .pp-heading h1 { font-size:26px; margin:4px 0; }

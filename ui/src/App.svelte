@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
-  import { fade, fly } from "svelte/transition";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
@@ -119,7 +118,6 @@
   let settingsCloseButton = $state<HTMLButtonElement | null>(null);
   let diagnosticsCloseButton = $state<HTMLButtonElement | null>(null);
   let activePanel = $state<HTMLDivElement | null>(null);
-  let reduceMotion = $state(false);
   let notice = $state<{ message: string; tone: "success" | "info" } | null>(null);
   let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -179,10 +177,6 @@
       const savedActivity = localStorage.getItem(lastActivityKey);
       if (savedActivity && getActivity(savedActivity as ActivityId)) selectedActivity = savedActivity as ActivityId;
     } catch { /* Navigation persistence is optional. */ }
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const syncMotionPreference = () => reduceMotion = motionQuery.matches;
-    syncMotionPreference();
-    motionQuery.addEventListener("change", syncMotionPreference);
     const syncIdle = () => document.documentElement.classList.toggle("app-idle", document.hidden || !document.hasFocus());
     syncIdle();
     document.addEventListener("visibilitychange", syncIdle);
@@ -214,7 +208,6 @@
       };
     }
     return () => {
-      motionQuery.removeEventListener("change", syncMotionPreference);
       document.removeEventListener("visibilitychange", syncIdle);
       window.removeEventListener("blur", syncIdle);
       window.removeEventListener("focus", syncIdle);
@@ -410,7 +403,7 @@
     homeFocusActivity = activityId;
     selectedActivity = activityId;
     try { localStorage.setItem(lastActivityKey, activityId); } catch { /* Continue without navigation persistence. */ }
-    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   async function toggleRun() {
@@ -446,7 +439,7 @@
     closeTargetPicker(false);
     closePanels();
     selectedActivity = null;
-    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   async function findTarget() {
@@ -771,7 +764,7 @@
           <p class="detail" aria-live="polite">{hero.detail}</p>
         </div>
       {/key}
-      {#if engine.error}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 160 }}><AlertTriangle size={15} strokeWidth={1.9} /> {engine.error}</p>{/if}
+      {#if engine.error}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {engine.error}</p>{/if}
     </div>
     <div
       class:running={active}
@@ -908,7 +901,7 @@
           role="dialog"
           aria-label="Available FiveM windows"
           tabindex="-1"
-          transition:fly={{ y: reduceMotion ? 0 : -5, duration: reduceMotion ? 0 : 170 }}
+          in:enter={"menu"} out:leave={"menu"}
         >
           <header class="target-picker__header">
             <div>
@@ -966,8 +959,8 @@
 <UpdateCenter automationActive={active || engine.snapshot?.pickpocket?.observing === true} />
 
 {#if showSettings && draft && shortcutDraft && pickpocketShortcutDraft}
-  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
-  <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
+  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} in:enter={"scrim"} out:leave={"scrim"}></div>
+  <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} in:enter={"drawer"} out:leave={"drawer"}>
     <header class="panel-header">
       <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : "Pickpocket profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Pickpocket controls"}</h2></div>
       <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
@@ -1057,7 +1050,7 @@
           <ChevronDown size={15} strokeWidth={2} class="delivery-chevron" />
         </button>
         {#if deliveryOpen}
-          <div id="delivery-menu" class="delivery-menu" role="listbox" aria-label="Input delivery" transition:fly={{ y: reduceMotion ? 0 : -4, duration: reduceMotion ? 0 : 150 }}>
+          <div id="delivery-menu" class="delivery-menu" role="listbox" aria-label="Input delivery" in:enter={"menu"} out:leave={"menu"}>
             {#each deliveryOptions as option, index}
               <button
                 type="button"
@@ -1084,14 +1077,14 @@
     {/if}
     <NotificationSettings />
     </div>
-    {#if settingsError}<p class="error" transition:fly={{ y: reduceMotion ? 0 : 4, duration: reduceMotion ? 0 : 150 }}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
+    {#if settingsError}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
     <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
   </div>
 {/if}
 
 {#if showDiagnostics}
-  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
-  <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
+  <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} in:enter={"scrim"} out:leave={"scrim"}></div>
+  <div class="drawer diagnostics" bind:this={activePanel} aria-labelledby="diagnostics-title" aria-describedby="diagnostics-description" aria-busy={diagnosticsLoading} aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} in:enter={"drawer"} out:leave={"drawer"}>
     <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" title="Close detection review" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
     <p class="panel-copy" id="diagnostics-description">Review build health and saved sessions. Choose an attempt to inspect its decisions or export a local report.</p>
     <div class="diagnostics-scroll">
@@ -1227,7 +1220,7 @@
 {/if}
 
 {#if notice}
-  <div class:info={notice.tone === "info"} class="status-toast" role="status" aria-live="polite" transition:fly={{ y: reduceMotion ? 0 : 8, duration: reduceMotion ? 0 : 180 }}>
+  <div class:info={notice.tone === "info"} class="status-toast" role="status" aria-live="polite" in:enter={"toast"} out:leave={"toast"}>
     <span>{#if notice.tone === "success"}<Check size={14} strokeWidth={2.4} />{:else}<Radio size={14} strokeWidth={2} />{/if}</span>
     <p>{notice.message}</p>
   </div>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { Keyboard, Mouse, RotateCcw } from "@lucide/svelte";
+  import { phaseLock } from "./motion";
   import {
     bindingFromKeyboardEvent, bindingFromMouseEvent, conflictFor, hotkeyDisplay, hotkeyParts, isMouseKey, sameHotkey,
     type HotkeyBinding, type TakenBinding,
@@ -156,7 +157,7 @@
     onclick={toggle}
   >
     <span class="hotkey__icon" aria-hidden="true">
-      {#if capturing}<span class="hotkey__pulse"></span>{:else if mouse}<Mouse size={13} strokeWidth={2} />{:else}<Keyboard size={13} strokeWidth={2} />{/if}
+      {#if capturing}<span class="hotkey__pulse"><i class="live-ring" use:phaseLock></i></span>{:else if mouse}<Mouse size={13} strokeWidth={2} />{:else}<Keyboard size={13} strokeWidth={2} />{/if}
     </span>
     <span class="hotkey__caps">
       {#if capturing}
@@ -223,7 +224,7 @@
     color: var(--accent);
     cursor: pointer;
     outline: none;
-    transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
+    transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
   }
 
   .hotkey__field:hover {
@@ -257,14 +258,7 @@
     height: 7px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.5);
-    animation: hotkey-pulse 1.3s ease-out infinite;
-  }
-
-  @keyframes hotkey-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.5); }
-    70% { box-shadow: 0 0 0 6px rgba(217, 119, 87, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0); }
+    position: relative;
   }
 
   .hotkey__caps {
@@ -335,7 +329,7 @@
     font: 600 10px/1 inherit;
     font-family: inherit;
     cursor: pointer;
-    transition: color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+    transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   }
 
   .hotkey__reset:hover {
