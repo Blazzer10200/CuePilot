@@ -6,7 +6,7 @@ records, [HANDOFF.md](../HANDOFF.md) for the current state of the checkout, and
 the [backlog](product-backlog.md) for the open-issue table.
 
 Routes below: [Fishing](#fishing-detection-or-timing) ·
-[Lockpicking](#vehicle-lockpicking) · [Engine/UI contract](#engineui-contract) ·
+[Engine/UI contract](#engineui-contract) ·
 [Pickpocket](#pickpocket-history-timing-and-evidence) ·
 [Shortcuts and notifications](#shortcuts-and-desktop-notifications) ·
 [Desktop UI](#desktop-ui) · [Updates and releases](#updates-and-releases) ·
@@ -47,17 +47,6 @@ If taps feel sparse, check sample latency before touching controller tuning:
 [src/Capture/DxgiFrameSource.cs](../src/Capture/DxgiFrameSource.cs) (region copy,
 GPU priority) and [src/Platform/WindowTargetService.cs](../src/Platform/WindowTargetService.cs)
 (cached target resolve) set it. `--capture-probe` measures it.
-
-### Vehicle lockpicking
-
-1. [src/Automation/LockpickingObserverEngine.cs](../src/Automation/LockpickingObserverEngine.cs) — foreground capture loop, lifecycle, evidence, and fail-safe stops.
-2. [src/Automation/LockpickingDetector.cs](../src/Automation/LockpickingDetector.cs) — HUD, target, SPIN, OPEN, and disappearance classification.
-3. [src/Automation/LockpickingObservationTracker.cs](../src/Automation/LockpickingObservationTracker.cs) — target sequence, ring motion, READY timing, and freshness gates.
-4. [src/Automation/LockpickingClassProfiles.cs](../src/Automation/LockpickingClassProfiles.cs) — evidence-backed per-class calibration. Add a class here only after a complete live recording.
-5. [src/Automation/LockpickingClassController.cs](../src/Automation/LockpickingClassController.cs) — reusable verified click and clockwise-orbit executor.
-6. [src/Automation/LockpickingSpinTracker.cs](../src/Automation/LockpickingSpinTracker.cs) — cursor telemetry used for calibration evidence.
-7. [src/Diagnostics/LockpickingDiagnosticSession.cs](../src/Diagnostics/LockpickingDiagnosticSession.cs) — bounded background evidence writer, trace sampling, and cross-session retention.
-8. [tests/CuePilot.Tests/LockpickingDetectorTests.cs](../tests/CuePilot.Tests/LockpickingDetectorTests.cs), `LockpickingDiagnosticSessionTests.cs`, and `Fixtures/Lockpicking/` — deterministic controller, persistence, retention, and replay coverage.
 
 ### Engine/UI contract
 
@@ -110,10 +99,9 @@ pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.jso
 1. [ui/src/App.svelte](../ui/src/App.svelte) — shared activity navigation and target/settings/diagnostics toolbar, Fishing workspace, and dialogs with focus restoration.
 2. [ui/src/lib/activities.ts](../ui/src/lib/activities.ts) — activity identity, availability, and capability metadata.
 3. [ui/src/lib/activities/ActivityPicker.svelte](../ui/src/lib/activities/ActivityPicker.svelte) — launch library.
-4. [ui/src/lib/activities/LockpickingWorkspace.svelte](../ui/src/lib/activities/LockpickingWorkspace.svelte) — Lockpicking controls and live telemetry.
-5. [ui/src/app.css](../ui/src/app.css) — shared product styling.
-6. [.agents/skills/cuepilot-ui/SKILL.md](../.agents/skills/cuepilot-ui/SKILL.md) and `ui/scripts/cdp/` — focus-safe live inspection. The Claude-side copy is the untracked `.claude/skills/cuepilot-ui/SKILL.md`; both drive the same `c.sh`.
-7. [ui/e2e/ui-polish.spec.ts](../ui/e2e/ui-polish.spec.ts) and [ui/e2e/workspaces.spec.ts](../ui/e2e/workspaces.spec.ts) — responsive layout, shared controls, live-state wording, save feedback, and keyboard-focus regressions using isolated scenarios.
+4. [ui/src/app.css](../ui/src/app.css) — shared product styling.
+5. [.agents/skills/cuepilot-ui/SKILL.md](../.agents/skills/cuepilot-ui/SKILL.md) and `ui/scripts/cdp/` — focus-safe live inspection. The Claude-side copy is the untracked `.claude/skills/cuepilot-ui/SKILL.md`; both drive the same `c.sh`.
+6. [ui/e2e/ui-polish.spec.ts](../ui/e2e/ui-polish.spec.ts) and [ui/e2e/workspaces.spec.ts](../ui/e2e/workspaces.spec.ts) — responsive layout, shared controls, live-state wording, save feedback, and keyboard-focus regressions using isolated scenarios.
 
 ### Updates and releases
 
@@ -143,7 +131,7 @@ pwsh -NoProfile -File .\scripts\benchmark-pickpocket.ps1 -Manifest <manifest.jso
 ```powershell
 rg -n "command-name" src/Application ui/src ui/src-tauri/src
 rg -n "Detector|Tracker|Controller" src/Automation tests/CuePilot.Tests
-rg -n "LockpickingVisualState|FishingPromptKind|RoutineState" src tests ui/src
+rg -n "FishingPromptKind|RoutineState" src tests ui/src
 rg -n "UpdateService|check_for_updates|updates\.state|package-velopack" ui scripts .github
 rg --files src ui/src ui/src-tauri/src tests/CuePilot.Tests
 ```

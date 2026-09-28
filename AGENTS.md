@@ -8,7 +8,7 @@
 ## Fast repository map
 - `src/` = headless .NET engine and runtime logic
   - `Automation/` = detector/routine engine orchestration (`AdaptiveRoutineEngine`, detector implementations)
-  - `Diagnostics/` = bounded Fishing and Lockpicking evidence writers plus headless self-test
+  - `Diagnostics/` = bounded Fishing and Pickpocket evidence writers plus headless self-test
   - `Capture/`, `Input/`, `Platform/` = frame source + input action + host platform hooks
   - `Application/` = engine startup, settings, and the versioned local bridge
 - `ui/` = Svelte + Tauri front-end
@@ -31,11 +31,7 @@
   - `src/Automation/AdaptiveRoutineEngine.cs`
   - `src/Automation/RoutineWorker.cs`
   - `src/Automation/*Detector*.cs`
-  - `src/Automation/LockpickingClassProfiles.cs`
-  - `src/Automation/LockpickingClassController.cs`
-  - `src/Automation/LockpickingObserverEngine.cs`
   - `src/Application/UiBridge.cs`
-  - `src/Diagnostics/LockpickingDiagnosticSession.cs`
   - `ui/src/App.svelte`
   - `ui/src/lib/activities.ts`
   - `ui/src/lib/engine.svelte.ts`

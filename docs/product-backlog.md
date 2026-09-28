@@ -39,11 +39,7 @@ lands, so a session can start from the file rather than from a search.
    selected attempt or Timing controls. 5.3.8 added per-run adaptive drift on
    thin targets — read the applied advance from the history entry, not the
    default.
-3. **Keep Lockpicking observe-only until its evidence bundle is complete.**
-   Capture successful and failed full attempts across backgrounds, including
-   input cadence, before proposing any automatic control. The checklist is in
-   [activities.md](activities.md).
-4. **Preserve release confidence.** Any behavior change should run the narrow
+3. **Preserve release confidence.** Any behavior change should run the narrow
    regression first, then the appropriate cross-layer checks described in
    [development.md](development.md). Packaging, publication, and update-feed
    changes remain separate work.

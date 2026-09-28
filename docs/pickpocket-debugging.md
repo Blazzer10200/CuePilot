@@ -32,7 +32,7 @@ investigation before changing settings.
   before input can arm. A manual Space press, Stop, an error, or a cooldown
   closes the input gate. Focus loss pauses the run: tracking restarts on return
   and input waits for a new Preparing state.
-- **Capture:** Fishing and Lockpicking release desktop capture when their run
+- **Capture:** Fishing releases desktop capture when its run
   ends. A report showing `Desktop GDI` with `E_INVALIDARG` means another
   duplication of that monitor was still open; Pickpocket cannot time a tap then. Pause / Break is the emergency stop and
   releases a Space key CuePilot owns.
