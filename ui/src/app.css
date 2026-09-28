@@ -3051,10 +3051,12 @@ summary:focus-visible {
 }
 
 /* CuePilot mostly sits behind the game. Looping decoration stops costing frames
-   while the window is hidden or unfocused; App.svelte toggles the class. */
-:root.app-idle *,
-:root.app-idle *::before,
-:root.app-idle *::after {
+   while the window is hidden or unfocused; App.svelte toggles the class.
+   Only the loops are paused: pausing a one-shot entry animation freezes it on
+   its first frame, which leaves a workspace opened from the game invisible. */
+:root.app-idle .live-ring,
+:root.app-idle .spin,
+:root.app-idle .orbit-ring--inner {
   animation-play-state: paused !important;
 }
 
