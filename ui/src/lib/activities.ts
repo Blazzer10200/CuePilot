@@ -20,17 +20,6 @@ export interface ActivityDefinition {
 
 export const activities: readonly ActivityDefinition[] = [
   {
-    id: "pickpocket",
-    name: "Pickpocket",
-    shortName: "Pickpocket",
-    eyebrow: "Precision timing",
-    description: "Track randomized regions and test one timed Space tap with local diagnostics.",
-    availability: "calibration",
-    statusLabel: "One-tap test",
-    capabilities: ["Live timing", "3-minute cooldown", "One-tap calibration"],
-    preparation: [],
-  },
-  {
     id: "fishing",
     name: "Fishing",
     shortName: "Fishing",
@@ -39,6 +28,17 @@ export const activities: readonly ActivityDefinition[] = [
     availability: "ready",
     statusLabel: "Ready",
     capabilities: ["Prompt detection", "Meter control", "Local evidence"],
+    preparation: [],
+  },
+  {
+    id: "pickpocket",
+    name: "Pickpocket",
+    shortName: "Pickpocket",
+    eyebrow: "Precision timing",
+    description: "Track randomized regions and test one timed Space tap with local diagnostics.",
+    availability: "calibration",
+    statusLabel: "One-tap test",
+    capabilities: ["Live timing", "3-minute cooldown", "One-tap calibration"],
     preparation: [],
   },
 ];

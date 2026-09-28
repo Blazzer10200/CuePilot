@@ -144,7 +144,7 @@ main {
   min-height: 0;
   display: flex;
   align-items: stretch;
-  gap: 16px;
+  gap: 20px;
 }
 
 .app-content {
@@ -165,10 +165,10 @@ button:active:not(:disabled) {
   position: sticky;
   top: 12px;
   align-self: flex-start;
-  flex: 0 0 60px;
+  flex: 0 0 64px;
   padding: 8px 6px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   background: var(--bg-elev);
   display: flex;
   flex-direction: column;
@@ -178,17 +178,17 @@ button:active:not(:disabled) {
 
 .rail__item {
   position: relative;
-  height: 54px;
-  border-radius: 13px;
-  color: var(--text-muted);
+  height: 56px;
+  border-radius: 11px;
+  color: var(--text-2);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  font-size: 9.5px;
-  font-weight: 640;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
@@ -213,15 +213,9 @@ button:active:not(:disabled) {
   cursor: default;
 }
 
-.rail__item.active::before {
-  content: "";
-  position: absolute;
-  left: -7px;
-  top: 15px;
-  width: 3px;
-  height: 24px;
-  border-radius: 3px;
-  background: var(--accent);
+.rail__item--utility {
+  height: 48px;
+  color: var(--text-3);
 }
 
 .rail__item:disabled:not(.active) {
@@ -256,10 +250,10 @@ button:active:not(:disabled) {
 .titlebar {
   height: 48px;
   margin: 0;
-  padding: 0 10px;
+  padding: 0 4px;
   width: 100%;
   border-bottom: 1px solid var(--line);
-  color: #d2d1d0;
+  color: var(--text-2);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -267,20 +261,23 @@ button:active:not(:disabled) {
   cursor: grab;
 }
 
+.titlebar:active {
+  cursor: grabbing;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: #f2f2f2;
 }
 
 .mark {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 7px;
   overflow: hidden;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 4px 12px rgb(0 0 0 / 0.22);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.1);
 }
 
 .mark img {
@@ -289,49 +286,44 @@ button:active:not(:disabled) {
   height: 100%;
 }
 
-.brand > span {
-  font-size: 14px;
-  font-weight: 640;
+.brand__name {
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: 620;
   letter-spacing: -0.01em;
 }
 
-.brand > span > strong {
+.brand__dev {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  margin-left: 7px;
-  padding: 0 5px;
-  border: 1px solid rgb(255 255 255 / 0.18);
-  border-radius: 4px;
-  color: var(--accent);
-  font-size: 8px;
-  font-weight: 720;
-  letter-spacing: 0.09em;
-  vertical-align: 2px;
+  padding: 3px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-kbd);
+  color: var(--accent-text);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.06em;
 }
 
 .brand .app-version {
   display: inline-flex;
   align-items: center;
-  height: 16px;
-  margin-left: 7px;
-  padding: 0 5px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 4px;
-  color: #aeacaa;
-  font-size: 9px;
-  font-weight: 620;
-  letter-spacing: 0.035em;
-  vertical-align: 1px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-kbd);
+  color: var(--text-2);
+  font: 600 var(--fs-meta)/1 "Cascadia Code", Consolas, monospace;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 
 .brand .app-version:hover,
 .brand .app-version:focus-visible {
+  outline: none;
   border-color: rgba(217, 119, 87, 0.32);
-  color: var(--accent);
-  background: rgba(217, 119, 87, 0.06);
+  color: var(--accent-text);
+  background: var(--accent-bg);
 }
 
 .brand .app-version.available {
@@ -341,24 +333,53 @@ button:active:not(:disabled) {
   box-shadow: 0 0 14px rgba(217, 119, 87, 0.16);
 }
 
-.brand small {
-  display: block;
-  margin-top: 1px;
-  color: var(--text-muted);
-  font-size: 10px;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.titlebar:active {
-  cursor: grabbing;
+.engine-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  margin-right: 10px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--success-bg);
+  color: var(--success-text);
+  font-size: var(--fs-caption);
+  font-weight: 560;
+  white-space: nowrap;
 }
 
-.top-actions button {
-  width: 32px;
+.engine-pill__dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.engine-pill__dot .live-ring {
+  box-shadow: 0 0 0 3px var(--success-bg);
+}
+
+.engine-pill.offline {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.engine-pill.offline .engine-pill__dot {
+  background: var(--warning);
+}
+
+.window-button {
+  width: 34px;
   height: 32px;
-  border-radius: var(--radius-sm);
-  color: #a2a09c;
+  border-radius: var(--radius-chip);
+  color: var(--text-2);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -368,47 +389,51 @@ button:active:not(:disabled) {
     transform var(--dur-fast) var(--ease-out);
 }
 
-.top-actions button:hover {
+.window-button:hover {
   background: rgba(255, 255, 255, 0.06);
-  color: #f0f0ef;
+  color: var(--text);
 }
 
-.top-actions button.close:hover {
-  background: rgba(229, 105, 95, 0.2);
-  color: #fff2f2;
+.window-button.close:hover {
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 
-.top-actions button:focus-visible {
-  outline: 1px solid color-mix(in srgb, var(--accent) 72%, transparent);
-  outline-offset: -2px;
+.window-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.title-signal {
+/* One status pill shape for workspace headers and library cards. */
+.status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 8px;
-  color: #b5b3b0;
-  font: 540 11.5px/1 "Segoe UI Variable Text", "Segoe UI", sans-serif;
-  letter-spacing: 0.025em;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-2);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.title-signal.offline {
-  color: var(--warning);
-}
-
-.title-signal__dot {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
+.status-pill i {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  background: var(--text-3);
 }
+
+.status-pill.success { background: var(--success-bg); color: var(--success-text); }
+.status-pill.success i { background: var(--success); }
+.status-pill.accent { background: var(--accent-bg); color: var(--accent-text); }
+.status-pill.accent i { background: var(--accent); }
+.status-pill.warning { background: var(--warning-bg); color: var(--warning-text); }
+.status-pill.warning i { background: var(--warning); }
+.status-pill.danger { background: var(--danger-bg); color: var(--danger-text); }
+.status-pill.danger i { background: var(--danger); }
 
 .activity-home .app-content {
   gap: 0;
@@ -610,8 +635,7 @@ button:active:not(:disabled) {
   border-color: color-mix(in srgb, var(--accent) 54%, var(--line-strong));
 }
 
-.activity-card:focus-visible,
-.workspace-path button:focus-visible {
+.activity-card:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -651,8 +675,7 @@ button:active:not(:disabled) {
   color: var(--accent);
 }
 
-.activity-card.observe .activity-card__status,
-.workspace-path em.live {
+.activity-card.observe .activity-card__status {
   color: var(--accent);
 }
 
@@ -798,87 +821,66 @@ button:active:not(:disabled) {
   margin-top: auto;
 }
 
-.workspace-path {
-  min-height: 27px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: #7a7671;
-  font-size: 9.5px;
-}
-
-.workspace-path button,
-.workspace-path span,
-.workspace-path em {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.workspace-path button {
-  padding: 5px 7px;
-  border-radius: 6px;
-  color: #9a9792;
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
-}
-
-.workspace-path button:hover:not(:disabled) {
-  color: #e5e4e3;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.workspace-path span {
-  color: #c9c8c6;
-  font-weight: 600;
-}
-
-.workspace-path em {
-  margin-left: auto;
-  color: var(--accent);
-  font-style: normal;
-  font-weight: 650;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.workspace-path em.calibration {
-  color: #d2b27b;
-}
-
 .workspace-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 38px;
+  gap: 16px;
+  min-height: 40px;
 }
 
-.workspace-header .workspace-path { margin: 0; min-width: 0; flex-wrap: wrap; }
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.workspace-title {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-size: var(--fs-page);
+  font-weight: 660;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  white-space: nowrap;
+}
+
 main:has(.live-layout) .app-content { gap: 8px; }
-.workspace-tools { display: flex; gap: 6px; flex-shrink: 0; }
+.workspace-tools { display: flex; gap: 8px; flex-shrink: 0; min-width: 0; }
 .workspace-tools button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 7px 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  background: var(--panel-soft);
-  font-size: 12px;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.workspace-tools button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
-.workspace-tools .needs-target { color: var(--warning); border-color: var(--muted-warning); }
+.workspace-tools button:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.22); }
+.workspace-tools button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.workspace-tools button:disabled { opacity: 0.5; cursor: not-allowed; }
+.workspace-tools .target-chip { gap: 9px; }
+.target-chip__icon { color: var(--text-2); flex-shrink: 0; }
+.target-chip__name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; font: 600 var(--fs-small)/1 "Cascadia Code", Consolas, monospace; }
+.target-chip__dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--success); }
+.target-chip__chevron { color: var(--text-3); flex-shrink: 0; }
+.workspace-tools .needs-target { border-color: var(--muted-warning); color: var(--warning-text); }
+.needs-target .target-chip__dot { background: var(--warning); }
 .actions.fishing-actions { grid-template-columns: minmax(0, 1fr); }
 
-@media (max-width: 800px) {
-  .workspace-header { gap: 8px; }
-  .workspace-header .workspace-path { gap: 6px; }
-  .workspace-tools button { padding: 6px 8px; font-size: 11px; }
+@media (max-width: 900px) {
+  .workspace-header { gap: 10px; }
+  .workspace-tools { gap: 6px; }
+  .workspace-tools button { padding: 0 10px; }
+  .target-chip__name { max-width: 110px; }
 }
 
 @media (max-width: 619px) {
@@ -3314,10 +3316,6 @@ summary:focus-visible {
     font-size: 10px;
   }
 
-  .title-signal {
-    display: none;
-  }
-
   .target-card__header {
     align-items: flex-start;
     flex-direction: column;
@@ -3356,8 +3354,8 @@ summary:focus-visible {
 
 @media (max-width: 900px) and (max-height: 720px) {
   main { padding: 10px 14px 8px; }
-  .titlebar { min-height: 40px; }
-  .workspace-path { margin: 7px 0; }
+  .workspace-header { min-height: 36px; }
+  .workspace-title { font-size: 20px; }
   .activity-intro { min-height:88px; padding:8px 3px; flex-direction:row; align-items:center; gap:12px; margin:4px 0; }
   .activity-intro h1 { font-size:24px; margin:2px 0; }
   .activity-intro > div > p:last-child { display:none; }

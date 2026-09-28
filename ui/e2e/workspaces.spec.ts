@@ -34,7 +34,7 @@ for (const viewport of [{width:760,height:620},{width:1180,height:760}]) {
       await expect(page.locator("main")).toBeVisible();
       expect(await page.evaluate(() => ({ height:document.documentElement.scrollHeight, viewport:innerHeight })), `${activity} must fit without document scrolling`).toEqual({height:viewport.height,viewport:viewport.height});
       await page.screenshot({path:`test-results/${activity}-${viewport.width}.png`});
-      await page.getByRole("button",{name:"Activities",exact:true}).click();
+      await page.getByRole("button",{name:"Activity library",exact:true}).click();
     }
     await page.locator('[data-activity="fishing"]').click();
     await page.getByRole("button",{name:"Settings",exact:true}).click();
@@ -53,5 +53,5 @@ test("save failures restore values and target setup retains activity",async({pag
   await expect(page.getByLabel("Yellow · earlier by")).toHaveValue("17");
   await page.getByRole("button",{name:"Change FiveM window"}).click();
   await expect(page.getByRole("dialog",{name:"Available FiveM windows"})).toBeVisible();
-  await expect(page.getByRole("navigation",{name:"Activity navigation"})).toContainText("Pickpocket");
+  await expect(page.getByRole("button",{name:"Switch to Pickpocket",exact:true})).toHaveAttribute("aria-current","page");
 });

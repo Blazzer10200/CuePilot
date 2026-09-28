@@ -22,7 +22,7 @@ test("diagnostics returns focus to its opener in every workspace", async ({ page
     await expect(page.getByRole("button", { name: "Close diagnostics", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(opener).toBeFocused();
-    if (activity) await page.getByRole("button", { name: "Activities", exact: true }).click();
+    if (activity) await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
 });
 
@@ -63,7 +63,7 @@ test("shared workspace tools retain context and keyboard focus", async ({ page }
     await expect(page.getByRole("combobox", { name: "Diagnostic activity" })).toHaveValue(diagnostic);
     await page.keyboard.press("Escape");
     await expect(tools.getByRole("button", { name: "Open diagnostics" })).toBeFocused();
-    await page.getByRole("button", { name: "Activities", exact: true }).click();
+    await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
 });
 
@@ -85,7 +85,7 @@ test("intermediate window size and reference view remain usable", async ({ page 
     await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollHeight), `${name} fits at 820×700`).toBe(700);
     await page.screenshot({ path: `test-results/${name}-820.png`, animations: "disabled" });
-    await page.getByRole("button", { name: "Activities", exact: true }).click();
+    await page.getByRole("button", { name: "Activity library", exact: true }).click();
   }
   await page.getByRole("button", { name: "Open Pickpocket", exact: true }).click();
   await page.getByRole("button", { name: "Reference", exact: true }).click();

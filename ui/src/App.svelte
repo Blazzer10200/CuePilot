@@ -3,8 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
-    Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
-    Gauge, Hand, KeyRound, Layers3, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
+    Activity, AlertTriangle, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
+    Gauge, Hand, KeyRound, Layers3, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
     ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
   import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
@@ -135,6 +135,13 @@
   });
   const currentStep = $derived(cycleStep(engine.status.state));
   const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing);
+  const workspaceStatus = $derived.by(() => {
+    if (fishingSelected && engine.status.state === "Faulted") return { label: "Paused", tone: "danger" };
+    if (fishingSelected ? active : !!engine.snapshot?.pickpocket?.observing) return { label: "Running", tone: "accent" };
+    if (!engine.connected) return { label: "Connecting", tone: "warning" };
+    if (!targetValid) return { label: "Select target", tone: "warning" };
+    return { label: "Ready", tone: "success" };
+  });
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -708,14 +715,15 @@
   <div class="titlebar" role="group" aria-label="Window controls" onpointerdown={startDragging}>
     <div class="brand">
       <div class="mark" aria-hidden="true"><img src={brandIcon} alt="" /></div>
-      <span>CUEPILOT{#if developmentBuild}<strong>DEV</strong>{/if}<button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button></span><small>{currentActivity ? currentActivity.shortName : "Activity console"}</small>
+      <span class="brand__name">CuePilot</span>
+      {#if developmentBuild}<strong class="brand__dev">DEV</strong>{/if}
+      <button class:available={updates.hasUpdate} class="app-version" aria-label={`Version ${__APP_VERSION__}. Open updates`} title="CuePilot updates" onclick={() => updates.open()}>v{__APP_VERSION__}</button>
     </div>
     <div class="top-actions">
-      <button aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={15} /></button>
-      <div class:offline={!engine.connected} class="title-signal"><span class="title-signal__dot"><Radio size={13} />{#if engine.connected}<i class="live-ring" use:phaseLock></i>{/if}</span> LOCAL ENGINE {engine.connected ? "ONLINE" : "CONNECTING"}</div>
-      <button aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
-      <button aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Maximize2 size={14} /></button>
-      <button class="close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
+      <div class:offline={!engine.connected} class="engine-pill"><span class="engine-pill__dot" aria-hidden="true">{#if engine.connected}<i class="live-ring" use:phaseLock></i>{/if}</span>{engine.connected ? "Engine online" : "Connecting…"}</div>
+      <button class="window-button" aria-label="Minimize" title="Minimize" onclick={minimize}><Minus size={15} /></button>
+      <button class="window-button" aria-label="Maximize" title="Maximize or restore" onclick={maximize}><Square size={13} /></button>
+      <button class="window-button close" aria-label="Close" title="Close to tray (CuePilot keeps running)" onclick={close}><X size={15} /></button>
     </div>
   </div>
 
@@ -730,23 +738,24 @@
         {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"><i class="live-ring" use:phaseLock></i></b>{/if}
       </button>
     {/each}
+    <i class="rail__divider" aria-hidden="true"></i>
+    <button class="rail__item rail__item--utility" aria-label="About and diagnostics" title="Build, health and recorded sessions" onclick={inspectDiagnostics}><Gauge size={17} strokeWidth={1.8} /></button>
   </nav>
   {#key selectedActivity}
   <div class="app-content">
 
   {#if currentActivity}
   <div class="workspace-header">
-    <nav class="workspace-path" aria-label="Activity navigation">
-      <button onclick={returnToActivities} disabled={!!runPending}><ArrowLeft size={14} strokeWidth={2} /> Activities</button>
-      <ChevronRight size={12} aria-hidden="true" />
-      <span aria-current="page">{currentActivity.shortName}</span>
-    </nav>
+    <div class="workspace-heading">
+      <h2 class="workspace-title">{currentActivity.name}</h2>
+      <span class={`status-pill ${workspaceStatus.tone}`}><i aria-hidden="true"></i>{workspaceStatus.label}</span>
+    </div>
     <div class="workspace-tools" role="group" aria-label="Workspace tools">
-      <button bind:this={targetButton} class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
-        <Monitor size={14} /><span>{selectingTarget ? "Scanning…" : targetValid ? "FiveM selected" : "Select FiveM"}</span>
+      <button bind:this={targetButton} class="target-chip" class:needs-target={!targetValid} aria-label="Change FiveM window" aria-expanded={targetPickerOpen} aria-controls="target-picker" title={targetValid ? target?.windowTitle : "Select a FiveM window before starting"} onclick={findTarget} disabled={anyActivityRunning || selectingTarget || !!runPending || !engine.connected}>
+        <Monitor size={15} class="target-chip__icon" /><span class="target-chip__name">{selectingTarget ? "Scanning…" : targetValid ? (target?.processName || "FiveM selected") : "Select FiveM"}</span><i class="target-chip__dot" aria-hidden="true"></i><ChevronDown size={14} class="target-chip__chevron" />
       </button>
-      <button bind:this={settingsButton} onclick={openSettings} disabled={anyActivityRunning || !!runPending || !engine.connected || !engine.snapshot}><Settings2 size={14} /> Settings</button>
-      <button bind:this={diagnosticsButton} aria-label="Open diagnostics" onclick={inspectDiagnostics}><FolderOpen size={14} /> Diagnostics</button>
+      <button bind:this={settingsButton} onclick={openSettings} disabled={anyActivityRunning || !!runPending || !engine.connected || !engine.snapshot}><Settings2 size={15} /> Settings</button>
+      <button bind:this={diagnosticsButton} aria-label="Open diagnostics" onclick={inspectDiagnostics}><FolderOpen size={15} /> Diagnostics</button>
     </div>
   </div>
   {/if}
