@@ -16,7 +16,7 @@ test("shortcut field captures keys and mouse buttons and refuses taken or reserv
   await page.keyboard.press("Control+Shift+KeyG");
   await expect(field).toHaveAttribute("aria-pressed", "false");
   await expect(heading).toHaveText("Ctrl + Shift + G");
-  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  await expect(page.getByText("1 unsaved change", { exact: true })).toBeVisible();
 
   await field.click();
   await page.keyboard.press("F7");

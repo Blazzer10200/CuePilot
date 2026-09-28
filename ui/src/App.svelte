@@ -196,6 +196,22 @@
       || JSON.stringify(shortcutDraft) !== JSON.stringify(engine.snapshot.settings.startStop)
       || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })),
   );
+  const savedRoutine = $derived(engine.snapshot?.settings.routine);
+  // Each changed field counts once, so the footer can say how much Apply will change.
+  const unsavedCount = $derived.by(() => {
+    if (!settingsDirty || !draft || !savedRoutine || !engine.snapshot) return 0;
+    const routine = draft;
+    const saved = savedRoutine;
+    const fields = (Object.keys(routine) as (keyof RoutineSettings)[]).filter((key) => JSON.stringify(routine[key]) !== JSON.stringify(saved[key])).length;
+    const shortcuts = [
+      [shortcutDraft, engine.snapshot.settings.startStop],
+      [pickpocketShortcutDraft, engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false }],
+    ].filter(([next, current]) => JSON.stringify(next) !== JSON.stringify(current)).length;
+    return fields + shortcuts;
+  });
+  const lowerChanged = $derived(!!draft && !!savedRoutine && draft.fishingLowerTensionPercent !== savedRoutine.fishingLowerTensionPercent);
+  const upperChanged = $derived(!!draft && !!savedRoutine && draft.fishingUpperTensionPercent !== savedRoutine.fishingUpperTensionPercent);
+  const percent = (value: number) => Math.max(0, Math.min(100, Number(value) || 0));
   const selectedDelivery = $derived(
     deliveryOptions.find((option) => option.value === draft?.inputMode) ?? deliveryOptions[0],
   );
@@ -974,38 +990,35 @@
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} in:enter={"scrim"} out:leave={"scrim"}></div>
   <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} in:enter={"drawer"} out:leave={"drawer"}>
     <header class="panel-header">
-      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : "Pickpocket profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Pickpocket controls"}</h2></div>
-      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
+      <div><p class="panel-kicker">{fishingSelected ? "Fishing profile" : "Pickpocket profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Pickpocket controls"}</h2></div>
+      <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={16} strokeWidth={2.2} class="icon" /></button>
     </header>
-    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : "Choose your in-game start/stop toggle. The selected run mode and target apply to both the button and shortcut."}</p>
-    <p class:visible={settingsDirty} class="settings-change-note" aria-live="polite"><i></i>{settingsDirty ? "Unsaved changes" : "Profile is up to date"}</p>
 
-    {#if fishingSelected}<nav class="settings-view-tabs" aria-label="Settings view"><button aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
+    {#if fishingSelected}<nav class="segmented segmented--inset segmented--fill settings-view-tabs" aria-label="Settings view"><button class:active={!settingsAdvanced} aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button class:active={settingsAdvanced} aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
     <div class="settings-content">
     {#if !settingsAdvanced || !fishingSelected}
-    <div class="settings-tier"><strong>Basic</strong><span>{fishingSelected ? "The controls most people need." : "In-game shortcut preference."}</span></div>
     {#if fishingSelected}
       <section class="settings-group shortcut-setting" aria-labelledby="shortcut-heading">
         <header class="settings-group__header">
-          <div><p>Global control</p><h3 id="shortcut-heading">Fishing Start / Stop shortcut</h3></div>
+          <h3 id="shortcut-heading">Start / Stop shortcut</h3>
           <span>{hotkeyDisplay(shortcutDraft)}</span>
         </header>
         <HotkeyCapture
           bind:value={shortcutDraft}
           label="Fishing start and stop shortcut"
-          title="Toggle Fishing from FiveM"
-          description="Press once to start. Press again to stop and release input."
+          descriptionId="settings-description"
+          description="Press once in FiveM to start, again to stop and release input. F8, Esc, Windows, and left/right click can't be bound."
           defaultBinding={defaultShortcuts.fishing}
           taken={takenShortcuts("fishing")}
         />
       </section>
     {:else}
       <section class="settings-group shortcut-setting" aria-labelledby="pickpocket-shortcut-heading">
-        <header class="settings-group__header"><div><p>Global control</p><h3 id="pickpocket-shortcut-heading">Pickpocket Start / Stop shortcut</h3></div><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
+        <header class="settings-group__header"><h3 id="pickpocket-shortcut-heading">Start / Stop shortcut</h3><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
         <HotkeyCapture
           bind:value={pickpocketShortcutDraft}
           label="Pickpocket start and stop shortcut"
-          title="Toggle Pickpocket from FiveM"
+          descriptionId="settings-description"
           description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
           defaultBinding={defaultShortcuts.pickpocket}
           taken={takenShortcuts("pickpocket")}
@@ -1016,22 +1029,26 @@
     {#if fishingSelected}
     <section class="settings-group" aria-labelledby="tension-heading">
       <header class="settings-group__header">
-        <div><p>Control window</p><h3 id="tension-heading">Tension envelope</h3></div>
-        <span>{draft.fishingLowerTensionPercent}–{draft.fishingUpperTensionPercent}%</span>
+        <h3 id="tension-heading">Tension envelope</h3>
+        <span class="settings-group__range">{draft.fishingLowerTensionPercent}–{draft.fishingUpperTensionPercent}%</span>
       </header>
+      <div class="tension-track" aria-hidden="true">
+        <span class="tension-track__fill" style:left={`${percent(draft.fishingLowerTensionPercent)}%`} style:width={`${Math.max(0, percent(draft.fishingUpperTensionPercent) - percent(draft.fishingLowerTensionPercent))}%`}></span>
+        <i style:left={`${percent(draft.fishingLowerTensionPercent)}%`}></i><i style:left={`${percent(draft.fishingUpperTensionPercent)}%`}></i>
+      </div>
+      <div class="tension-scale" aria-hidden="true"><span>0</span><span>50</span><span>100%</span></div>
       <div class="form-grid form-grid--tension">
-        <label><span class="field-label">Pulse threshold</span><span class="field-control"><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>%</small></span><small class="field-help">CuePilot begins adding tension below this level.</small></label>
-        <label><span class="field-label">Target tension</span><span class="field-control"><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>%</small></span><small class="field-help">The safe upper edge CuePilot aims to stay under.</small></label>
+        <label><span class="field-label">Pulse threshold</span><span class="field-control" class:changed={lowerChanged}><input aria-label="Pulse threshold percent" bind:value={draft.fishingLowerTensionPercent} min="25" max="80" type="number" /><small>{lowerChanged ? `% · was ${savedRoutine?.fishingLowerTensionPercent}` : "%"}</small></span><small class="field-help">Adds tension below this.</small></label>
+        <label><span class="field-label">Target tension</span><span class="field-control" class:changed={upperChanged}><input aria-label="Target tension percent" bind:value={draft.fishingUpperTensionPercent} min="30" max="85" type="number" /><small>{upperChanged ? `% · was ${savedRoutine?.fishingUpperTensionPercent}` : "%"}</small></span><small class="field-help">Upper edge to stay under.</small></label>
       </div>
     </section>
 
     {/if}
     {/if}
     {#if fishingSelected && settingsAdvanced}
-    <div class="settings-tier settings-tier--advanced"><strong>Advanced</strong><span>Timing and delivery guardrails. Defaults are recommended unless detection evidence shows a problem.</span></div>
     <section class="settings-group" aria-labelledby="timing-heading">
       <header class="settings-group__header">
-        <div><p>Timing guardrails</p><h3 id="timing-heading">Control cadence</h3></div>
+        <h3 id="timing-heading">Control cadence</h3>
         <span>{draft.fishingSampleMilliseconds} ms sample</span>
       </header>
       <div class="form-grid">
@@ -1090,7 +1107,7 @@
     <NotificationSettings />
     </div>
     {#if settingsError}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {settingsError}</p>{/if}
-    <div class="panel-actions"><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
+    <div class="panel-actions"><p class="unsaved-count" aria-live="polite">{#if unsavedCount}<i aria-hidden="true"></i>{unsavedCount} unsaved {unsavedCount === 1 ? "change" : "changes"}{/if}</p><button class="sub-action" onclick={closePanels}>Cancel</button><button class:dirty={settingsDirty} class="primary-action compact" onclick={saveSettings} disabled={savingSettings || !settingsDirty}>{#if savingSettings}<RefreshCw size={15} class="spin" /> Saving…{:else if settingsDirty}Apply changes <Check size={16} strokeWidth={2.1} />{:else}Apply changes{/if}</button></div>
   </div>
 {/if}
 

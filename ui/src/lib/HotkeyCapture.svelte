@@ -10,20 +10,22 @@
   let {
     value = $bindable(),
     label,
-    title,
     description,
+    descriptionId,
     defaultBinding,
     taken = [],
   }: {
     value: HotkeyBinding;
     label: string;
-    title: string;
     description: string;
+    /** Lets the surrounding dialog point aria-describedby at the help text. */
+    descriptionId?: string;
     defaultBinding: HotkeyBinding;
     taken?: TakenBinding[];
   } = $props();
 
   const metaId = $props.id();
+  const helpId = $derived(descriptionId ?? `${metaId}-help`);
 
   let capturing = $state(false);
   let error = $state<string | null>(null);
@@ -145,20 +147,16 @@
   });
 </script>
 
-<div class="shortcut-control hotkey" class:capturing class:has-error={error !== null}>
-  <div class="hotkey__copy"><strong>{title}</strong><small>{description}</small></div>
+<div class="hotkey" class:capturing class:has-error={error !== null}>
   <button
     type="button"
     class="hotkey__field"
     aria-label={label}
     aria-pressed={capturing}
-    aria-describedby={metaId}
+    aria-describedby={`${helpId} ${metaId}`}
     title={capturing ? "Listening for a key or mouse button" : `Change the ${label.toLowerCase()}`}
     onclick={toggle}
   >
-    <span class="hotkey__icon" aria-hidden="true">
-      {#if capturing}<span class="hotkey__pulse"><i class="live-ring" use:phaseLock></i></span>{:else if mouse}<Mouse size={13} strokeWidth={2} />{:else}<Keyboard size={13} strokeWidth={2} />{/if}
-    </span>
     <span class="hotkey__caps">
       {#if capturing}
         {#each heldParts as part (part)}<kbd class="hotkey__cap">{part}</kbd><span class="hotkey__plus">+</span>{/each}
@@ -169,115 +167,57 @@
         {/each}
       {/if}
     </span>
+    <span class="hotkey__hint" aria-hidden="true">
+      {#if capturing}<span class="hotkey__pulse"><i class="live-ring" use:phaseLock></i></span>Listening…{:else}{#if mouse}<Mouse size={14} strokeWidth={2} />{:else}<Keyboard size={14} strokeWidth={2} />{/if}Click, then press a key or side button{/if}
+    </span>
   </button>
+  <p class="hotkey__help" id={helpId}>{description}</p>
   <div class="hotkey__meta" id={metaId} aria-live="polite">
     {#if error}
       <span class="hotkey__error">{error}</span>
     {:else if capturing}
       <span>Press any key or combo · Mouse 4, Mouse 5, and middle click work · Esc cancels</span>
-    {:else}
-      <span>Click to change. Left and right click stay with the game.</span>
-      {#if !isDefault}
-        <button type="button" class="hotkey__reset" onclick={reset}><RotateCcw size={11} strokeWidth={2.2} aria-hidden="true" />Reset to {hotkeyDisplay(defaultBinding)}</button>
-      {/if}
+    {:else if !isDefault}
+      <button type="button" class="hotkey__reset" onclick={reset}><RotateCcw size={12} strokeWidth={2.2} aria-hidden="true" />Reset to {hotkeyDisplay(defaultBinding)}</button>
     {/if}
   </div>
 </div>
 
 <style>
-  .hotkey {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "copy field" "meta meta";
-    align-items: center;
-    row-gap: 8px;
-    column-gap: 14px;
-  }
-
-  .hotkey.capturing {
-    border-color: rgba(217, 119, 87, 0.5);
-    background: rgba(217, 119, 87, 0.06);
-  }
-
-  .hotkey.has-error {
-    border-color: rgba(229, 105, 95, 0.42);
-  }
-
-  .hotkey__copy {
-    grid-area: copy;
-    min-width: 0;
-    display: grid;
-    gap: 3px;
-  }
+  .hotkey { display: grid; gap: 8px; }
 
   .hotkey__field {
-    grid-area: field;
-    min-height: 34px;
-    max-width: 100%;
-    padding: 0 10px 0 9px;
-    display: inline-flex;
+    width: 100%;
+    height: 56px;
+    padding: 0 14px 0 12px;
+    display: flex;
     align-items: center;
-    gap: 8px;
-    border: 1px solid rgba(217, 119, 87, 0.22);
-    border-radius: 8px;
-    background: #272624;
-    color: var(--accent);
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px dashed rgba(217, 119, 87, 0.45);
+    border-radius: var(--radius-button);
+    background: rgba(217, 119, 87, 0.05);
+    color: var(--text-2);
+    font: inherit;
     cursor: pointer;
-    outline: none;
-    transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+    transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
   }
 
-  .hotkey__field:hover {
-    border-color: rgba(217, 119, 87, 0.4);
-    background: #2b2a28;
-  }
+  .hotkey__field:hover { background: rgba(217, 119, 87, 0.09); }
+  .capturing .hotkey__field { border-style: solid; border-color: var(--accent); background: rgba(217, 119, 87, 0.1); }
+  .has-error .hotkey__field { border-color: var(--danger-line); }
 
-  .hotkey__field:focus-visible {
-    border-color: rgba(217, 119, 87, 0.55);
-    box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.1);
-  }
-
-  .capturing .hotkey__field {
-    border-color: var(--accent);
-    border-style: dashed;
-    background: rgba(217, 119, 87, 0.08);
-    box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.12);
-  }
-
-  .hotkey__icon {
-    width: 14px;
-    height: 14px;
-    flex: 0 0 auto;
-    display: grid;
-    place-items: center;
-    color: #a89e96;
-  }
-
-  .hotkey__pulse {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent);
-    position: relative;
-  }
-
-  .hotkey__caps {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
+  .hotkey__caps { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 
   .hotkey__cap {
-    min-width: 24px;
-    padding: 4px 7px 3px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    min-width: 28px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
     border-bottom-width: 2px;
-    border-radius: 5px;
-    background: linear-gradient(180deg, #34322f, #2a2927);
-    color: #f0ede9;
-    font: 650 11px/1 "Cascadia Code", Consolas, monospace;
-    letter-spacing: 0.01em;
+    border-radius: 6px;
+    background: var(--surface-sunken);
+    color: var(--text-strong);
+    font: 700 15px/1 "Cascadia Code", Consolas, monospace;
     text-align: center;
     white-space: nowrap;
   }
@@ -286,71 +226,65 @@
     border-style: dashed;
     border-color: rgba(217, 119, 87, 0.5);
     background: transparent;
-    color: var(--accent);
+    color: var(--accent-text);
+    font-size: var(--fs-small);
     font-weight: 600;
   }
 
-  .hotkey__plus {
-    color: #7d7973;
-    font: 600 10px/1 "Cascadia Code", Consolas, monospace;
+  .hotkey__plus { color: var(--text-3); font: 600 12px/1 "Cascadia Code", Consolas, monospace; }
+
+  .hotkey__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+    color: var(--text-2);
+    font-size: var(--fs-small);
+    text-align: right;
   }
 
+  .capturing .hotkey__hint { color: var(--accent-text); }
+
+  .hotkey__pulse {
+    position: relative;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .hotkey__help { margin: 0; color: var(--text-3); font-size: var(--fs-caption); line-height: 1.45; }
+
   .hotkey__meta {
-    grid-area: meta;
-    min-height: 14px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 6px 12px;
-    color: #7f7b76;
-    font-size: 10px;
-    line-height: 1.35;
+    color: var(--text-3);
+    font-size: var(--fs-caption);
+    line-height: 1.4;
   }
 
-  .capturing .hotkey__meta {
-    color: #c2a597;
-  }
-
-  .hotkey__error {
-    color: var(--danger);
-  }
+  .hotkey__meta:not(:has(*)) { display: none; }
+  .capturing .hotkey__meta { color: var(--accent-text); }
+  .hotkey__error { color: var(--danger-text); }
 
   .hotkey__reset {
     margin-left: auto;
-    padding: 2px 6px 2px 5px;
+    padding: 2px 4px;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    border: 1px solid transparent;
-    border-radius: 5px;
+    gap: 5px;
+    border: 0;
+    border-radius: var(--radius-kbd);
     background: transparent;
-    color: #a19f9b;
-    font: 600 10px/1 inherit;
-    font-family: inherit;
+    color: var(--text-3);
+    font: inherit;
+    font-size: var(--fs-caption);
     cursor: pointer;
-    transition: color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+    transition: color var(--dur-fast) var(--ease-out);
   }
 
-  .hotkey__reset:hover {
-    color: var(--text);
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-
-  .hotkey__reset:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
-  }
-
-  @media (max-width: 560px) {
-    .hotkey {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "copy" "field" "meta";
-    }
-
-    .hotkey__field {
-      justify-self: start;
-    }
-  }
+  .hotkey__reset:hover { color: var(--accent-text); }
 </style>
