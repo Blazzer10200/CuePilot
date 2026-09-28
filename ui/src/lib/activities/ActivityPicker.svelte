@@ -1,20 +1,27 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { ChevronRight, Hand, KeyRound, Layers3, ShieldCheck, Waves } from "@lucide/svelte";
-  import { activities, type ActivityId } from "../activities";
+  import { ArrowRight, Hand, ShieldCheck, Waves } from "@lucide/svelte";
+  import { activities, type ActivityDefinition, type ActivityId } from "../activities";
 
   interface Props {
     engineConnected: boolean;
     targetValid: boolean;
     focusActivity: ActivityId | null;
+    shortcuts: Record<ActivityId, string>;
     onselect: (activityId: ActivityId) => void | Promise<void>;
   }
 
-  let { engineConnected, targetValid, focusActivity, onselect }: Props = $props();
+  let { engineConnected, targetValid, focusActivity, shortcuts, onselect }: Props = $props();
   let activityCardNodes: Partial<Record<ActivityId, HTMLButtonElement>> = $state({});
   const readyCount = activities.filter((activity) => activity.availability === "ready").length;
-  const observeCount = activities.filter((activity) => activity.availability === "observe" || activity.availability === "calibration").length;
+  const calibrationCount = activities.filter((activity) => activity.availability === "observe" || activity.availability === "calibration").length;
   const previewCount = activities.filter((activity) => activity.availability === "preview").length;
+  const availabilitySummary = [
+    [readyCount, "ready"],
+    [calibrationCount, "in calibration"],
+    [previewCount, "preview"],
+  ].filter(([count]) => count).map(([count, label]) => `${count} ${label}`).join(" · ");
+  const statusTone: Record<ActivityDefinition["availability"], string> = { ready: "success", observe: "warning", calibration: "warning", preview: "accent" };
 
   onMount(() => {
     if (focusActivity) void tick().then(() => activityCardNodes[focusActivity]?.focus());
@@ -23,13 +30,22 @@
 
 <section class="activity-intro" aria-labelledby="activity-heading">
   <div>
-    <p class="eyebrow"><Layers3 size={14} strokeWidth={1.9} /> Activity library</p>
-    <h1 id="activity-heading">Choose your activity</h1>
-    <p>Open a workspace to set up, run, or review an activity.</p>
+    <h1 id="activity-heading">Activities</h1>
+    <p>Open a workspace to set up, run, or review. Target, capture, and emergency stop are shared across all of them.</p>
   </div>
   <aside class="library-status" class:offline={!engineConnected} aria-label="Activity library status" aria-live="polite">
-    <span><i aria-hidden="true"></i>{engineConnected ? "Engine connected" : "Connecting to engine…"}</span>
-    <small>{!engineConnected ? "Waiting for local connection" : targetValid ? "FiveM window selected" : "Select a FiveM window in a workspace"}</small>
+    <div>
+      <span>Engine</span>
+      <strong><i class={engineConnected ? "success" : "warning"} aria-hidden="true"></i>{engineConnected ? "Connected" : "Connecting to engine…"}</strong>
+    </div>
+    <div>
+      <span>FiveM window</span>
+      <strong><i class={engineConnected && targetValid ? "success" : "warning"} aria-hidden="true"></i>{!engineConnected ? "Waiting for local connection" : targetValid ? "Selected" : "Not selected"}</strong>
+    </div>
+    <div>
+      <span>Emergency stop</span>
+      <kbd>Pause / Break</kbd>
+    </div>
   </aside>
 </section>
 
@@ -37,9 +53,6 @@
   {#each activities as activity, index (activity.id)}
     <button
       class:ready={activity.availability === "ready"}
-      class:observe={activity.availability === "observe"}
-      class:calibration={activity.availability === "calibration"}
-      class:preview={activity.availability === "preview"}
       class="activity-card"
       data-activity={activity.id}
       style={`--i:${index}`}
@@ -49,31 +62,25 @@
       aria-describedby={`activity-status-${activity.id} activity-description-${activity.id}`}
     >
       <span class="activity-card__topline">
-        <span class="activity-card__number" aria-hidden="true">0{index + 1}</span>
-        <span class="activity-card__status" id={`activity-status-${activity.id}`}><i aria-hidden="true"></i>{activity.statusLabel}</span>
+        <span class="activity-card__icon" aria-hidden="true">
+          {#if activity.id === "fishing"}<Waves size={22} strokeWidth={1.7} />{:else}<Hand size={22} strokeWidth={1.7} />{/if}
+        </span>
+        <span class={`status-pill ${statusTone[activity.availability]}`} id={`activity-status-${activity.id}`}><i aria-hidden="true"></i>{activity.statusLabel}</span>
       </span>
-      <span class="activity-card__icon" aria-hidden="true">
-        {#if activity.id === "fishing"}<Waves size={25} strokeWidth={1.65} />{:else if activity.id === "pickpocket"}<Hand size={25} strokeWidth={1.65} />{:else}<KeyRound size={25} strokeWidth={1.65} />{/if}
-      </span>
-      <span class="activity-card__copy">
-        <small>{activity.eyebrow}</small>
-        <strong>{activity.name}</strong>
-        <span id={`activity-description-${activity.id}`}>{activity.description}</span>
-      </span>
+      <strong class="activity-card__name">{activity.name}</strong>
+      <span class="activity-card__description" id={`activity-description-${activity.id}`}>{activity.description}</span>
       <span class="activity-card__capabilities" aria-label="Capabilities">
         {#each activity.capabilities as capability}<span>{capability}</span>{/each}
       </span>
-      <span class="activity-card__action">Open {activity.shortName}<ChevronRight size={15} strokeWidth={1.9} /></span>
+      <span class="activity-card__footer">
+        <span class="activity-card__shortcut">Shortcut <kbd>{shortcuts[activity.id]}</kbd></span>
+        <span class="activity-card__action">Open<ArrowRight size={15} strokeWidth={1.9} /></span>
+      </span>
     </button>
   {/each}
 </section>
 
-<section class="activity-note" aria-label="Shared safety">
-  <ShieldCheck size={16} strokeWidth={1.8} />
-  <p><strong>One safe core.</strong> Activities share the selected FiveM window, local capture, emergency release, and bounded input delivery.</p>
-</section>
-
-<footer class="status-footer activity-home__footer">
-  <div class="safety-summary"><ShieldCheck size={15} strokeWidth={1.9} /><p><strong>Local by design</strong><i></i>No gameplay imagery leaves this PC</p></div>
-  <div class="system-status" aria-label="Activity availability"><span><i></i>{readyCount} automation ready</span><b aria-hidden="true"></b><span>{observeCount} in calibration</span>{#if previewCount}<b aria-hidden="true"></b><span>{previewCount} preview</span>{/if}</div>
+<footer class="home-footer">
+  <p><ShieldCheck size={15} strokeWidth={1.9} /><strong>Local by design.</strong> No gameplay imagery leaves this PC.</p>
+  <span aria-label="Activity availability">{availabilitySummary}</span>
 </footer>

@@ -761,7 +761,7 @@
   {/if}
 
   {#if selectedActivity === null}
-    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} onselect={selectActivity} />
+    <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} shortcuts={{ fishing: hotkeyDisplay(engine.snapshot?.settings.startStop ?? defaultShortcuts.fishing), pickpocket: hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket) }} onselect={selectActivity} />
   {:else if fishingSelected}
 
   <section class="hero" aria-labelledby="state-heading">
