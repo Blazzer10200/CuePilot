@@ -82,7 +82,6 @@ public sealed class PersistenceTests
 
         Assert.Equal(9, restored.FormatVersion);
         Assert.Equal("F10", restored.StartStop.Key);
-        Assert.Equal("F9", restored.LockpickingStartStop.Key);
         Assert.Equal("fishing", restored.SelectedProfile);
         Assert.Equal("FiveM_b3258_GTAProcess", restored.Routine.TargetWindow.ProcessName);
         Assert.Equal(55, restored.Routine.FishingLowerTensionPercent);
@@ -113,7 +112,6 @@ public sealed class PersistenceTests
 
         Assert.Equal(9, restored.FormatVersion);
         Assert.Equal("F10", restored.StartStop.Key);
-        Assert.Equal("F9", restored.LockpickingStartStop.Key);
         Assert.Equal(35, restored.Routine.FishingMinimumPulseMilliseconds);
         Assert.Equal(90, restored.Routine.FishingMaximumPulseMilliseconds);
         Assert.Equal(70, restored.Routine.FishingMinimumRestMilliseconds);
@@ -155,7 +153,6 @@ public sealed class PersistenceTests
 
         Assert.Equal(9, restored.FormatVersion);
         Assert.Equal("F11", restored.StartStop.Key);
-        Assert.Equal("F9", restored.LockpickingStartStop.Key);
         Assert.Equal("Pause", restored.EmergencyStop.Key);
     }
 
@@ -167,7 +164,7 @@ public sealed class PersistenceTests
               "formatVersion": 9,
               "selectedProfile": "fishing",
               "startStop": { "key": "F10" },
-              "lockpickingStartStop": { "key": "F9" },
+              "removedActivityStartStop": { "key": "F9" },
               "emergencyStop": { "key": "Pause" },
               "routine": {
                 "inputMode": "Application",
@@ -199,7 +196,6 @@ public sealed class PersistenceTests
             """);
 
         Assert.Equal("F10", restored.StartStop.Key);
-        Assert.Equal("F9", restored.LockpickingStartStop.Key);
         Assert.Equal("Pause", restored.EmergencyStop.Key);
     }
 
@@ -211,7 +207,6 @@ public sealed class PersistenceTests
               "formatVersion": 9,
               "selectedProfile": "fishing",
               "startStop": { "key": "MouseX1", "control": true },
-              "lockpickingStartStop": { "key": "KeyG", "shift": true },
               "pickpocketStartStop": { "key": "MouseMiddle" },
               "emergencyStop": { "key": "Pause" },
               "routine": { "targetWindow": {} }
@@ -221,7 +216,6 @@ public sealed class PersistenceTests
         Assert.Equal("MouseX1", restored.StartStop.Key);
         Assert.True(restored.StartStop.Control);
         Assert.Equal("CTRL + MOUSE 4", restored.StartStop.DisplayText);
-        Assert.Equal("SHIFT + G", restored.LockpickingStartStop.DisplayText);
         Assert.Equal("MIDDLE MOUSE", restored.PickpocketStartStop!.DisplayText);
         Assert.Equal("MouseX1", SettingsStore.RoundTripForTest(restored).StartStop.Key);
         Assert.Equal("MOUSE 5", new HotkeyBinding { Key = "MouseX2" }.DisplayText);
@@ -241,7 +235,6 @@ public sealed class PersistenceTests
               "formatVersion": 9,
               "selectedProfile": "fishing",
               "startStop": { "key": "{{key}}" },
-              "lockpickingStartStop": { "key": "F9" },
               "emergencyStop": { "key": "Pause" },
               "routine": { "targetWindow": {} }
             }
@@ -251,39 +244,25 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public void VersionNineSettingsKeepConfiguredLockpickingShortcut()
+    public void SettingsWithRemovedActivityKeysStillLoad()
     {
+        // Vehicle Lockpicking was removed (2026-09-28); saved files still carry its shortcut.
         var restored = SettingsStore.DeserializeAndMigrateForTest("""
             {
               "formatVersion": 9,
               "selectedProfile": "fishing",
               "startStop": { "key": "F10" },
-              "lockpickingStartStop": { "key": "F8" },
+              "lockpickingStartStop": { "key": "F9" },
+              "pickpocketStartStop": { "key": "F7" },
               "emergencyStop": { "key": "Pause" },
               "routine": { "targetWindow": {} }
             }
             """);
 
         Assert.Equal(9, restored.FormatVersion);
-        Assert.Equal("F8", restored.LockpickingStartStop.Key);
-    }
-
-    [Fact]
-    public void DuplicateFishingAndLockpickingShortcutsFallBackToSafeDefaults()
-    {
-        var restored = SettingsStore.DeserializeAndMigrateForTest("""
-            {
-              "formatVersion": 9,
-              "selectedProfile": "fishing",
-              "startStop": { "key": "F9" },
-              "lockpickingStartStop": { "key": "F9" },
-              "emergencyStop": { "key": "Pause" },
-              "routine": { "targetWindow": {} }
-            }
-            """);
-
         Assert.Equal("F10", restored.StartStop.Key);
-        Assert.Equal("F9", restored.LockpickingStartStop.Key);
+        Assert.Equal("F7", restored.PickpocketStartStop.Key);
+        Assert.Equal("Pause", restored.EmergencyStop.Key);
     }
 
 }

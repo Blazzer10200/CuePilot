@@ -131,10 +131,6 @@ main {
   gap: 11px;
 }
 
-main:has(.lockpick-live-layout) .app-content {
-  gap: 10px;
-}
-
 .rail {
   position: sticky;
   top: 12px;
@@ -492,8 +488,7 @@ main:has(.lockpick-live-layout) .app-content {
   max-width: 690px;
 }
 
-.activity-intro h1,
-.lockpick-hero h1 {
+.activity-intro h1 {
   margin: 13px 0 8px;
   color: #f5f5f5;
   font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
@@ -503,8 +498,7 @@ main:has(.lockpick-live-layout) .app-content {
   letter-spacing: -0.042em;
 }
 
-.activity-intro > div > p:last-child,
-.lockpick-hero__copy > p:last-child {
+.activity-intro > div > p:last-child {
   max-width: 62ch;
   margin: 0;
   color: #a4a29e;
@@ -887,235 +881,6 @@ main:has(.live-layout) .app-content { gap: 8px; }
 @media (max-width: 619px) {
   .workspace-header { align-items: flex-start; flex-direction: column; }
   .workspace-tools { width: 100%; flex-wrap: wrap; }
-}
-
-.lockpick-hero {
-  min-height: 190px;
-  padding: 21px 4px 26px;
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 210px;
-  align-items: center;
-  gap: 30px;
-}
-
-.lockpick-hero h1 {
-  font-size: clamp(31px, 4vw, 42px);
-}
-
-.lockpick-readiness {
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 13px;
-  background: linear-gradient(135deg, rgba(43, 41, 40, 0.76), rgba(36, 35, 34, 0.58));
-}
-
-.lockpick-readiness {
-  padding: 16px;
-}
-
-.lockpick-readiness > strong {
-  display: block;
-  margin-top: 16px;
-  color: #e8e7e6;
-  font-size: 15px;
-  line-height: 1.22;
-}
-
-.lockpick-readiness > span {
-  display: block;
-  margin-top: 5px;
-  color: #8a8681;
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.readiness-list {
-  margin-top: 17px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-
-.readiness-list p {
-  margin: 0;
-  min-height: 36px;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  color: #8f8b86;
-  font-size: 9.5px;
-}
-
-.readiness-list svg {
-  color: #898580;
-}
-
-.readiness-list b {
-  max-width: 124px;
-  color: #b3b1af;
-  font-size: 8.5px;
-  font-weight: 650;
-  letter-spacing: 0.045em;
-  line-height: 1.25;
-  text-align: right;
-  text-transform: uppercase;
-}
-
-.readiness-list p.ready svg,
-.readiness-list p.ready b {
-  color: var(--accent);
-}
-
-.lockpick-next-step {
-  min-height: 58px;
-  padding: 0 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.lockpick-next-step > div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lockpick-next-step > div > svg {
-  color: #9c9995;
-  flex: 0 0 auto;
-}
-
-.lockpick-next-step p {
-  margin: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.lockpick-next-step strong {
-  color: #c6c5c3;
-  font-size: 10px;
-}
-
-.lockpick-next-step span {
-  color: #85817c;
-  font-size: 9.5px;
-}
-
-.lockpick-next-step__count {
-  flex: 0 0 auto;
-  color: #9c9994 !important;
-  font: 600 9px/1.2 "Cascadia Code", Consolas, monospace !important;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.lockpick-hero--live {
-  min-height: 140px;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.lockpick-hero__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.lockpick-observe-button {
-  min-height: 38px;
-  padding: 0 15px;
-  border: 1px solid rgba(217, 119, 87, 0.3);
-  border-radius: 9px;
-  color: #242321;
-  background: var(--accent);
-  font-size: 10px;
-  font-weight: 720;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
-  transition: transform var(--duration-fast) var(--ease-soft), opacity var(--duration-fast) var(--ease-soft), background-color var(--duration-fast) var(--ease-soft);
-}
-
-.lockpick-observe-button:hover:not(:disabled) { transform: translateY(-1px); }
-.lockpick-observe-button:active:not(:disabled) { transform: translateY(0) scale(0.985); }
-.lockpick-observe-button.secondary { color: #d3d2d1; background: transparent; border-color: rgba(255, 255, 255, 0.16); }
-.lockpick-observe-button.secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.025); border-color: rgba(255, 255, 255, 0.25); }
-.lockpick-observe-button.stop { color: #d3d2d1; background: rgba(255, 255, 255, 0.035); border-color: rgba(255, 255, 255, 0.16); }
-.lockpick-observe-button:disabled { cursor: not-allowed; opacity: 0.38; }
-
-.lockpick-live-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(270px, 0.72fr);
-  gap: 13px;
-}
-
-.lockpick-viewport {
-  min-width: 0;
-  padding: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 13px;
-  background: linear-gradient(135deg, rgba(43, 41, 40, 0.76), rgba(36, 35, 34, 0.58));
-}
-
-.lockpick-viewport > header {
-  margin-bottom: 11px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-}
-
-.lockpick-viewport > header p { margin: 0; color: #86827d; font-size: 8.5px; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
-.lockpick-viewport > header h2 { margin: 3px 0 0; color: #e5e5e4; font-size: 14px; font-weight: 640; }
-.lockpick-viewport > header > span { color: #8c8883; font: 650 10px/1 "Cascadia Code", Consolas, monospace; }
-.lockpick-viewport > header > span.ready { color: var(--accent); }
-
-.lockpick-screen {
-  position: relative;
-  min-height: 208px;
-  overflow: hidden;
-  border-radius: 9px;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    #232220;
-  background-size: 28px 28px, 28px 28px, auto, auto;
-}
-
-.lockpick-screen__guide { position: absolute; top: 10px; left: 11px; color: #55534f; font: 600 8px/1 "Cascadia Code", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
-.lockpick-screen__empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; padding: 24px; color: #676460; text-align: center; }
-.lockpick-screen__empty svg { margin-bottom: 2px; color: #76736e; }
-.lockpick-screen__empty strong { color: #a09e9b; font-size: 11px; font-weight: 620; }
-.lockpick-screen__empty span { max-width: 34ch; color: #6b6863; font-size: 9px; line-height: 1.4; }
-.lockpick-hud-boundary { position: absolute; border: 1px solid rgba(217, 119, 87, .6); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: inset 0 0 0 1px rgba(217, 119, 87, .08); transition: left 90ms linear, top 90ms linear, width 90ms linear; }
-.lockpick-target-marker { position: absolute; width: 24px; height: 24px; border: 1px solid rgba(255, 255, 255, .55); border-radius: 50%; color: #e0e0df; background: #272624; display: grid; place-items: center; transform: translate(-50%, -50%); transition: left 80ms linear, top 80ms linear, color var(--duration-fast) var(--ease-soft), border-color var(--duration-fast) var(--ease-soft); }
-.lockpick-target-marker::after { content: ""; position: absolute; inset: -1px; pointer-events: none; border: 1px solid rgba(217, 119, 87, .42); border-radius: inherit; transform: scale(var(--approach-scale, 1)); transition: transform 50ms linear, opacity var(--duration-fast) var(--ease-soft); }
-.lockpick-target-marker.ready { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(217, 119, 87, .08); }
-.lockpick-target-marker.ready::after { opacity: .85; border-color: var(--accent); }
-.lockpick-screen__readout { position: absolute; right: 11px; bottom: 10px; left: 11px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
-.lockpick-screen__readout strong { color: #e2e2e1; font: 650 9px/1.2 "Cascadia Code", Consolas, monospace; letter-spacing: .035em; }
-.lockpick-screen__readout span { color: #797570; font-size: 8.5px; }
-
-.lockpick-readiness--live { padding: 14px 16px; }
-.lockpick-readiness--live > strong { margin-top: 9px; }
-.lockpick-readiness--live > span { min-height: 34px; margin-top: 4px; }
-.lockpick-readiness--live .readiness-list { margin-top: 10px; padding-top: 6px; }
-.lockpick-readiness--live .readiness-list p { min-height: 29px; }
-.lockpick-technical { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
-.lockpick-technical summary { color: #a3a19d; font-size: 9px; font-weight: 620; cursor: pointer; }
-.lockpick-technical summary:hover { color: #d1d0ce; }
-.lockpick-technical > p { margin: 7px 0 0; color: #85817c; font-size: 9px; line-height: 1.4; }
-.lockpick-telemetry { margin: 9px 0 0; padding-top: 9px; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.lockpick-telemetry div { min-width: 0; }
-.lockpick-telemetry dt { color: #726f6a; font-size: 7.5px; letter-spacing: .06em; text-transform: uppercase; }
-.lockpick-telemetry dd { margin: 3px 0 0; overflow: hidden; color: #c2c0be; font: 600 9px/1.2 "Cascadia Code", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-.lockpick-next-step--observe { border-bottom: 1px solid var(--line); }
-
-@media (prefers-reduced-motion: reduce) {
-  .lockpick-hud-boundary,
-  .lockpick-target-marker::after,
-  .lockpick-target-marker,
-  .lockpick-observe-button { transition: none; }
 }
 
 .hero {
@@ -3460,10 +3225,6 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .lockpick-live-layout {
-    grid-template-columns: 1fr;
-  }
-
   .drawer {
     width: min(430px, 100vw);
   }
@@ -3548,10 +3309,6 @@ summary:focus-visible {
     padding-block: 8px;
   }
 
-  .lockpick-hero {
-    grid-template-columns: 1fr 160px;
-  }
-
   .activity-home {
     overflow: visible;
   }
@@ -3599,23 +3356,12 @@ summary:focus-visible {
     flex: 1 1 180px;
   }
 
-  .activity-intro h1,
-  .lockpick-hero h1 {
+  .activity-intro h1 {
     font-size: 31px;
   }
 
   .activity-card {
     min-height: 285px;
-  }
-
-  .lockpick-hero {
-    grid-template-columns: 1fr;
-  }
-
-  .lockpick-next-step {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-block: 10px;
   }
 }
 
@@ -3626,8 +3372,7 @@ summary:focus-visible {
 
   .activity-grid,
   .instrument,
-  .fishing-body,
-  .lockpick-live-layout {
+  .fishing-body {
     gap: 16px;
   }
 }
@@ -3662,17 +3407,6 @@ summary:focus-visible {
   .cycle-step { min-height:47px; padding:8px; }
   .actions { margin-top:8px; }
   .actions button { min-height:38px; }
-
-  main:has(.lockpick-live-layout) { padding-top:10px; }
-  .lockpick-hero { grid-template-columns:1fr auto; margin:4px 0 8px; min-height:70px; }
-  .lockpick-hero h1 { font-size:25px; margin:3px 0; }
-  .lockpick-hero__copy > p:last-child { display:none; }
-  .lockpick-live-layout { grid-template-columns:minmax(0,1fr) 220px; gap:9px; }
-  .lockpick-screen { min-height:280px; }
-  .lockpick-readiness { padding:12px; }
-  .lockpick-readiness > span, .lockpick-technical { display:none; }
-  .readiness-list p { padding:7px 0; }
-  .lockpick-next-step { display:none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

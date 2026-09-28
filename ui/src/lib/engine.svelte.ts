@@ -38,7 +38,6 @@ export interface AppSettings {
   formatVersion: number;
   selectedProfile: string;
   startStop: HotkeyBinding;
-  lockpickingStartStop: HotkeyBinding;
   pickpocketStartStop?: HotkeyBinding;
   emergencyStop: HotkeyBinding;
   routine: RoutineSettings;
@@ -56,7 +55,6 @@ export interface Snapshot {
   settings: AppSettings;
   diagnosticsDirectory: string;
   debug: FishingDebugSnapshot | null;
-  lockpicking: LockpickingObserveStatus;
   pickpocket?: PickpocketObserveStatus;
   setupVerification: FishingSetupVerification | null;
 }
@@ -129,64 +127,6 @@ export interface FishingSetupVerification {
   detail: string;
 }
 
-export type LockpickingVisualState = "Hidden" | "Numbered" | "Intermediate" | "Spin" | "Open" | "Unexpected";
-export type LockpickingTargetPhase = "None" | "Approaching" | "Ready";
-
-export interface LockpickingTargetObservation {
-  centerX: number;
-  centerY: number;
-  approachRadius: number;
-  phase: LockpickingTargetPhase;
-  confidence: number;
-  number: number | null;
-  approachRatio: number;
-  radialVelocity: number;
-  timeToReadyMilliseconds: number | null;
-  fillDensity: number;
-}
-
-export interface LockpickingObservation {
-  state: LockpickingVisualState;
-  confidence: number;
-  hudCenterX: number;
-  hudCenterY: number;
-  hudRadius: number;
-  target: LockpickingTargetObservation | null;
-  visibleTargetCount: number;
-  predictedAction: string;
-  reason: string;
-}
-
-export interface LockpickingSpinTelemetry {
-  cursorVisible: boolean;
-  cursorX: number;
-  cursorY: number;
-  angleDegrees: number;
-  radiusRatio: number;
-  angularVelocityDegreesPerSecond: number;
-  clockwiseTravelDegrees: number;
-  elapsedMilliseconds: number;
-  capturedFrames: number;
-}
-
-export interface LockpickingObserveStatus {
-  observing: boolean;
-  state: "Stopped" | "Waiting" | "Searching" | "Tracking" | "Faulted";
-  detail: string;
-  sampleCount: number;
-  confidence: number;
-  captureBackend: string;
-  captureMilliseconds: number;
-  evidenceDirectory: string;
-  observation: LockpickingObservation;
-  accumulatedFrames: number;
-  spin: LockpickingSpinTelemetry | null;
-  inputEnabled: boolean;
-  vehicleClass: string;
-  actionCount: number;
-  spinInputActive: boolean;
-}
-
 export interface FishingDebugDecision {
   kind: string;
   confidence: number;
@@ -253,24 +193,6 @@ export class EngineClient {
     this.error = null;
     try {
       const snapshot = await invoke<Snapshot>("engine_command", { command });
-      this.applySnapshot(snapshot);
-      return snapshot;
-    } catch (error) {
-      this.error = String(error);
-      throw error;
-    }
-  }
-
-  async setLockpicking(mode: "observe" | "classC" | "stop") {
-    this.error = null;
-    try {
-      const snapshot = await invoke<Snapshot>("engine_command", {
-        command: mode === "observe"
-          ? "start_lockpicking_observe"
-          : mode === "classC"
-            ? "start_lockpicking_class_c"
-            : "stop_lockpicking_observe",
-      });
       this.applySnapshot(snapshot);
       return snapshot;
     } catch (error) {
@@ -388,10 +310,6 @@ export class EngineClient {
         this.snapshot.status = this.status;
         this.snapshot.debug = this.status.debug;
       }
-    }
-    if (message.name === "lockpicking_status") {
-      const lockpicking = message.payload as LockpickingObserveStatus;
-      if (this.snapshot) this.snapshot.lockpicking = lockpicking;
     }
     if (message.name === "pickpocket_status") {
       const pickpocket = message.payload as PickpocketObserveStatus;

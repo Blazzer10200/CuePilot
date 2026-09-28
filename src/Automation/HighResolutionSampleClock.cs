@@ -6,7 +6,7 @@ using Microsoft.Win32.SafeHandles;
 namespace CuePilot;
 
 /// <summary>
-/// Per-loop high-resolution wait shared by the Pickpocket, Fishing and Lockpicking
+/// Per-loop high-resolution wait shared by the Pickpocket and Fishing
 /// sample loops; no global timer-resolution change or spinning. A kernel wait from
 /// this background process stretches by ~7 ms while the game runs (2026-09-26:
 /// WaitOne(40) → 46.6 ms, Sleep(16) → 31 ms); this timer lands within 0.5 ms.

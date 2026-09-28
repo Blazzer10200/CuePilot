@@ -1,4 +1,4 @@
-export type ActivityId = "fishing" | "vehicle-lockpicking" | "pickpocket";
+export type ActivityId = "fishing" | "pickpocket";
 export type ActivityAvailability = "ready" | "observe" | "calibration" | "preview";
 
 export interface ActivityPreparationItem {
@@ -40,30 +40,6 @@ export const activities: readonly ActivityDefinition[] = [
     statusLabel: "Ready",
     capabilities: ["Prompt detection", "Meter control", "Local evidence"],
     preparation: [],
-  },
-  {
-    id: "vehicle-lockpicking",
-    name: "Vehicle lockpicking",
-    shortName: "Lockpicking",
-    eyebrow: "Observe-only calibration",
-    description: "A dedicated visual reader for the vehicle lockpicking minigame. Automated input remains unavailable while label calibration is verified.",
-    availability: "calibration",
-    statusLabel: "Observe only",
-    capabilities: ["HUD tracking", "Local calibration", "Safe observation"],
-    preparation: [
-      {
-        label: "Stage states",
-        detail: "Capture every prompt, lock position, success state, and failure state the minigame can display.",
-      },
-      {
-        label: "Background range",
-        detail: "Include bright, dark, moving, and obstructed game scenes so recognition is not tied to one backdrop.",
-      },
-      {
-        label: "Input cadence",
-        detail: "Record which keys or buttons are required and the safe timing window for each interaction.",
-      },
-    ],
   },
 ];
 

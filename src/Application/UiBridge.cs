@@ -35,7 +35,6 @@ internal static class UiBridge
     {
         var settings = loadSettings();
         using var routine = new AdaptiveRoutineEngine();
-        using var lockpicking = new LockpickingObserverEngine();
         using var pickpocket = new PickpocketObserverEngine(sessionState: pickpocketState);
         settings.Pickpocket.Normalize();
         pickpocket.Configure(settings.Pickpocket.TargetPolicy, settings.Pickpocket.InputMode,
@@ -50,15 +49,12 @@ internal static class UiBridge
             Emit(output, "status", StatusPayload(status, routine.DebugSnapshot));
         };
         routine.StatusChanged += statusChanged;
-        EventHandler<LockpickingObserveStatus> lockpickingStatusChanged = (_, observeStatus) =>
-            Emit(output, "lockpicking_status", observeStatus);
-        lockpicking.StatusChanged += lockpickingStatusChanged;
         EventHandler<PickpocketObserveStatus> pickpocketStatusChanged = (_, observeStatus) =>
             Emit(output, "pickpocket_status", observeStatus);
         pickpocket.StatusChanged += pickpocketStatusChanged;
         try
         {
-            Emit(output, "ready", Snapshot(settings, ReadStatus(), initialTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+            Emit(output, "ready", Snapshot(settings, ReadStatus(), initialTargets, debug: routine.DebugSnapshot));
             string? line;
             while ((line = input.ReadLine()) is not null)
             {
@@ -76,11 +72,10 @@ internal static class UiBridge
                             Respond(output, id, true, pickpocket.History(RequiredNonnegativeInt32(history, "page"), RequiredString(history, "outcome")));
                             break;
                         case "snapshot":
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
                             break;
                         case "verify_setup":
                             EnsureStopped(routine.State, "Setup verification");
-                            EnsureLockpickingStopped(lockpicking, "Setup verification");
                             EnsurePickpocketStopped(pickpocket, "Setup verification");
                             using (var setupCapture = FrameSourceFactory.Create())
                             {
@@ -95,57 +90,37 @@ internal static class UiBridge
                                     ReadStatus(),
                                     findFiveMTargets(),
                                     debug: routine.DebugSnapshot,
-                                    lockpicking: lockpicking.Status,
                                     setupVerification: verification));
                             }
                             break;
                         case "start":
                             pickpocket.Stop();
                             EnsurePickpocketStopped(pickpocket, "Fishing");
-                            lockpicking.Stop("Fishing started; lockpicking observation stopped.");
                             var startTargets = findFiveMTargets();
                             EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, startTargets);
                             routine.Arm(settings.Routine);
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), startTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                            Respond(output, id, true, Snapshot(settings, ReadStatus(), startTargets, debug: routine.DebugSnapshot));
                             break;
                         case "toggle":
                             if (routine.State is RoutineState.Stopped or RoutineState.Faulted)
                             {
                                 pickpocket.Stop();
                                 EnsurePickpocketStopped(pickpocket, "Fishing");
-                                lockpicking.Stop("Fishing started; lockpicking observation stopped.");
                                 var toggleTargets = findFiveMTargets();
                                 EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, toggleTargets);
                                 routine.Arm(settings.Routine);
-                                Respond(output, id, true, Snapshot(settings, ReadStatus(), toggleTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                                Respond(output, id, true, Snapshot(settings, ReadStatus(), toggleTargets, debug: routine.DebugSnapshot));
                             }
                             else
                             {
                                 routine.Stop("Stopped from the global Start / Stop shortcut.");
-                                Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                                Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
                             }
                             break;
-                        case "toggle_lockpicking_class_c":
-                            throw new InvalidOperationException("Class C automation is unavailable in this release while concurrent-target label calibration is verified. Observe-only lockpicking remains available.");
                         case "stop":
                             pickpocket.Stop();
                             routine.Stop("Stopped from the Tauri dashboard.");
-                            lockpicking.Stop("Emergency stop released lockpicking input.");
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
-                            break;
-                        case "start_lockpicking_observe":
-                            EnsurePickpocketStopped(pickpocket, "Lockpicking observation");
-                            EnsureStopped(routine.State, "Lockpicking observation");
-                            var observeTargets = findFiveMTargets();
-                            EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, observeTargets);
-                            lockpicking.Start(settings.Routine.TargetWindow);
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), observeTargets, debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
-                            break;
-                        case "start_lockpicking_class_c":
-                            throw new InvalidOperationException("Class C automation is unavailable in this release while concurrent-target label calibration is verified. Observe-only lockpicking remains available.");
-                        case "stop_lockpicking_observe":
-                            lockpicking.Stop();
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
                             break;
                         case "configure_pickpocket":
                             if (!root.TryGetProperty("settings", out var pickpocketSettings))
@@ -179,7 +154,6 @@ internal static class UiBridge
                                 break;
                             }
                             EnsureStopped(routine.State, "Pickpocket observation");
-                            EnsureLockpickingStopped(lockpicking, "Pickpocket observation");
                             var pickpocketTargets = findFiveMTargets();
                             EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, pickpocketTargets);
                             pickpocket.Start(settings.Routine.TargetWindow);
@@ -192,15 +166,13 @@ internal static class UiBridge
                         case "list_targets":
                             EnsurePickpocketStopped(pickpocket, "Target selection");
                             EnsureStopped(routine.State, "Target selection");
-                            EnsureLockpickingStopped(lockpicking, "Target selection");
                             var candidates = findFiveMTargets();
                             lock (statusLock) lastStatus = InitialStatus(settings, candidates);
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), candidates, true, routine.DebugSnapshot, lockpicking.Status));
+                            Respond(output, id, true, Snapshot(settings, ReadStatus(), candidates, true, routine.DebugSnapshot));
                             break;
                         case "select_target":
                             EnsurePickpocketStopped(pickpocket, "Target selection");
                             EnsureStopped(routine.State, "Target selection");
-                            EnsureLockpickingStopped(lockpicking, "Target selection");
                             var processId = RequiredInt32(root, "processId");
                             var availableTargets = findFiveMTargets();
                             var selectedTarget = availableTargets.SingleOrDefault(candidate => candidate.ProcessId == processId)
@@ -213,18 +185,17 @@ internal static class UiBridge
                                     RoutineState.Stopped,
                                     $"FiveM target ready: {selectedTarget.WindowTitle}.");
                             }
-                            var targetSnapshot = Snapshot(settings, ReadStatus(), availableTargets, true, routine.DebugSnapshot, lockpicking.Status);
+                            var targetSnapshot = Snapshot(settings, ReadStatus(), availableTargets, true, routine.DebugSnapshot);
                             Emit(output, "target", targetSnapshot);
                             Respond(output, id, true, targetSnapshot);
                             break;
                         case "save_settings":
                             EnsurePickpocketStopped(pickpocket, "Settings");
                             EnsureStopped(routine.State, "Settings");
-                            EnsureLockpickingStopped(lockpicking, "Settings");
                             if (!root.TryGetProperty("settings", out var settingsValue))
                                 throw new InvalidOperationException("The settings payload is required.");
                             var proposed = JsonSerializer.Deserialize<AppSettings>(settingsValue.GetRawText(), Json);
-                            if (proposed is not null && new[] { (proposed.StartStop, settings.StartStop), (proposed.LockpickingStartStop, settings.LockpickingStartStop), (proposed.PickpocketStartStop, settings.PickpocketStartStop) }
+                            if (proposed is not null && new[] { (proposed.StartStop, settings.StartStop), (proposed.PickpocketStartStop, settings.PickpocketStartStop) }
                                 .Any(pair => pair.Item1.Key.Equals("F8", StringComparison.OrdinalIgnoreCase) &&
                                     (!pair.Item1.Key.Equals(pair.Item2.Key, StringComparison.OrdinalIgnoreCase) || pair.Item1.Control != pair.Item2.Control || pair.Item1.Shift != pair.Item2.Shift || pair.Item1.Alt != pair.Item2.Alt)))
                                 throw new InvalidOperationException("F8 is reserved for the FiveM console. Choose another shortcut.");
@@ -237,15 +208,14 @@ internal static class UiBridge
                             updated.Routine.TargetWindow = settings.Routine.TargetWindow.Copy();
                             settings = updated;
                             saveSettings(settings);
-                            var settingsSnapshot = Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status);
+                            var settingsSnapshot = Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot);
                             Emit(output, "settings", settingsSnapshot);
                             Respond(output, id, true, settingsSnapshot);
                             break;
                         case "shutdown":
                             pickpocket.Stop("Tauri shell closed.");
-                            lockpicking.Stop("Tauri shell closed.");
                             routine.Stop("Tauri shell closed.");
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot, lockpicking: lockpicking.Status));
+                            Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
                             return 0;
                         default:
                             throw new InvalidOperationException($"Unsupported bridge command: {command}.");
@@ -262,13 +232,11 @@ internal static class UiBridge
 
             routine.Stop("Tauri bridge input closed.");
             pickpocket.Stop("Tauri bridge input closed.");
-            lockpicking.Stop("Tauri bridge input closed.");
             return 0;
         }
         finally
         {
             routine.StatusChanged -= statusChanged;
-            lockpicking.StatusChanged -= lockpickingStatusChanged;
             pickpocket.StatusChanged -= pickpocketStatusChanged;
         }
 
@@ -276,13 +244,12 @@ internal static class UiBridge
         {
             lock (statusLock) return lastStatus;
         }
-        LockpickingObserveStatus ReadLockpicking() => lockpicking.Status;
 
         object Snapshot(AppSettings currentSettings, RoutineStatus currentStatus,
             IReadOnlyList<WindowTargetService.FiveMWindowTarget> targets, bool includeTargets = false,
-            FishingDebugSnapshot? debug = null, LockpickingObserveStatus? lockpicking = null,
+            FishingDebugSnapshot? debug = null,
             FishingSetupVerification? setupVerification = null) => CreateSnapshot(currentSettings, currentStatus,
-                targets, includeTargets, debug ?? routine.DebugSnapshot, lockpicking ?? ReadLockpicking(), setupVerification, pickpocket.Status);
+                targets, includeTargets, debug ?? routine.DebugSnapshot, setupVerification, pickpocket.Status);
     }
 
     private static RoutineStatus InitialStatus(
@@ -312,7 +279,6 @@ internal static class UiBridge
         IReadOnlyList<WindowTargetService.FiveMWindowTarget> availableTargets,
         bool includeTargets = false,
         FishingDebugSnapshot? debug = null,
-        LockpickingObserveStatus? lockpicking = null,
         FishingSetupVerification? setupVerification = null,
         PickpocketObserveStatus? pickpocket = null)
     {
@@ -333,7 +299,7 @@ internal static class UiBridge
             status = StatusPayload(status, debug),
             targetValid,
             canStart = targetValid
-                && pickpocket?.Observing != true && lockpicking?.Observing != true
+                && pickpocket?.Observing != true
                 && status.State is RoutineState.Stopped or RoutineState.Faulted,
             targetValidation,
             targets = includeTargets ? availableTargets.Select(candidate => new
@@ -348,7 +314,6 @@ internal static class UiBridge
             settings,
             diagnosticsDirectory = AppPaths.DiagnosticsDirectory,
             debug,
-            lockpicking = lockpicking ?? LockpickingObserveStatus.Stopped(),
             pickpocket = pickpocket ?? PickpocketObserveStatus.Stopped,
             setupVerification,
         };
@@ -385,12 +350,6 @@ internal static class UiBridge
     {
         if (state is not (RoutineState.Stopped or RoutineState.Faulted))
             throw new InvalidOperationException($"{operation} is only available while automation is stopped.");
-    }
-
-    private static void EnsureLockpickingStopped(LockpickingObserverEngine observer, string operation)
-    {
-        if (observer.IsObserving)
-            throw new InvalidOperationException($"{operation} is only available while lockpicking observation is stopped.");
     }
 
     private static void EnsurePickpocketStopped(PickpocketObserverEngine observer, string operation)

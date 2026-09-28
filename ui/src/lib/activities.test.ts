@@ -6,21 +6,7 @@ describe("activity registry", () => {
     expect(new Set(activities.map((activity) => activity.id)).size).toBe(activities.length);
   });
 
-  it("exposes fishing as ready while Class C lockpicking remains in live calibration", () => {
+  it("exposes fishing as ready", () => {
     expect(getActivity("fishing").availability).toBe("ready");
-    expect(getActivity("vehicle-lockpicking").availability).toBe("calibration");
-  });
-
-  it("defines the evidence needed to calibrate vehicle lockpicking", () => {
-    const lockpicking = getActivity("vehicle-lockpicking");
-
-    expect(lockpicking.preparation.map((item) => item.label)).toEqual([
-      "Stage states",
-      "Background range",
-      "Input cadence",
-    ]);
-    expect(lockpicking.statusLabel).toBe("Observe only");
-    expect(lockpicking.capabilities).toContain("Local calibration");
-    expect(lockpicking.capabilities).toContain("Safe observation");
   });
 });

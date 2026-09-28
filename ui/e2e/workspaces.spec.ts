@@ -29,7 +29,7 @@ for (const viewport of [{width:760,height:620},{width:1180,height:760}]) {
   test(`pages and settings fit at ${viewport.width}`, async ({page}) => {
     await page.setViewportSize(viewport);
     await page.goto("/?scenario=history");
-    for (const activity of ["fishing","vehicle-lockpicking","pickpocket"]) {
+    for (const activity of ["fishing","pickpocket"]) {
       await page.locator(`[data-activity="${activity}"]`).click();
       await expect(page.locator("main")).toBeVisible();
       expect(await page.evaluate(() => ({ height:document.documentElement.scrollHeight, viewport:innerHeight })), `${activity} must fit without document scrolling`).toEqual({height:viewport.height,viewport:viewport.height});

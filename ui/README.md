@@ -10,9 +10,7 @@ read CuePilot's public GitHub release feed through Velopack.
 The root shell opens on an activity picker. Activity metadata lives in
 `src/lib/activities.ts`, and dedicated workspaces live in
 `src/lib/activities/`. Fishing is release-ready and Pickpocket makes one timed
-Space press. Vehicle Lockpicking exposes an
-input-free observer while Class C live-calibration input remains gated;
-classes A, B, and D remain unavailable until evidence-backed profiles are added.
+Space press.
 
 ## Development
 

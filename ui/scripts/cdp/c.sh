@@ -296,14 +296,14 @@ case "$cmd" in
   state)
     # state [full] — live engine/UI state as TEXT via the dev-only window.__cuepilot
     # hook (App.svelte onMount, DEV builds only). No screenshot, no navigation.
-    #   c.sh state        -> compact summary (connection, activity, panels, routine, target, pickpocket, lockpicking)
+    #   c.sh state        -> compact summary (connection, activity, panels, routine, target, pickpocket)
     #   c.sh state full   -> the entire engine snapshot as JSON
     mode="${1:-}"
     if [ "$mode" = "full" ]; then
       js='(() => { const c = window.__cuepilot; return JSON.stringify(c ? { connected: c.connected, activity: c.activity, panels: c.panels, error: c.error, status: c.status, snapshot: c.snapshot } : { error: "__cuepilot hook missing (dev build only; reload after editing App.svelte)" }); })()'
       post eval "$(jq -nc --arg expression "$js" '{expression:$expression}')" | jq '(.value // .) | if type=="string" then fromjson else . end'
     else
-      js='(() => { const c = window.__cuepilot; if (!c) return JSON.stringify({ error: "__cuepilot hook missing (dev build only; reload after editing App.svelte)" }); const s = c.snapshot || {}; const r = (s.settings && s.settings.routine) || {}; return JSON.stringify({ connected: c.connected, activity: c.activity, panels: c.panels, error: c.error, status: c.status, engineVersion: s.engineVersion, routineState: s.routineState, canStart: s.canStart, targetValid: s.targetValid, target: r.targetWindow || null, inputMode: r.inputMode, pickpocket: s.pickpocket ? { state: s.pickpocket.state, observing: s.pickpocket.observing, inputArmed: s.pickpocket.inputArmed, inputMode: s.pickpocket.inputMode, cooldownUntilUnixMs: s.pickpocket.cooldownUntilUnixMs, detail: s.pickpocket.detail } : null, lockpicking: s.lockpicking ? { state: s.lockpicking.state, observing: s.lockpicking.observing, inputEnabled: s.lockpicking.inputEnabled, detail: s.lockpicking.detail } : null }); })()'
+      js='(() => { const c = window.__cuepilot; if (!c) return JSON.stringify({ error: "__cuepilot hook missing (dev build only; reload after editing App.svelte)" }); const s = c.snapshot || {}; const r = (s.settings && s.settings.routine) || {}; return JSON.stringify({ connected: c.connected, activity: c.activity, panels: c.panels, error: c.error, status: c.status, engineVersion: s.engineVersion, routineState: s.routineState, canStart: s.canStart, targetValid: s.targetValid, target: r.targetWindow || null, inputMode: r.inputMode, pickpocket: s.pickpocket ? { state: s.pickpocket.state, observing: s.pickpocket.observing, inputArmed: s.pickpocket.inputArmed, inputMode: s.pickpocket.inputMode, cooldownUntilUnixMs: s.pickpocket.cooldownUntilUnixMs, detail: s.pickpocket.detail } : null }); })()'
       post eval "$(jq -nc --arg expression "$js" '{expression:$expression}')" | jq -r '
         ((.value // .) | if type=="string" then fromjson else . end) as $s |
         if $s.error and ($s.connected == null) then "[state] ERROR: " + ($s.error|tostring)
@@ -318,7 +318,6 @@ case "$cmd" in
             + " · input=" + ($s.inputMode // "?") + " · canStart=" + (($s.canStart // false)|tostring),
           "[panels] " + ([$s.panels | to_entries[] | select(.value) | .key] | if length == 0 then "none open" else join(", ") end),
           (if $s.pickpocket then "[pickpocket] " + $s.pickpocket.state + (if $s.pickpocket.observing then " observing" else "" end) + (if $s.pickpocket.inputArmed then " ARMED" else "" end) + " · mode=" + ($s.pickpocket.inputMode // "?") + (if ($s.pickpocket.cooldownUntilUnixMs // 0) > 0 then " · cooldownUntil=" + ($s.pickpocket.cooldownUntilUnixMs|tostring) else "" end) + " · " + ($s.pickpocket.detail // "") else empty end),
-          (if $s.lockpicking then "[lockpicking] " + $s.lockpicking.state + (if $s.lockpicking.observing then " observing" else "" end) + " · inputEnabled=" + (($s.lockpicking.inputEnabled // false)|tostring) + " · " + ($s.lockpicking.detail // "") else empty end),
           (if $s.error then "[error] " + ($s.error|tostring) else empty end)
         end'
     fi
@@ -338,18 +337,18 @@ case "$cmd" in
     ;;
 
   nav)
-    # nav <home|fishing|pickpocket|lockpicking|settings|diagnostics|close> [look-selector] [settle-ms]
+    # nav <home|fishing|pickpocket|settings|diagnostics|close> [look-selector] [settle-ms]
     # One round-trip: (go home if in a workspace) -> click destination -> settle -> look.
     # Activity cards only exist on Home, so activity targets always route through Home.
     # Settings only exists inside a workspace, so `settings` opens the Fishing card first when on Home
     # (the miss is reported as "workspace:already" when a workspace is open; opening one never starts input).
     # `close` presses Escape and waits for the drawer's 220ms fly-out. A literal CSS selector passes through.
     dest="${1:-}"; look_selector="${2:-}"; settle_ms="${3:-400}"
-    [ -n "$dest" ] || { echo "usage: $0 nav <home|fishing|pickpocket|lockpicking|settings|diagnostics|close|<selector>> [look-selector] [settle-ms]" >&2; exit 2; }
+    [ -n "$dest" ] || { echo "usage: $0 nav <home|fishing|pickpocket|settings|diagnostics|close|<selector>> [look-selector] [settle-ms]" >&2; exit 2; }
     home_sel='nav[aria-label="Activity navigation"] button'
     case "$dest" in
       home|activities|library) ops="$(jq -nc --arg s "$home_sel" '[{op:"click",params:{selector:$s}}]')" ;;
-      fishing|pickpocket|lockpicking)
+      fishing|pickpocket)
         label="$(printf '%s' "$dest" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
         ops="$(jq -nc --arg h "$home_sel" --arg s "[aria-label=\"Open $label\"]" --argjson ms "$settle_ms" '[{op:"click",params:{selector:$h}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:$s}}]')" ;;
       settings)    ops="$(jq -nc --argjson ms "$settle_ms" '[{op:"click",params:{selector:"[aria-label=\"Open Fishing\"]"}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:"[aria-label=\"Workspace tools\"] button:nth-of-type(2)"}}]')" ;;
@@ -372,13 +371,13 @@ case "$cmd" in
     # in ONE round-trip. Same destination names as `nav`.
     settle_ms=400; args=()
     while [ $# -gt 0 ]; do case "$1" in --settle) settle_ms="${2:-400}"; shift 2 ;; *) args+=("$1"); shift ;; esac; done
-    [ ${#args[@]} -gt 0 ] || { echo "usage: $0 tour <home|fishing|pickpocket|lockpicking|settings|diagnostics|close> ... [--settle N]" >&2; exit 2; }
+    [ ${#args[@]} -gt 0 ] || { echo "usage: $0 tour <home|fishing|pickpocket|settings|diagnostics|close> ... [--settle N]" >&2; exit 2; }
     home_sel='nav[aria-label="Activity navigation"] button'
     ops="$(jq -nc '[]')"
     for dest in "${args[@]}"; do
       case "$dest" in
         home|activities|library) step="$(jq -nc --arg s "$home_sel" '[{op:"click",params:{selector:$s}}]')" ;;
-        fishing|pickpocket|lockpicking)
+        fishing|pickpocket)
           label="$(printf '%s' "$dest" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
           step="$(jq -nc --arg h "$home_sel" --arg s "[aria-label=\"Open $label\"]" --argjson ms "$settle_ms" '[{op:"click",params:{selector:$h}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:$s}}]')" ;;
         settings)    step="$(jq -nc --argjson ms "$settle_ms" '[{op:"click",params:{selector:"[aria-label=\"Open Fishing\"]"}},{op:"settle",params:{quietMs:260,maxMs:$ms}},{op:"click",params:{selector:"[aria-label=\"Workspace tools\"] button:nth-of-type(2)"}}]')" ;;
@@ -422,7 +421,7 @@ usage: c.sh <command>
   errors [limit] [--all]         current-generation console errors
   console [level] [limit] [--all] full console ring buffer (log/warning/error)
   state [full]                   live engine + UI state as text (dev-only window.__cuepilot hook)
-  nav <dest> [look-sel] [ms]     home|fishing|pickpocket|lockpicking|settings|diagnostics|close in one call
+  nav <dest> [look-sel] [ms]     home|fishing|pickpocket|settings|diagnostics|close in one call
   tour <dest> <dest> ...         visit several surfaces + screenshot each in one round-trip
   eval <javascript>              evaluate JavaScript in the WebView
   shot | shot-sel <selector>     write a screenshot under scripts/cdp/.tmp

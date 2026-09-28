@@ -8,10 +8,9 @@
     Gauge, Hand, KeyRound, Layers3, Maximize2, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
     ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
-  import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type LockpickingObserveStatus, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
+  import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
   import { activities, getActivity, type ActivityId } from "./lib/activities";
   import ActivityPicker from "./lib/activities/ActivityPicker.svelte";
-  import LockpickingWorkspace from "./lib/activities/LockpickingWorkspace.svelte";
   import PickpocketWorkspace from "./lib/activities/PickpocketWorkspace.svelte";
   import UpdateCenter from "./lib/UpdateCenter.svelte";
   import SupportCenter from "./lib/SupportCenter.svelte";
@@ -82,28 +81,10 @@
   let settingsAdvanced = $state(false);
   const defaultShortcuts = {
     fishing: { key: "F10", control: false, shift: false, alt: false },
-    lockpicking: { key: "F9", control: false, shift: false, alt: false },
     pickpocket: { key: "F7", control: false, shift: false, alt: false },
   } as const satisfies Record<string, HotkeyBinding>;
 
   const engine = new EngineClient();
-  const stoppedLockpicking: LockpickingObserveStatus = {
-    observing: false,
-    state: "Stopped",
-    detail: "Connect the local engine to begin observation.",
-    sampleCount: 0,
-    confidence: 0,
-    captureBackend: "None",
-    captureMilliseconds: 0,
-    accumulatedFrames: 1,
-    spin: null,
-    inputEnabled: false,
-    vehicleClass: "",
-    actionCount: 0,
-    spinInputActive: false,
-    evidenceDirectory: "",
-    observation: { state: "Hidden", confidence: 0, hudCenterX: 0, hudCenterY: 0, hudRadius: 0, target: null, visibleTargetCount: 0, predictedAction: "WAIT", reason: "Lockpicking HUD not found." },
-  };
   let selectedActivity = $state<ActivityId | null>(null);
   const lastActivityKey = "cuepilot.lastActivity";
   let homeFocusActivity = $state<ActivityId | null>(null);
@@ -122,7 +103,6 @@
   let settingsError = $state<string | null>(null);
   let draft = $state<RoutineSettings | null>(null);
   let shortcutDraft = $state<HotkeyBinding | null>(null);
-  let lockpickingShortcutDraft = $state<HotkeyBinding | null>(null);
   let pickpocketShortcutDraft = $state<HotkeyBinding | null>(null);
   let settingsOpener: HTMLElement | null = null;
   let diagnosticsOpener: HTMLElement | null = null;
@@ -149,7 +129,7 @@
   const targetValid = $derived(engine.snapshot?.targetValid ?? false);
   const confidence = $derived(Math.round(engine.status.confidence * 100));
   const currentStep = $derived(cycleStep(engine.status.state));
-  const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing || !!engine.snapshot?.lockpicking.observing);
+  const anyActivityRunning = $derived(active || !!engine.snapshot?.pickpocket?.observing);
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -176,12 +156,10 @@
     showSettings
     && !!draft
     && !!shortcutDraft
-    && !!lockpickingShortcutDraft
     && !!engine.snapshot
     && (JSON.stringify(draft) !== JSON.stringify(engine.snapshot.settings.routine)
       || JSON.stringify(shortcutDraft) !== JSON.stringify(engine.snapshot.settings.startStop)
-      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })
-      || JSON.stringify(lockpickingShortcutDraft) !== JSON.stringify(engine.snapshot.settings.lockpickingStartStop)),
+      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })),
   );
   const selectedDelivery = $derived(
     deliveryOptions.find((option) => option.value === draft?.inputMode) ?? deliveryOptions[0],
@@ -396,10 +374,9 @@
     return { ...binding };
   }
 
-  function takenShortcuts(except: "fishing" | "lockpicking" | "pickpocket") {
+  function takenShortcuts(except: "fishing" | "pickpocket") {
     const owners = [
       { id: "fishing", binding: shortcutDraft, owner: "Fishing Start / Stop" },
-      { id: "lockpicking", binding: lockpickingShortcutDraft, owner: "the reserved Class C shortcut" },
       { id: "pickpocket", binding: pickpocketShortcutDraft, owner: "Pickpocket Start / Stop" },
       { id: "emergency", binding: engine.snapshot?.settings.emergencyStop ?? null, owner: "Emergency stop" },
     ];
@@ -541,7 +518,6 @@
     settingsOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     draft = cloneRoutine(engine.snapshot.settings.routine);
     shortcutDraft = cloneHotkey(engine.snapshot.settings.startStop);
-    lockpickingShortcutDraft = cloneHotkey(engine.snapshot.settings.lockpickingStartStop);
     pickpocketShortcutDraft = cloneHotkey(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false });
     settingsError = null;
     closeTargetPicker(false);
@@ -552,12 +528,12 @@
   }
 
   async function saveSettings() {
-    if (!draft || !shortcutDraft || !lockpickingShortcutDraft || !pickpocketShortcutDraft || !engine.snapshot) return;
+    if (!draft || !shortcutDraft || !pickpocketShortcutDraft || !engine.snapshot) return;
     if (draft.fishingUpperTensionPercent < draft.fishingLowerTensionPercent + 5) {
       settingsError = "Target tension must be at least 5% above the pulse threshold.";
       return;
     }
-    const bindings = [shortcutDraft, lockpickingShortcutDraft, pickpocketShortcutDraft, engine.snapshot.settings.emergencyStop];
+    const bindings = [shortcutDraft, pickpocketShortcutDraft, engine.snapshot.settings.emergencyStop];
     if (bindings.some((binding, index) => bindings.slice(index + 1).some(other => sameHotkey(binding, other)))) {
       settingsError = "Each activity and emergency stop must use a different shortcut.";
       return;
@@ -568,7 +544,6 @@
       await engine.saveSettings({
         ...engine.snapshot.settings,
         startStop: cloneHotkey(shortcutDraft),
-        lockpickingStartStop: cloneHotkey(lockpickingShortcutDraft),
         pickpocketStartStop: cloneHotkey(pickpocketShortcutDraft),
         routine: cloneRoutine(draft),
       });
@@ -750,8 +725,8 @@
     <i class="rail__divider" aria-hidden="true"></i>
     {#each activities as activity (activity.id)}
       <button class="rail__item" data-rail={activity.id} class:active={selectedActivity === activity.id} aria-current={selectedActivity === activity.id ? "page" : undefined} aria-label={`Switch to ${activity.shortName}`} title={activity.name} onclick={() => selectActivity(activity.id)} disabled={!!runPending || selectedActivity === activity.id}>
-        {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else if activity.id === "pickpocket"}<Hand size={18} strokeWidth={1.8} />{:else}<KeyRound size={18} strokeWidth={1.8} />{/if}
-        <span>{activity.id === "fishing" ? "Fish" : activity.id === "pickpocket" ? "Pocket" : "Lock"}</span>
+        {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else}<Hand size={18} strokeWidth={1.8} />{/if}
+        <span>{activity.id === "fishing" ? "Fish" : "Pocket"}</span>
         {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"></b>{/if}
       </button>
     {/each}
@@ -905,21 +880,13 @@
       <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
     </div>
   </footer>
-  {:else if selectedActivity === "pickpocket"}
+  {:else}
     <PickpocketWorkspace
       shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
       onpolicy={async (policy, inputMode, timing) => { await engine.configurePickpocket(policy, inputMode, timing); }}
       status={engine.snapshot?.pickpocket} connected={engine.connected} {targetValid}
       error={engine.error}
       onmode={async (mode, policy, inputMode) => { await engine.setPickpocket(mode, policy, inputMode); }} />
-  {:else}
-    <LockpickingWorkspace
-      connected={engine.connected}
-      error={engine.error}
-      {targetValid}
-      status={engine.snapshot?.lockpicking ?? stoppedLockpicking}
-      onmode={async (mode) => { await engine.setLockpicking(mode); }}
-    />
   {/if}
   </div>
   </div>
@@ -986,16 +953,16 @@
 
 </main>
 
-<UpdateCenter automationActive={active || engine.snapshot?.lockpicking.observing === true || engine.snapshot?.pickpocket?.observing === true} />
+<UpdateCenter automationActive={active || engine.snapshot?.pickpocket?.observing === true} />
 
-{#if showSettings && draft && shortcutDraft && lockpickingShortcutDraft && pickpocketShortcutDraft}
+{#if showSettings && draft && shortcutDraft && pickpocketShortcutDraft}
   <div class="scrim" role="presentation" aria-hidden="true" onclick={closePanels} transition:fade={{ duration: reduceMotion ? 0 : 160 }}></div>
   <div class="drawer settings-drawer" bind:this={activePanel} aria-labelledby="settings-title" aria-describedby="settings-description" aria-modal="true" role="dialog" tabindex="-1" onkeydown={trapPanelFocus} transition:fly={{ x: reduceMotion ? 0 : 18, duration: reduceMotion ? 0 : 220 }}>
     <header class="panel-header">
-      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : selectedActivity === "pickpocket" ? "Pickpocket profile" : "Lockpicking profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : selectedActivity === "pickpocket" ? "Pickpocket controls" : "Lockpicking controls"}</h2></div>
+      <div><p class="panel-kicker"><Settings2 size={12} strokeWidth={2} class="icon" /> {fishingSelected ? "Fishing profile" : "Pickpocket profile"}</p><h2 id="settings-title">{fishingSelected ? "Fishing controls" : "Pickpocket controls"}</h2></div>
       <button class="panel-close" bind:this={settingsCloseButton} aria-label="Close settings" title="Close settings" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button>
     </header>
-    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : selectedActivity === "pickpocket" ? "Choose your in-game start/stop toggle. The selected run mode and target apply to both the button and shortcut." : "Review the shortcut reserved for Class C. Automated lockpicking remains unavailable until calibration evidence passes its release gate."}</p>
+    <p class="panel-copy" id="settings-description">{fishingSelected ? "Choose your in-game toggle, then tune the tension window and timing cadence." : "Choose your in-game start/stop toggle. The selected run mode and target apply to both the button and shortcut."}</p>
     <p class:visible={settingsDirty} class="settings-change-note" aria-live="polite"><i></i>{settingsDirty ? "Unsaved changes" : "Profile is up to date"}</p>
 
     {#if fishingSelected}<nav class="settings-view-tabs" aria-label="Settings view"><button aria-pressed={!settingsAdvanced} onclick={() => settingsAdvanced = false}>Basic</button><button aria-pressed={settingsAdvanced} onclick={() => settingsAdvanced = true}>Advanced</button></nav>{/if}
@@ -1017,7 +984,7 @@
           taken={takenShortcuts("fishing")}
         />
       </section>
-    {:else if selectedActivity === "pickpocket"}
+    {:else}
       <section class="settings-group shortcut-setting" aria-labelledby="pickpocket-shortcut-heading">
         <header class="settings-group__header"><div><p>Global control</p><h3 id="pickpocket-shortcut-heading">Pickpocket Start / Stop shortcut</h3></div><span>{hotkeyDisplay(pickpocketShortcutDraft)}</span></header>
         <HotkeyCapture
@@ -1027,21 +994,6 @@
           description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
           defaultBinding={defaultShortcuts.pickpocket}
           taken={takenShortcuts("pickpocket")}
-        />
-      </section>
-    {:else}
-      <section class="settings-group shortcut-setting" aria-labelledby="lockpicking-shortcut-heading">
-        <header class="settings-group__header">
-          <div><p>Future control</p><h3 id="lockpicking-shortcut-heading">Reserved Class C shortcut</h3></div>
-          <span>{hotkeyDisplay(lockpickingShortcutDraft)}</span>
-        </header>
-        <HotkeyCapture
-          bind:value={lockpickingShortcutDraft}
-          label="Reserved Class C shortcut"
-          title="Reserved Class C shortcut"
-          description="Class C input is unavailable until the evidence gate passes. This binding is saved for that future release."
-          defaultBinding={defaultShortcuts.lockpicking}
-          taken={takenShortcuts("lockpicking")}
         />
       </section>
     {/if}
@@ -1133,7 +1085,7 @@
     <header class="panel-header diagnostics-header"><div><p class="panel-kicker"><Gauge size={12} strokeWidth={2} class="icon" /> Local evidence</p><h2 id="diagnostics-title">Detection review</h2></div><button class="panel-close" bind:this={diagnosticsCloseButton} aria-label="Close diagnostics" title="Close detection review" onclick={closePanels}><X size={14} strokeWidth={2.2} class="icon" /></button></header>
     <p class="panel-copy" id="diagnostics-description">Review build health and saved sessions. Choose an attempt to inspect its decisions or export a local report.</p>
     <div class="diagnostics-scroll">
-    <SupportCenter connected={engine.connected} engineVersion={engine.snapshot?.engineVersion} initialActivity={selectedActivity === "vehicle-lockpicking" ? "lockpicking" : selectedActivity ?? "pickpocket"} />
+    <SupportCenter connected={engine.connected} engineVersion={engine.snapshot?.engineVersion} initialActivity={selectedActivity ?? "pickpocket"} />
     {#if fishingSelected}
     {#if diagnosticsLoading && !diagnostics}
       <div class="empty-state diagnostics-empty"><RefreshCw size={16} class="spin" /> Loading diagnostics…</div>

@@ -25,28 +25,10 @@ function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     diagnosticsDirectory: "C:\\diagnostics",
     debug: null,
     setupVerification: null,
-    lockpicking: {
-      observing: false,
-      state: "Stopped",
-      detail: "Lockpicking observation is stopped.",
-      sampleCount: 0,
-      confidence: 0,
-      captureBackend: "None",
-      captureMilliseconds: 0,
-      accumulatedFrames: 1,
-      spin: null,
-      inputEnabled: false,
-      vehicleClass: "",
-      actionCount: 0,
-      spinInputActive: false,
-      evidenceDirectory: "",
-      observation: { state: "Hidden", confidence: 0, hudCenterX: 0, hudCenterY: 0, hudRadius: 0, target: null, visibleTargetCount: 0, predictedAction: "WAIT", reason: "Lockpicking HUD not found." },
-    },
     settings: {
       formatVersion: 9,
       selectedProfile: "fishing",
       startStop: { key: "F10", control: false, shift: false, alt: false },
-      lockpickingStartStop: { key: "F9", control: false, shift: false, alt: false },
       emergencyStop: { key: "Pause", control: false, shift: false, alt: false },
       routine: {
         fishingLowerTensionPercent: 55,
@@ -245,17 +227,6 @@ describe("EngineClient", () => {
     expect(tauri.invoke).toHaveBeenCalledWith("engine_command", {
       command: "select_target",
       targetProcessId: 3258,
-    });
-  });
-
-  it("starts the explicitly gated Class C lockpicking mode", async () => {
-    tauri.invoke.mockResolvedValue(snapshot());
-    const client = new EngineClient();
-
-    await client.setLockpicking("classC");
-
-    expect(tauri.invoke).toHaveBeenCalledWith("engine_command", {
-      command: "start_lockpicking_class_c",
     });
   });
 
