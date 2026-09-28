@@ -439,74 +439,6 @@ button:active:not(:disabled) {
   gap: 0;
 }
 
-/* Fishing: the hero sits at its natural height; the two-column body (target + telemetry | routine stepper + Start)
-   absorbs spare height so real content fills the page instead of an empty band above it. */
-.activity-workspace .hero {
-  flex: 1 0 auto;
-}
-
-.fishing-body {
-  flex: 2 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.8fr);
-  gap: 12px;
-  align-items: stretch;
-}
-
-.fishing-run {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 13px;
-  background: rgba(37, 36, 34, 0.4);
-  overflow: hidden;
-}
-
-.fishing-run .cycle {
-  flex: 1 1 auto;
-  grid-template-columns: 1fr;
-  grid-auto-rows: minmax(46px, 1fr);
-  border-top: 0;
-  background: transparent;
-}
-
-.fishing-run .cycle-step {
-  padding: 0 16px;
-  border-right: 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.fishing-run .cycle-step:last-child {
-  border-bottom: 1px solid var(--line);
-}
-
-.fishing-run .cycle-step::before {
-  inset: 0 auto 0 0;
-  width: 2px;
-  height: auto;
-  transform: scaleY(0);
-  transform-origin: top;
-}
-
-.fishing-run .cycle-step.current::before,
-.fishing-run .cycle-step.complete::before,
-.fishing-run .cycle-step.fault::before {
-  transform: scaleY(1);
-  animation: none;
-}
-
-
-.fishing-run .actions {
-  padding: 12px 12px 11px;
-  gap: 8px;
-}
-
-.fishing-run .actions .action-hint {
-  margin: 0 2px;
-}
-
 .activity-intro {
   padding: 28px 2px 26px;
   display: flex;
@@ -808,7 +740,6 @@ main:has(.live-layout) .app-content { gap: 8px; }
 .target-chip__chevron { color: var(--text-3); flex-shrink: 0; }
 .workspace-tools .needs-target { border-color: var(--muted-warning); color: var(--warning-text); }
 .needs-target .target-chip__dot { background: var(--warning); }
-.actions.fishing-actions { grid-template-columns: minmax(0, 1fr); }
 
 @media (max-width: 900px) {
   .workspace-header { gap: 10px; }
@@ -822,27 +753,6 @@ main:has(.live-layout) .app-content { gap: 8px; }
   .activity-grid { grid-template-columns: 1fr; }
   .workspace-header { align-items: flex-start; flex-direction: column; }
   .workspace-tools { width: 100%; flex-wrap: wrap; }
-}
-
-.hero {
-  min-height: 148px;
-  display: grid;
-  grid-template-columns: 1fr 126px;
-  gap: 18px;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding: 4px 0 14px;
-}
-
-.hero-copy {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-}
-
-/* Old and new hero states share one cell during the swap, so nothing below them jumps. */
-.hero-copy > .hero-state {
-  grid-area: 1 / 1;
 }
 
 .eyebrow {
@@ -869,15 +779,6 @@ h1 {
   transition: color var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
 }
 
-.detail {
-  margin: 0;
-  max-width: 700px;
-  color: #a4a29e;
-  font-size: 13px;
-  line-height: 1.5;
-  transition: color var(--dur-base) var(--ease-out);
-}
-
 .error {
   margin: 11px 0 0;
   display: flex;
@@ -888,7 +789,7 @@ h1 {
 }
 
 .control-orbit {
-  width: 116px;
+  width: 196px;
   aspect-ratio: 1;
   justify-self: end;
   border-radius: 999px;
@@ -900,7 +801,7 @@ h1 {
   background:
     radial-gradient(circle at 50% 50%, rgba(217, 119, 87, 0.07), rgba(33, 32, 30, 0.52) 62%),
     rgba(34, 33, 31, 0.58);
-  color: #ececea;
+  color: var(--text);
   transition:
     --lock-progress var(--dur-slow) var(--ease-out),
     color var(--dur-base) var(--ease-out),
@@ -940,7 +841,7 @@ h1 {
 }
 
 .control-orbit.searching {
-  color: color-mix(in srgb, var(--accent) 74%, var(--text-muted));
+  color: color-mix(in srgb, var(--accent) 74%, var(--text-3));
 }
 
 .control-orbit.lost {
@@ -978,19 +879,19 @@ h1 {
 
 .control-orbit .orbit-ticks {
   position: absolute;
-  inset: 7px;
+  inset: 5%;
   border-radius: inherit;
-  background: repeating-conic-gradient(from -1deg, rgba(255, 255, 255, 0.32) 0deg 0.8deg, transparent 0.8deg 11.25deg);
-  opacity: 0.28;
-  -webkit-mask: radial-gradient(circle, transparent 76%, #000 77% 79%, transparent 80%);
-  mask: radial-gradient(circle, transparent 76%, #000 77% 79%, transparent 80%);
+  background: repeating-conic-gradient(from -1deg, rgba(255, 255, 255, 0.32) 0deg 0.8deg, transparent 0.8deg 7.5deg);
+  opacity: 0.3;
+  -webkit-mask: radial-gradient(circle, transparent 90%, #000 91%);
+  mask: radial-gradient(circle, transparent 90%, #000 91%);
 }
 
 .control-orbit .orbit-ring,
 .control-orbit .orbit-ring--inner {
   position: absolute;
   border-radius: 999px;
-  inset: 13px;
+  inset: 13%;
   border: 1px solid color-mix(in srgb, var(--ring-color, var(--accent)) 52%, transparent);
   transition:
     inset var(--dur-base) var(--ease-out),
@@ -998,7 +899,7 @@ h1 {
 }
 
 .control-orbit .orbit-ring--inner {
-  inset: 25px;
+  inset: 22%;
   border-style: dashed;
   opacity: 0.6;
 }
@@ -1017,7 +918,8 @@ h1 {
 
 .orbit-core strong {
   display: block;
-  font-size: 23px;
+  font-size: 38px;
+  font-weight: 650;
   line-height: 1;
   letter-spacing: -0.03em;
   font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
@@ -1026,24 +928,332 @@ h1 {
 
 .orbit-core span {
   display: block;
-  margin-top: 5px;
-  font-size: 9px;
+  margin-top: 6px;
+  font-size: var(--fs-caption);
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-3);
 }
 
 .control-orbit.strong .orbit-core strong {
   transform: scale(1.035);
 }
 
-.instrument {
+/* Fishing: state and primary action together, then the cycle, then three evidence cards. */
+.fishing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 24px;
+  align-items: center;
+  padding: 28px 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+
+.fishing-hero__copy {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(132px, 1fr) minmax(132px, 1fr);
-  gap: 12px;
+  align-content: center;
+}
+
+/* Old and new hero states share one cell during the swap, so nothing below them jumps. */
+.fishing-hero__copy > .hero-state {
+  grid-area: 1 / 1;
+}
+
+.fishing-hero__context {
+  margin: 0;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fishing-hero__title {
+  margin: 8px 0 0;
+  color: var(--text-strong);
+  font-size: var(--fs-hero);
+  font-weight: 680;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+}
+
+.fishing-hero__detail {
+  max-width: 52ch;
+  margin: 10px 0 0;
+  color: var(--text-2);
+  font-size: var(--fs-title);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.fishing-hero .error {
+  margin: 10px 0 0;
+}
+
+.fishing-hero__actions {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.fishing-hero .control-orbit {
+  justify-self: end;
+}
+
+.fishing-hero .run-action {
+  min-height: 48px;
+  min-width: 250px;
+  padding: 0 10px 0 18px;
+  font-size: 14.5px;
+}
+
+.fishing-hero .run-action kbd {
+  margin-left: auto;
+  font: 700 11.5px/1 "Cascadia Code", Consolas, monospace;
+}
+
+.fishing-hero .primary-action.stop {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.fishing-verify {
+  min-height: 48px;
+  padding: 0 16px;
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 580;
+}
+
+.fishing-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(38, 38, 36, 0.5);
+  overflow: hidden;
+}
+
+.fishing-step {
+  position: relative;
+  min-width: 0;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.fishing-step + .fishing-step {
+  border-left: 1px solid var(--line);
+}
+
+.fishing-step::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: transparent;
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.fishing-step.complete::after { background: var(--success); }
+.fishing-step.current { background: rgba(217, 119, 87, 0.08); }
+.fishing-step.current::after { background: var(--accent); }
+.fishing-step.fault { background: var(--danger-bg); }
+.fishing-step.fault::after { background: var(--danger); }
+
+.fishing-step__marker {
+  position: relative;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid color-mix(in srgb, var(--text-3) 60%, transparent);
+  border-radius: 50%;
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  font: 700 var(--fs-meta)/1 "Cascadia Code", Consolas, monospace;
+}
+
+.fishing-step.current .fishing-step__marker { border-color: var(--accent); color: var(--accent-text); }
+.fishing-step.complete .fishing-step__marker { border-color: transparent; background: rgba(134, 217, 143, 0.8); color: #1a2a1c; }
+.fishing-step.fault .fishing-step__marker { border-color: var(--danger); color: var(--danger-text); }
+
+.fishing-step__copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.fishing-step__label {
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fishing-step.complete .fishing-step__label,
+.fishing-step.current .fishing-step__label {
+  color: var(--text-strong);
+}
+
+.fishing-step__copy small {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.fishing-step.current small { color: var(--accent-text); }
+.fishing-step.fault small { color: var(--danger-text); }
+
+.fishing-cards {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 14px;
+}
+
+.fishing-card {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fishing-card__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.fishing-card__process,
+.fishing-card__window {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fishing-card__process {
+  color: var(--text-strong);
+  font: 600 15px/1.3 "Cascadia Code", Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+
+.fishing-card__window {
+  color: var(--text-3);
+  font-size: var(--fs-small);
+}
+
+.fishing-card__window.invalid,
+.fishing-card__note {
+  color: var(--warning-text);
+}
+
+.fishing-card__note {
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.setup-chips {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.setup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-chip);
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+.setup-chip i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--text-3);
+  border-radius: 50%;
+}
+
+.setup-chip.passed { border-color: transparent; background: var(--success-bg); color: var(--success-text); }
+.setup-chip.passed i { border-color: var(--success); background: var(--success); }
+.setup-chip.blocked { border-color: transparent; background: var(--warning-bg); color: var(--warning-text); }
+.setup-chip.blocked i { border-color: var(--warning); background: var(--warning); }
+
+.fishing-card--telemetry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: space-between;
+  gap: 14px;
+}
+
+.fishing-card--telemetry .fishing-card__title {
+  grid-column: 1 / -1;
+}
+
+.fishing-metric {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.fishing-metric span {
+  color: var(--text-3);
+  font-size: var(--fs-caption);
+}
+
+.fishing-metric strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font: 650 24px/1 "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+}
+
+.fishing-metric .fishing-metric__text {
+  font-size: 17px;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.fishing-card--safety kbd {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-chip);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  font: 600 14px/1 "Cascadia Code", Consolas, monospace;
+}
+
+.fishing-card--safety p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
 .panel-header,
@@ -1051,144 +1261,6 @@ h1 {
 .form-grid,
 .empty-state {
   border-radius: var(--radius-md);
-}
-
-.target-card {
-  position: relative;
-  min-width: 0;
-  min-height: 132px;
-  padding: 14px 16px 15px;
-  border: 1px solid rgba(255, 255, 255, 0.105);
-  border-radius: 13px;
-  background: linear-gradient(125deg, rgba(43, 42, 40, 0.76), rgba(39, 38, 36, 0.58));
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-  transition: border-color var(--dur-base) var(--ease-out), background-color var(--dur-base) var(--ease-out);
-}
-
-.target-card:hover {
-  border-color: rgba(255, 255, 255, 0.17);
-  background: linear-gradient(125deg, rgba(45, 43, 42, 0.8), rgba(40, 38, 37, 0.62));
-}
-
-.target-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.target-card__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.card-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--accent);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 650;
-}
-
-.target-copy {
-  min-width: 0;
-  display: grid;
-  gap: 5px;
-}
-
-.target-copy strong {
-  color: #fafafa;
-  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  font-size: 14.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.target-copy span {
-  color: var(--text-muted);
-  font-size: 11.5px;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.target-copy span.invalid {
-  color: color-mix(in srgb, var(--warning) 82%, var(--text-muted));
-}
-
-.target-button {
-  min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid var(--line-strong);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  font-size: 12px;
-  font-weight: 590;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    background-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out);
-}
-
-.target-button--verify {
-  color: #c5c4c2;
-  background: rgba(217, 119, 87, 0.035);
-}
-
-.setup-check {
-  margin-top: 12px;
-  padding: 9px 10px;
-  display: grid;
-  gap: 3px;
-  border: 1px solid rgba(232, 184, 109, 0.18);
-  border-radius: 8px;
-  background: rgba(232, 184, 109, 0.045);
-}
-
-.setup-check.ready {
-  border-color: rgba(217, 119, 87, 0.18);
-  background: rgba(217, 119, 87, 0.045);
-}
-
-.setup-check strong { color: #f5f5f4; font-size: 10.5px; }
-.setup-check span { color: #aaa8a5; font-size: 10px; line-height: 1.35; }
-.setup-check small { color: #827e79; font-size: 9px; }
-
-.target-button:hover:not(:disabled) {
-  border-color: rgba(217, 119, 87, 0.38);
-  background: rgba(217, 119, 87, 0.1);
-}
-
-.target-button:disabled {
-  opacity: 0.46;
-  cursor: not-allowed;
-}
-
-.target-button.loading {
-  color: var(--warning);
 }
 
 .target-picker {
@@ -1426,244 +1498,10 @@ h1 {
   background: rgba(217, 119, 87, 0.07);
 }
 
-.telemetry {
-  min-height: 132px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-  align-items: stretch;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 13px;
-  background: rgba(37, 36, 34, 0.4);
-  overflow: hidden;
-}
-
-.telemetry > i {
-  width: 1px;
-  margin: 16px 0;
-  background: var(--line);
-}
-
-.metric {
-  min-width: 0;
-  padding: 14px 16px 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  transition: background-color var(--dur-fast) var(--ease-out);
-}
-
-.metric span {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.metric strong {
-  margin-top: 9px;
-  color: #f9f9f8;
-  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
-  font-size: 20px;
-  font-weight: 650;
-  line-height: 1;
-  letter-spacing: -0.025em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.metric small {
-  margin-top: 8px;
-  color: #817e79;
-  font-size: 10.5px;
-  line-height: 1.2;
-}
-
-.metric:hover {
-  background: rgba(217, 119, 87, 0.025);
-}
-
-.cycle {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  overflow: hidden;
-  background: rgba(35, 34, 32, 0.28);
-}
-
-.cycle-step {
-  position: relative;
-  min-height: 48px;
-  display: grid;
-  grid-template-columns: 22px 14px auto;
-  align-items: center;
-  gap: 9px;
-  padding: 0 13px;
-  color: #8f8b86;
-  border-right: 1px solid var(--line);
-  background: transparent;
-  font-size: 12px;
-  transition:
-    background-color var(--dur-base) var(--ease-out),
-    color var(--dur-base) var(--ease-out);
-}
-
-.cycle-step:last-child {
-  border-right: 0;
-}
-
-.cycle-step::before {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 1px;
-  background: color-mix(in srgb, var(--accent) 70%, transparent);
-  transform: scaleX(0);
-  transform-origin: left;
-  opacity: 0;
-  transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-base) var(--ease-out);
-}
-
-
-.cycle-step .step-index {
-  color: #706d68;
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-}
-
-.cycle-step .step-marker {
-  position: relative;
-  width: 12px;
-  height: 12px;
-  border: 1px solid #625f5b;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  transition:
-    transform var(--dur-base) var(--ease-out),
-    border-color var(--dur-base) var(--ease-out),
-    background-color var(--dur-base) var(--ease-out),
-    box-shadow var(--dur-base) var(--ease-out);
-}
-
-.cycle-step .step-label {
-  color: #78746f;
-  font-size: 11px;
-  font-weight: 570;
-  letter-spacing: 0.035em;
-}
-
-.cycle-step .step-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.cycle-step .step-copy small {
-  color: #676460;
-  font-size: 7.5px;
-  font-weight: 650;
-  letter-spacing: 0.065em;
-  text-transform: uppercase;
-}
-
-.cycle-step.current,
-.cycle-step.complete {
-  color: #f6f6f6;
-}
-
-.cycle-step.current .step-label,
-.cycle-step.complete .step-label {
-  color: #f6f6f5;
-}
-
-.cycle-step.current .step-copy small,
-.cycle-step.complete .step-copy small {
-  color: #a2a09d;
-}
-
-.cycle-step.current {
-  background: linear-gradient(110deg, rgba(217, 119, 87, 0.08), transparent 76%);
-}
-
-.cycle-step.current::before,
-.cycle-step.complete::before {
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.cycle-step.current .step-index,
-.cycle-step.complete .step-index {
-  color: var(--accent);
-}
-
-.cycle-step.current .step-marker {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.07);
-}
-
-.cycle-step.ready .step-marker {
-  background: color-mix(in srgb, var(--accent) 82%, #fff);
-}
-
-.cycle-step.complete {
-  color: #c9c8c6;
-}
-
-.cycle-step.complete .step-marker {
-  border-color: color-mix(in srgb, var(--success) 74%, transparent);
-  background: color-mix(in srgb, var(--success) 74%, transparent);
-  color: #1a2a1c;
-}
-
-.cycle-step.fault {
-  background: linear-gradient(110deg, rgba(229, 105, 95, 0.1), transparent 76%);
-}
-
-.cycle-step.fault::before {
-  opacity: 1;
-  transform: scaleX(1);
-  background: color-mix(in srgb, var(--danger) 68%, transparent);
-}
-
-.cycle-step.fault .step-index,
-.cycle-step.fault .step-label {
-  color: #f2aaa7;
-}
-
-.cycle-step.fault .step-marker {
-  border-color: var(--danger);
-  background: var(--danger);
-  box-shadow: 0 0 0 3px rgba(229, 105, 95, 0.08);
-}
-
 .actions {
   display: grid;
   grid-template-columns: minmax(220px, 1.55fr) repeat(2, minmax(150px, 1fr));
   gap: 10px;
-}
-
-.actions .action-hint {
-  grid-column: 1 / -1;
-  margin: -3px 2px 0;
-  color: #7b7873;
-  font-size: 9.5px;
-  line-height: 1.35;
-}
-
-.actions .action-hint kbd,
-.run-action kbd {
-  font-family: "Cascadia Code", Consolas, monospace;
-}
-
-.actions .action-hint kbd {
-  color: #adaba7;
-  font-size: 9px;
 }
 
 .primary-action,
@@ -1696,32 +1534,6 @@ h1 {
   background: var(--accent);
   color: #fff8f3;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.24), 0 1px 0 rgba(0, 0, 0, 0.28);
-}
-
-.primary-action.stop {
-  background: linear-gradient(135deg, #ff998f, var(--danger));
-  color: #ffe9e8;
-}
-
-.run-action {
-  justify-content: flex-start;
-}
-
-.run-action kbd {
-  margin-left: auto;
-  padding: 3px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 5px;
-  color: rgba(255, 248, 243, 0.9);
-  background: rgba(0, 0, 0, 0.16);
-  font-size: 8.5px;
-  font-weight: 700;
-}
-
-.run-action.stop kbd {
-  border-color: rgba(255, 233, 232, 0.16);
-  color: rgba(255, 233, 232, 0.82);
-  background: rgba(68, 11, 13, 0.12);
 }
 
 .primary-action.dirty:not(:disabled) {
@@ -1778,7 +1590,6 @@ button[disabled] {
 
 .sub-action--mini:focus-visible,
 .panel-close:focus-visible,
-.target-button:focus-visible,
 .primary-action:focus-visible,
 .sub-action:focus-visible {
   outline: none;
@@ -3086,14 +2897,6 @@ summary:focus-visible {
     gap: 10px;
   }
 
-  .hero {
-    grid-template-columns: 1fr 116px;
-  }
-
-  .fishing-body {
-    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
-  }
-
   .actions {
     grid-template-columns: minmax(0, 1fr) repeat(2, 138px);
   }
@@ -3104,23 +2907,6 @@ summary:focus-visible {
 }
 
 @media (max-width: 900px) {
-  .hero {
-    min-height: 136px;
-  }
-
-  .fishing-body {
-    grid-template-columns: 1fr;
-  }
-
-  .instrument {
-    grid-template-rows: minmax(106px, auto) minmax(106px, auto);
-  }
-
-  .target-card,
-  .telemetry {
-    min-height: 106px;
-  }
-
   .status-footer {
     align-items: flex-start;
     flex-direction: column;
@@ -3152,6 +2938,38 @@ summary:focus-visible {
     min-height: 0;
     padding: 16px;
   }
+
+  .fishing-hero {
+    grid-template-columns: minmax(0, 1fr) 150px;
+    padding: 20px 24px;
+  }
+
+  .fishing-hero .control-orbit {
+    width: 150px;
+  }
+
+  .fishing-hero .orbit-core strong {
+    font-size: 30px;
+  }
+
+  .fishing-card--telemetry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fishing-metric strong {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 619px) {
+  .fishing-hero,
+  .fishing-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fishing-hero .control-orbit {
+    display: none;
+  }
 }
 
 @media (max-width: 800px) {
@@ -3167,31 +2985,6 @@ summary:focus-visible {
     grid-column: 1 / -1;
   }
 
-  .cycle-step {
-    grid-template-columns: 18px 12px auto;
-    gap: 6px;
-    padding: 0 8px;
-  }
-
-  .cycle-step .step-label {
-    font-size: 10px;
-  }
-
-  .target-card__header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .target-card__actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .target-button {
-    flex: 1 1 180px;
-  }
-
 }
 
 @media (min-width: 1600px) {
@@ -3199,9 +2992,7 @@ summary:focus-visible {
     width: min(1440px, calc(100vw - 96px));
   }
 
-  .activity-grid,
-  .instrument,
-  .fishing-body {
+  .activity-grid {
     gap: 16px;
   }
 }
@@ -3219,22 +3010,18 @@ summary:focus-visible {
   .activity-card__capabilities { margin:12px 0; }
   .activity-card__footer { padding-top:12px; }
 
-  .hero { min-height:74px; margin:5px 0 8px; grid-template-columns:1fr; }
-  .hero .control-orbit, .hero .detail { display:none; }
-  .hero .state-title { font-size:27px; margin:4px 0; }
-  .fishing-body { flex:1 1 auto; gap:8px; }
-  .instrument { grid-template-rows:auto; gap:0; }
-  .target-card { min-height:94px; padding:11px 15px; }
-  .target-card__header { margin-bottom:7px; }
-  .telemetry, .status-footer, .action-hint { display:none; }
-  .fishing-run { border:0; border-radius:0; background:transparent; overflow:visible; }
-  .fishing-run .cycle { flex:0 0 auto; grid-template-columns:repeat(5, minmax(0, 1fr)); grid-auto-rows:auto; border-top:1px solid var(--line); background:rgba(35, 34, 32, 0.28); }
-  .fishing-run .cycle-step { border-bottom:0; border-right:1px solid var(--line); }
-  .fishing-run .cycle-step:last-child { border-right:0; border-bottom:0; }
-  .fishing-run .cycle-step::before { inset:auto 0 0 0; width:auto; height:1px; transform:scaleX(0); transform-origin:left; }
-  .fishing-run .cycle-step.current::before, .fishing-run .cycle-step.complete::before, .fishing-run .cycle-step.fault::before { transform:scaleX(1); }
-  .fishing-run .actions { padding:0; }
-  .cycle-step { min-height:47px; padding:8px; }
+  .fishing-hero { grid-template-columns:minmax(0, 1fr) 124px; gap:16px; padding:16px 20px; }
+  .fishing-hero__detail { display:none; }
+  .fishing-hero__title { font-size:30px; margin-top:4px; }
+  .fishing-hero__actions { margin-top:14px; }
+  .fishing-hero .run-action, .fishing-verify { min-height:42px; }
+  .fishing-hero .run-action { min-width:220px; }
+  .fishing-hero .control-orbit { width:124px; }
+  .fishing-hero .orbit-core strong { font-size:26px; }
+  .fishing-step { padding:10px 12px; }
+  .fishing-cards { gap:10px; }
+  .fishing-card { padding:14px 16px; gap:8px; }
+  .status-footer { display:none; }
   .actions { margin-top:8px; }
   .actions button { min-height:38px; }
 }
@@ -3255,18 +3042,10 @@ summary:focus-visible {
   animation: orbit var(--dur-orbit) linear infinite;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .cycle-step.current::before {
-    animation: stepSweep var(--dur-enter) var(--ease-out);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .running .orbit-ring,
   .running .orbit-ring--inner,
-  .spin,
-  .cycle-step.complete::before,
-  .cycle-step.current::before {
+  .spin {
     animation: none !important;
   }
 }
@@ -3282,14 +3061,5 @@ summary:focus-visible {
 @keyframes orbit {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes stepSweep {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
   }
 }

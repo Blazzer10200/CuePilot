@@ -4,7 +4,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import {
     Activity, AlertTriangle, Check, ChevronDown, ChevronRight, Crosshair, FolderOpen,
-    Gauge, Hand, KeyRound, Layers3, Minus, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
+    Gauge, Hand, KeyRound, Layers3, Minus, OctagonX, Monitor, Play, Radio, RefreshCw, ScanEye, Settings2,
     ShieldCheck, Square, Terminal, Waves, X,
   } from "@lucide/svelte";
   import { EngineClient, type FishingDebugSnapshot, type FishingSetupVerification, type HotkeyBinding, type RoutineSettings, type RoutineState, type TargetCandidate } from "./lib/engine.svelte";
@@ -142,6 +142,11 @@
     if (!targetValid) return { label: "Select target", tone: "warning" };
     return { label: "Ready", tone: "success" };
   });
+  const setupChecks = $derived((["target", "capture", "input"] as const).map((key) => {
+    const name = key[0].toUpperCase() + key.slice(1);
+    if (!setupVerification) return { label: `${name} unverified`, tone: "unverified" };
+    return setupVerification[key].passed ? { label: name, tone: "passed" } : { label: `${name} blocked`, tone: "blocked" };
+  }));
   const gaugeLabel = $derived(
     engine.status.state === "Faulted"
       ? "Signal lost"
@@ -240,43 +245,43 @@
     hasTarget: boolean;
   }) {
     if (!connected) return {
-      context: "RESTORING LOCAL LINK",
+      context: "Restoring local link",
       title: "Connecting the engine",
       detail: "CuePilot is restoring its local control link. Your saved target and settings stay on this PC.",
     };
     if (selectingTarget) return {
-      context: "TARGET ACQUISITION",
+      context: "Target acquisition",
       title: "Finding your FiveM window",
       detail: "Scanning this desktop for an available FiveM target…",
     };
     if (state === "Faulted") return {
-      context: "CONTROL SAFEGUARD",
+      context: "Control safeguard",
       title: "Automation paused",
       detail: "CuePilot released input. Review the target, then start again when everything is ready.",
     };
     if (state !== "Stopped") {
       const live = {
-        Casting: ["CAST", "Casting the line", "CuePilot is sending the bounded cast action."],
-        Armed: ["METER WATCH", "Watching for the meter", "The reader is waiting for a confirmed tension prompt."],
-        Regulating: ["TENSION CONTROL", "Managing tension", "Live detector confidence guides the next safe pulse."],
-        Collecting: ["COLLECT", "Collecting the catch", "Completing the current fishing cycle."],
-        Stowing: ["NEXT CAST", "Preparing the next cast", "The completed cycle is settling before CuePilot continues."],
+        Casting: ["Cast", "Casting the line", "CuePilot is sending the bounded cast action."],
+        Armed: ["Meter watch", "Watching for the meter", "The reader is waiting for a confirmed tension prompt."],
+        Regulating: ["Tension control", "Managing tension", "Live detector confidence guides the next safe pulse."],
+        Collecting: ["Collect", "Collecting the catch", "Completing the current fishing cycle."],
+        Stowing: ["Next cast", "Preparing the next cast", "The completed cycle is settling before CuePilot continues."],
       } as const;
       const [context, title, detail] = live[state];
       return { context, title, detail };
     }
     if (hasTarget && !targetValid) return {
-      context: "TARGET NEEDS ATTENTION",
+      context: "Target needs attention",
       title: "FiveM target unavailable",
       detail: "The saved window is not ready. Select its current FiveM window before starting automation.",
     };
     if (!targetValid) return {
-      context: "WELCOME BACK",
+      context: "Welcome back",
       title: "Select your FiveM target",
       detail: "Choose the game window once, then CuePilot will keep capture and input safely scoped to it.",
     };
     return {
-      context: "WELCOME BACK · TARGET RESTORED",
+      context: "Target restored",
       title: "Ready to fish",
       detail: "Your saved FiveM target is ready. Start here, or use your in-game shortcut while FiveM is focused.",
     };
@@ -764,16 +769,39 @@
     <ActivityPicker engineConnected={engine.connected} {targetValid} focusActivity={homeFocusActivity} shortcuts={{ fishing: hotkeyDisplay(engine.snapshot?.settings.startStop ?? defaultShortcuts.fishing), pickpocket: hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket) }} onselect={selectActivity} />
   {:else if fishingSelected}
 
-  <section class="hero" aria-labelledby="state-heading">
-    <div class="hero-copy">
+  <section class="fishing-hero" aria-labelledby="state-heading">
+    <div class="fishing-hero__copy">
       {#key hero.title}
         <div class="hero-state" in:enter={"swap"} out:leave={"swap"}>
-          <p class="eyebrow"><Activity size={14} strokeWidth={1.9} /> {hero.context}</p>
-          <h1 id="state-heading" class="state-title">{hero.title}</h1>
-          <p class="detail" aria-live="polite">{hero.detail}</p>
+          <p class="fishing-hero__context">{hero.context}</p>
+          <h1 id="state-heading" class="fishing-hero__title">{hero.title}</h1>
+          <p class="fishing-hero__detail" aria-live="polite">{hero.detail}</p>
         </div>
       {/key}
       {#if engine.error}<p class="error" in:enter={"inline"} out:leave={"inline"}><AlertTriangle size={15} strokeWidth={1.9} /> {engine.error}</p>{/if}
+      <div class="fishing-hero__actions">
+        <button
+          class:stop={active}
+          class:loading={!!runPending}
+          class="primary-action run-action"
+          onclick={toggleRun}
+          disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
+        >
+          {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
+          {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
+          {:else if active}<OctagonX size={16} strokeWidth={1.9} /> Stop Fishing
+          {:else}<Play size={14} fill="currentColor" /> Start Fishing{/if}
+          <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
+        </button>
+        <button
+          class:loading={verifyingSetup}
+          class="sub-action fishing-verify"
+          onclick={verifySetup}
+          disabled={active || verifyingSetup || selectingTarget || !!runPending || !engine.connected}
+        >
+          {#if verifyingSetup}<RefreshCw size={16} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={16} strokeWidth={1.9} /> Verify setup{/if}
+        </button>
+      </div>
     </div>
     <div
       class:running={active}
@@ -796,101 +824,45 @@
     </div>
   </section>
 
-  <div class="fishing-body">
-  <section class="instrument" aria-label="Live engine telemetry">
-    <article class="target-card">
-      <header class="target-card__header">
-        <div class="card-kicker"><Crosshair size={14} strokeWidth={1.9} /> Game target</div>
-        <div class="target-card__actions">
-          <button
-            class:loading={verifyingSetup}
-            class="target-button target-button--verify"
-            onclick={verifySetup}
-            disabled={active || verifyingSetup || selectingTarget || !!runPending || !engine.connected}
-          >
-            {#if verifyingSetup}<RefreshCw size={14} strokeWidth={1.9} class="spin" /> Checking…{:else}<ScanEye size={14} strokeWidth={1.9} /> Verify setup{/if}
-          </button>
-        </div>
-      </header>
-      <div class="target-copy">
-        <strong>{target?.processName || "No target selected"}</strong>
-        <span class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
-      </div>
-      {#if setupVerification}
-        <div class:ready={setupVerification.ready} class="setup-check" aria-live="polite">
-          <strong>{setupVerification.ready ? "Setup verified" : "Setup needs attention"}</strong>
-          <span>{setupVerification.detail}</span>
-          <small>Target {setupVerification.target.passed ? "ready" : "blocked"} · Input {setupVerification.input.passed ? "ready" : "blocked"} · Capture {setupVerification.capture.passed ? "ready" : "blocked"}</small>
-        </div>
-      {/if}
-    </article>
-    <aside class="telemetry" aria-label="Compact telemetry">
-      <div class="metric">
-        <span>Samples</span>
-        <strong>{engine.status.sampleCount.toLocaleString()}</strong>
-        <small>Detector frames</small>
-      </div>
-      <i aria-hidden="true"></i>
-      <div class="metric">
-        <span>Input mode</span>
-        <strong>{engine.snapshot?.settings.routine.inputMode || "—"}</strong>
-        <small>{engine.connected ? "Local delivery" : "Waiting for engine"}</small>
-      </div>
-    </aside>
-  </section>
-
-  <aside class="fishing-run" aria-label="Routine controls">
-  <section class="cycle" aria-label="Routine cycle">
-    {#each ["TARGET", "CAST LINE", "CAST BAR", "TENSION", "COLLECT"] as step, index}
+  <section class="fishing-steps" aria-label="Routine cycle">
+    {#each ["Target", "Cast line", "Cast bar", "Tension", "Collect"] as step, index}
       {@const stepState = cycleStepState(index)}
       <div
         class:complete={stepState === "complete"}
         class:current={stepState === "active" || stepState === "ready" || stepState === "fault"}
         class:live={stepState === "active"}
-        class:ready={stepState === "ready"}
         class:fault={stepState === "fault"}
-        class="cycle-step"
+        class="fishing-step"
         aria-current={stepState === "active" || stepState === "ready" || stepState === "fault" ? "step" : undefined}
         aria-label={`${step}: ${stepState}`}
       >
-        <span class="step-index">{String(index + 1).padStart(2, "0")}</span>
-        <span class="step-marker" aria-hidden="true">{#if stepState === "complete"}<Check size={8} strokeWidth={2.6} />{:else if stepState === "active"}<i class="live-ring" use:phaseLock></i>{/if}</span>
-        <span class="step-copy"><span class="step-label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
+        <span class="fishing-step__marker" aria-hidden="true">{#if stepState === "complete"}<Check size={11} strokeWidth={2.6} />{:else}{index + 1}{/if}{#if stepState === "active"}<i class="live-ring" use:phaseLock></i>{/if}</span>
+        <span class="fishing-step__copy"><span class="fishing-step__label">{step}</span><small>{cycleStepLabel(stepState)}</small></span>
       </div>
     {/each}
   </section>
 
-  <section class="actions fishing-actions">
-    <button
-      class:stop={active}
-      class:loading={!!runPending}
-      class="primary-action run-action"
-      onclick={toggleRun}
-      disabled={!!runPending || (!active && (!engine.connected || !targetValid))}
-      aria-describedby="run-action-hint"
-    >
-      {#if runPending === "start"}<RefreshCw size={16} class="spin" /> Starting…
-      {:else if runPending === "stop"}<RefreshCw size={16} class="spin" /> Stopping…
-      {:else if active}<Square size={14} fill="currentColor" /> Stop Fishing
-      {:else}<Play size={16} fill="currentColor" /> Start Fishing{/if}
-      <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd>
-    </button>
-    <p id="run-action-hint" class="action-hint">The button is the primary control. <kbd>{hotkeyDisplay(engine.snapshot?.settings.startStop)}</kbd> is the optional in-game shortcut.</p>
-  </section>
-  </aside>
+  <div class="fishing-cards">
+    <article class="fishing-card" aria-labelledby="fishing-target-title">
+      <h3 id="fishing-target-title" class="fishing-card__title"><Crosshair size={14} strokeWidth={1.9} /> Game target</h3>
+      <strong class="fishing-card__process">{target?.processName || "No target selected"}</strong>
+      <span class="fishing-card__window" class:invalid={!!target?.processName && !targetValid}>{targetValid ? (target?.windowTitle || "FiveM target ready.") : (engine.snapshot?.targetValidation || "Select FiveM before you start.")}</span>
+      <div class="setup-chips" aria-live="polite" aria-label={!setupVerification ? "Setup not verified" : setupVerification.ready ? "Setup verified" : "Setup needs attention"}>
+        {#each setupChecks as check (check.label)}<span class={`setup-chip ${check.tone}`}><i aria-hidden="true"></i>{check.label}</span>{/each}
+      </div>
+      {#if setupVerification && !setupVerification.ready}<span class="fishing-card__note">{setupVerification.detail}</span>{/if}
+    </article>
+    <article class="fishing-card fishing-card--telemetry" aria-labelledby="fishing-telemetry-title">
+      <h3 id="fishing-telemetry-title" class="fishing-card__title"><Activity size={14} strokeWidth={1.9} /> Telemetry</h3>
+      <div class="fishing-metric"><span>Detector frames</span><strong>{engine.status.sampleCount.toLocaleString()}</strong></div>
+      <div class="fishing-metric"><span>Input mode</span><strong class="fishing-metric__text">{engine.snapshot?.settings.routine.inputMode || "—"}</strong></div>
+    </article>
+    <article class="fishing-card fishing-card--safety" aria-labelledby="fishing-safety-title">
+      <h3 id="fishing-safety-title" class="fishing-card__title"><ShieldCheck size={14} strokeWidth={1.9} /> Safe control</h3>
+      <kbd>Pause / Break</kbd>
+      <p>Always releases held input. Fishing input only reaches FiveM while it is in the foreground.</p>
+    </article>
   </div>
-
-  <footer class="status-footer">
-    <div class="safety-summary">
-      <ShieldCheck size={15} strokeWidth={1.9} />
-      <p><strong>Safe control</strong><i></i><kbd>Pause / Break</kbd> always releases input<i></i>FiveM must remain foreground</p>
-    </div>
-    <div class="system-status" aria-label="System status">
-      <span><i></i>Local only</span>
-      <b aria-hidden="true"></b>
-      <span>{active ? "Automation running" : targetValid ? "Target connected" : "Target not selected"}</span>
-    </div>
-  </footer>
   {:else}
     <PickpocketWorkspace
       shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
