@@ -119,7 +119,7 @@ internal static class UiBridge
                             break;
                         case "stop":
                             pickpocket.Stop();
-                            routine.Stop("Stopped from the Tauri dashboard.");
+                            routine.Stop("Stopped from CuePilot.");
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
                             break;
                         case "configure_pickpocket":

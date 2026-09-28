@@ -27,13 +27,12 @@ body {
   color: var(--overlay-text);
 }
 
+/* Absolute, so a replacement card can cross-fade over the one it replaces. */
 .overlay-card {
-  position: relative;
+  position: absolute;
+  inset: var(--overlay-gutter);
   box-sizing: border-box;
-  width: calc(100% - 2 * var(--overlay-gutter));
-  height: calc(100% - 2 * var(--overlay-gutter));
-  margin: var(--overlay-gutter);
-  padding: 9px 11px;
+  padding: 10px 12px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
@@ -44,13 +43,12 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.42);
   display: flex;
   align-items: center;
-  gap: 10px;
-  animation: notice-enter 160ms ease-out;
+  gap: 11px;
 }
 
 .overlay-card__icon {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
   border-radius: 9px;
   color: #fff8f3;
@@ -60,14 +58,13 @@ body {
 }
 
 .overlay-card__copy { min-width: 0; display: grid; gap: 1px; }
-.overlay-card__copy span { color: var(--overlay-accent); font-size: 8.5px; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
+.overlay-card__copy span { color: var(--overlay-accent); font-size: 10px; line-height: 13px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
 .overlay-card__copy b { margin: 0 3px; opacity: .5; }
-.overlay-card__copy strong { font-size: 13px; line-height: 17px; font-weight: 620; letter-spacing: -0.01em; }
-.overlay-card__copy small { color: var(--overlay-muted); font-size: 10.5px; line-height: 14px; }
+.overlay-card__copy strong { font-size: 14px; line-height: 18px; font-weight: 620; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.overlay-card__copy small { color: var(--overlay-muted); font-size: 12px; line-height: 16px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .overlay-card__edge { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--overlay-accent); opacity: 0.55; transform-origin: left; animation: notice-drain var(--duration) linear forwards; }
-@keyframes notice-enter { from { opacity: 0; transform: translateX(6px); } }
 @keyframes notice-drain { to { transform: scaleX(0); } }
-@media (prefers-reduced-motion: reduce) { .overlay-card, .overlay-card__edge { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .overlay-card__edge { animation: none; } }
 
 .overlay-card.success .overlay-card__icon { background: var(--overlay-success); color: #08260c; }
 .overlay-card.success .overlay-card__copy span { color: var(--overlay-success); }

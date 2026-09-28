@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 5.3.17 - 2026-09-28 - Smoother, smarter notifications and a faster Pickpocket
 
+- Notifications slide in and now slide out too, instead of vanishing. A new notification for the same activity replaces the card in place rather than queueing behind it, and events that land together are collapsed into one card, so stale text no longer flashes up.
+- Popups are delivered the moment an event arrives instead of on a 200 ms poll.
+- New notifications: Pickpocket result ("Grabbed" with the item, or "Missed"), Fishing stopped (with the reason) or stopped on a problem, Pickpocket paused when the game loses focus, emergency stop, a shortcut that failed to run, and engine disconnected / reconnected. Problems and emergency stops use a red card that stays up longer and jumps the queue; results use green or amber.
+- Larger, easier-to-read card text and icons.
+- New "Popup position" setting (any screen corner). Popups now appear on the monitor you're using (the one with the focused window) instead of always the primary display.
+- Settings gained a "Preview result" button next to the existing previews.
+- Removed unused interface styles.
 - Pickpocket reacts faster again. Removing the GPU priority boost in 5.3.16 made each capture queue behind the game's own frames: median capture went from ~3.5 ms to ~8.5 ms, the slowest frames from ~25 ms to over 60 ms old, and a thin red target was missed 5 px late. Capture now raises GPU priority only while the minigame is on screen and a shot is still possible, then drops it straight back. Fishing never raises it, so the hitching fix stays.
 
 ## 5.3.16 - 2026-09-28 - Polished interface, Vehicle Lockpicking removed, capture and mouse-hook cleanup

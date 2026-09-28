@@ -1650,8 +1650,6 @@ button[disabled] {
 }
 
 .safety-summary,
-.system-status,
-.system-status span,
 .safety-summary p {
   display: flex;
   align-items: center;
@@ -1694,39 +1692,7 @@ button[disabled] {
   font-weight: 600;
 }
 
-.system-status {
-  flex: 0 0 auto;
-  gap: 8px;
-  color: #8a8681;
-}
-
-.system-status span {
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.system-status span:first-child {
-  color: #b5b3b0;
-  font-weight: 570;
-}
-
-.system-status span > i {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--success);
-  box-shadow: 0 0 0 3px rgba(134, 217, 143, 0.08);
-}
-
-.system-status > b {
-  width: 1px;
-  height: 12px;
-  background: var(--line);
-}
-
 .eyebrow svg,
-.card-kicker svg,
-.target-button svg,
 .primary-action svg,
 .sub-action svg,
 .safety-summary svg {
@@ -2936,10 +2902,6 @@ main > .target-picker { position:fixed; top:100px; right:24px; width:min(440px,c
 }
 
 @media (max-width: 800px) {
-  .drag-hint {
-    display: none;
-  }
-
   .actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

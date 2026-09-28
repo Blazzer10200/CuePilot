@@ -5,7 +5,7 @@ import { defaultItemPriority, defaultPriority } from "../lib/activities/pickpock
 export function installScenario(name: string) {
   if (!import.meta.env.DEV) throw new Error("Scenarios are development-only.");
   mockWindows("main");
-  let notificationPreferences = { popups: true, sound: true, shortcuts: true };
+  let notificationPreferences = { popups: true, sound: true, shortcuts: true, corner: "top-right" };
   const hotkey = (key: string) => ({ key, control: false, alt: false, shift: false });
   const attempts: PickpocketRecentAttempt[] = Array.from({ length: 12 }, (_, index) => ({
     id: `fixture-${index}`, endedAtUnixMs: 1788494400000 - index * 200000, outcome: index % 3 === 0 ? "Grabbed" : index % 3 === 1 ? "Missed" : "Ended",

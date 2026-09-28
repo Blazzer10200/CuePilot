@@ -42,6 +42,13 @@ function make(node: Element, kind: MotionKind, exit: boolean): TransitionConfig 
 export const enter = (node: Element, kind: MotionKind) => make(node, kind, false);
 export const leave = (node: Element, kind: MotionKind) => make(node, kind, true);
 
+/** Desktop notice card: slides in from its screen edge and back out toward it.
+ *  The exit (160 ms) must stay under EXIT_MS in notifications.rs, which hides the window. */
+export function notice(node: Element, { edge, exit = false }: { edge: "left" | "right"; exit?: boolean }): TransitionConfig {
+  const duration = reduced() ? 0 : exit ? exitMs(dur.slow) : dur.slow;
+  return fly(node, { x: edge === "left" ? -14 : 14, duration, easing: exit ? cubicIn : cubicOut });
+}
+
 /** Aligns every .live-ring to one global clock, no matter when it mounts. */
 export function phaseLock(node: HTMLElement, period: number = dur.pulse) {
   node.style.animationDelay = `-${Math.round(performance.now() % period)}ms`;

@@ -458,6 +458,7 @@ fn run_shortcut_command(handle: AppHandle, bridge: EngineBridge, command: &'stat
     thread::spawn(move || match bridge.command(&handle, command, None, None) {
         Ok(result) => notifications::confirm_shortcut(&handle, command, &result, &shortcut_label),
         Err(detail) => {
+            notifications::shortcut_failed(&handle, command, &detail);
             let fault_payload = serde_json::json!({
                 "name": "fault",
                 "payload": { "detail": detail },
