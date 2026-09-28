@@ -445,7 +445,7 @@ public sealed class FishingMeterTests
             Assert.Contains(events, line => line.Contains("\"eventName\":\"complete\"", StringComparison.Ordinal));
             // The manifest is throttled between events but must be current at completion.
             Assert.Equal(events.Length, manifest.RootElement.GetProperty("eventCount").GetInt32());
-            Assert.Contains(events, line => line.Contains("\"eventName\":\"capture_ready\"", StringComparison.Ordinal) && line.Contains("\"gpuPriority\":", StringComparison.Ordinal));
+            Assert.Contains(events, line => line.Contains("\"eventName\":\"capture_ready\"", StringComparison.Ordinal) && line.Contains("\"captureMilliseconds\":", StringComparison.Ordinal));
             Assert.Contains(events, line => line.Contains("\"eventName\":\"start\"", StringComparison.Ordinal) && line.Contains("\"elevated\":", StringComparison.Ordinal));
         }
         finally

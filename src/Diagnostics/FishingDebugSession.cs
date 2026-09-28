@@ -170,7 +170,6 @@ internal sealed class FishingDebugSession : IDisposable
                 captureMilliseconds = status.CaptureMilliseconds,
                 width = frameSize?.Width,
                 height = frameSize?.Height,
-                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
             });
         }
         else if (status.Detail.StartsWith("Fallback active", StringComparison.Ordinal))
@@ -182,7 +181,6 @@ internal sealed class FishingDebugSession : IDisposable
                 captureMilliseconds = status.CaptureMilliseconds,
                 width = frameSize?.Width,
                 height = frameSize?.Height,
-                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
             });
         }
         else if (!captureReadyRecorded)
@@ -195,7 +193,6 @@ internal sealed class FishingDebugSession : IDisposable
                 captureMilliseconds = status.CaptureMilliseconds,
                 width = frameSize?.Width,
                 height = frameSize?.Height,
-                gpuPriority = DxgiFrameSource.GpuPriorityRaised,
             });
         }
     }

@@ -194,8 +194,11 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
             out device,
             out context).CheckError();
 
+        // GPU scheduling priority stays at the default on purpose. Raising it (thread
+        // priority 7 + process class HIGH, as OBS does when elevated) let each sample
+        // preempt the game mid-frame and was removed after the owner reported game and
+        // system hitching while CuePilot ran (2026-09-28).
         using var dxgiDevice = device!.QueryInterface<IDXGIDevice>();
-        RaiseGpuPriority(dxgiDevice);
         dxgiDevice.GetAdapter(out var adapter).CheckError();
         using (adapter)
         {
@@ -229,21 +232,6 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
         }
 
         throw new InvalidOperationException("The target capture region is not fully inside a desktop output.");
-    }
-
-    // Capture is a few tiny GPU copies, but at normal priority each Map waits behind a
-    // GPU-bound game's frames. Raising the scheduling class is what OBS does for the same
-    // problem. It needs elevation (CuePilot runs as admin) and is best-effort: without it
-    // capture still works, only slower under load, which the sample timing shows.
-    internal static bool GpuPriorityRaised { get; private set; }
-
-    private static void RaiseGpuPriority(IDXGIDevice dxgiDevice)
-    {
-        var thread = dxgiDevice.SetGPUThreadPriority(7);
-        using var process = Process.GetCurrentProcess();
-        var scheduling = NativeMethods.D3DKMTSetProcessSchedulingPriorityClass(
-            process.Handle, NativeMethods.GpuSchedulingPriorityHigh);
-        GpuPriorityRaised = thread.Success && scheduling == 0;
     }
 
     private ID3D11Texture2D EnsureStagingTexture(Texture2DDescription source, Size size)

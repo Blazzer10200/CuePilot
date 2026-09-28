@@ -253,7 +253,6 @@ internal static class Program
             $"CAPTURE_PROBE_OK backend={status!.Backend} cold_ms={captureMilliseconds[0]:F2} " +
             $"steady_median_ms={steady[steady.Length / 2]:F2} steady_max_ms={steady[^1]:F2} " +
             $"sample_median_ms={steadySamples[steadySamples.Length / 2]:F2} " +
-            $"gpu_priority={(DxgiFrameSource.GpuPriorityRaised ? "raised" : "normal")} " +
             $"visible={observation.IsVisible} failed={observation.IsFailed} confidence={observation.Confidence:P0}");
         return 0;
     }
