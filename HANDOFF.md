@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.19 — 2026-09-29
+# Handoff — CuePilot 5.3.20 — 2026-09-29
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -9,11 +9,11 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 | | |
 | --- | --- |
 | Branch | `main` (pushed directly, no PR). The audit fixes were fast-forward merged from `audit/fix-now-5.3.18` (branch left in place, fully merged) |
-| Source version | **5.3.19** in all six release files |
-| Published | **v5.3.19** is the public release (2026-09-29, tag on `69a9209`). 5.3.18 was never tagged; its changes ship inside 5.3.19. `main` is one commit past the tag (`41982b0`, a test-only change) |
-| Installed locally | **5.3.19** from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `586e4c78…1082`, matched the published `.sha256`), installed `--silent` 2026-09-29. Engine `5.3.19+69a9209`; `shell.jsonl` shows `shellVersion` 5.3.19 and `ui_first_command` at 5516 ms; shell and engine stayed up |
+| Source version | **5.3.20** in all six release files |
+| Published | **v5.3.20** is the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
+| Installed locally | **5.3.20** from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
 | Package | `release/velopack/` holds 5.3.17 – 5.3.19 packages, Setup.exe, Portable.zip (local build; the official CI build differs byte-for-byte). Never delete the directory to clean up a build |
-| Last gates | 2026-09-29 `verify.ps1 -All` on the fix branch: dotnet 438, vitest 54, Playwright 30, cargo 52, svelte-check 0, rustfmt, clippy `-D warnings`. `test-velopack-update.ps1` passed (5.2.0 → 5.2.1). Two `main` Build runs and the release job passed |
+| Last gates | 2026-09-29 `verify.ps1 -All` on 5.3.20: dotnet 442, vitest, Playwright, cargo 52, svelte-check, clippy all green |
 | Release CI | The tag run failed twice on runner flakes before passing on the third attempt: a 100 ms wall-clock assertion in `PickpocketPixelLatencyTests` (109.6 ms on the runner, now best-of-three) and `net::ERR_NO_BUFFER_SPACE` from Playwright's `page.goto`. Rerun with `gh run rerun <id> --failed` before assuming a real regression |
 
 Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
@@ -25,6 +25,10 @@ Pickpocket detection rework, worked entirely offline from saved sessions (no liv
 - **Detector fixes** (`PickpocketDetector.cs`): each stem pass gets its own header budget (a busy scene no longer starves the real marker); the scale search tolerates grass-inflated stems; one Hidden frame no longer wipes the tracked history (`PickpocketObserverEngine` keeps a 400 ms tracking hint).
 - **Session analyzer** (`Diagnostics/PickpocketSessionAnalyzer.cs`): `--analyze-pickpocket <session|latest>` writes a plain-language `ANALYSIS.md` verdict; `--pickpocket-corpus <folder>` scores every saved session. See [docs/pickpocket-debugging.md](docs/pickpocket-debugging.md).
 - **Offline result across 11,459 saved frames:** 43 of 44 lost frames recovered, 1 cold miss, 1 minor regression, 6 borderline false-positive candidates (header 0.81–0.85). Analysis p50 1.0 ms, p99 14.5 ms.
+
+## What 5.3.20 shipped
+
+Pickpocket wide-target timing. Shot history showed Purple/wide shots stopping +2 to +6 px past center all month, then +8 to +12 px on 09-28 and 09-29 (a 19 px target missed at +11.5): the game/system input delay grew (capture ruled out: steady 60 Hz, key delivery 0.2-2.6 ms, aim-to-stop rose from ~19 to ~27 ms), and only thin Red/Yellow had any correction. Now `PickpocketSessionState.CalibrateWide()` derives a 0-40 ms lead from the last ten wide shots (median of applied lead + offset/speed; needs 3), passed to `PickpocketTimingPredictor.Observe(wideLeadMs:)`, saved per shot as `appliedLeadMs`. Thin Red/Yellow shift cap raised 6 to 10 ms. **Not proven in game yet:** play a few pickpockets and read the Timing view line "wide targets N ms lead" plus offsets in history; they should center near 0. Suspected cause of the slowdown is environmental (capturex clipping software since 09-28, RTSS, NVIDIA Broadcast), unconfirmed.
 
 ## What 5.3.19 shipped
 
