@@ -158,6 +158,9 @@ internal sealed class DxgiFrameSource(TimeSpan? gpuWaitLimit = null) : IFrameSou
         }
         catch (Exception exception)
         {
+            // Unmap/ReleaseFrame can throw after the lease was created.
+            frame?.Dispose();
+            frame = null;
             Reset();
             status = new FrameSourceStatus(FrameSourceState.CaptureFailed, Name, exception.Message,
                 TimeSpan.MaxValue, clock.Elapsed.TotalMilliseconds);
