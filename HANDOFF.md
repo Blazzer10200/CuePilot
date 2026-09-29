@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.18 — 2026-09-29
+# Handoff — CuePilot 5.3.19 — 2026-09-29
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -8,12 +8,13 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 | | |
 | --- | --- |
-| Branch | `main` holds the 5.3.18 commit on top of `cc83253` (pushed directly, no PR). Audit fixes are on `audit/fix-now-5.3.18`, unmerged (see below) |
-| Source version | **5.3.18** in all six release files. **Not tagged** |
-| Published | **v5.3.17 is still the public release.** 5.3.18 was built and installed locally only; the `v5.3.18` tag was deliberately not pushed (tags trigger CI + Velopack and ship to installed apps, so tag only on an explicit request) |
-| Installed locally | **5.3.18**, installed 2026-09-29 from the local Setup.exe (`--silent`); shell and engine (`5.3.18+cc83253`) launch and stay up from `%LOCALAPPDATA%\CuePilotDesktop\current` |
-| Package | `release/velopack/` holds 5.3.17 (delta base) and 5.3.18 full + delta, Setup.exe, Portable.zip. Never delete the directory to clean up a build |
-| Last gates | 2026-09-29: dotnet 412, vitest 49, svelte-check 0, Playwright 28, rustfmt, clippy `-D warnings`, cargo 36 |
+| Branch | `main` (pushed directly, no PR). The audit fixes were fast-forward merged from `audit/fix-now-5.3.18` (branch left in place, fully merged) |
+| Source version | **5.3.19** in all six release files |
+| Published | **v5.3.19** is the public release (2026-09-29, tag on `69a9209`). 5.3.18 was never tagged; its changes ship inside 5.3.19. `main` is one commit past the tag (`41982b0`, a test-only change) |
+| Installed locally | **5.3.19** from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `586e4c78…1082`, matched the published `.sha256`), installed `--silent` 2026-09-29. Engine `5.3.19+69a9209`; `shell.jsonl` shows `shellVersion` 5.3.19 and `ui_first_command` at 5516 ms; shell and engine stayed up |
+| Package | `release/velopack/` holds 5.3.17 – 5.3.19 packages, Setup.exe, Portable.zip (local build; the official CI build differs byte-for-byte). Never delete the directory to clean up a build |
+| Last gates | 2026-09-29 `verify.ps1 -All` on the fix branch: dotnet 438, vitest 54, Playwright 30, cargo 52, svelte-check 0, rustfmt, clippy `-D warnings`. `test-velopack-update.ps1` passed (5.2.0 → 5.2.1). Two `main` Build runs and the release job passed |
+| Release CI | The tag run failed twice on runner flakes before passing on the third attempt: a 100 ms wall-clock assertion in `PickpocketPixelLatencyTests` (109.6 ms on the runner, now best-of-three) and `net::ERR_NO_BUFFER_SPACE` from Playwright's `page.goto`. Rerun with `gh run rerun <id> --failed` before assuming a real regression |
 
 Orientation in one command: `pwsh -NoProfile -File scripts/project-status.ps1`.
 
@@ -25,9 +26,17 @@ Pickpocket detection rework, worked entirely offline from saved sessions (no liv
 - **Session analyzer** (`Diagnostics/PickpocketSessionAnalyzer.cs`): `--analyze-pickpocket <session|latest>` writes a plain-language `ANALYSIS.md` verdict; `--pickpocket-corpus <folder>` scores every saved session. See [docs/pickpocket-debugging.md](docs/pickpocket-debugging.md).
 - **Offline result across 11,459 saved frames:** 43 of 44 lost frames recovered, 1 cold miss, 1 minor regression, 6 borderline false-positive candidates (header 0.81–0.85). Analysis p50 1.0 ms, p99 14.5 ms.
 
-## Audit fix pass (branch `audit/fix-now-5.3.18`, unmerged)
+## What 5.3.19 shipped
 
-A read-only audit of 5.3.18 was followed by fix batches on this branch. Nothing is committed yet: the changes sit in the working tree (about 30 modified files plus 4 new test files) and are listed under **Unreleased** in [CHANGELOG.md](CHANGELOG.md). No version bump, no tag. The batches each ran their own narrow tests; the full `verify.ps1 -All` gate has not been run over the combined branch, so run it before merging. The audit report is in the session scratchpad only and is not committed; findings it did not fix are recorded in backlog items 13 and 14.
+A read-only audit of 5.3.18 followed by 17 fix batches, all gated together and independently reviewed before release. User-facing detail is in [CHANGELOG.md](CHANGELOG.md).
+
+- **Engine:** settings saves validate and write from a copy (a rejected save no longer half-applies), a corrupt or newer `settings.json` is backed up instead of overwritten, arming Fishing is exception-safe, and Fishing diagnostic logs are size-capped and fail soft.
+- **Shell:** hotkey capture times out after 30 s so an interrupted capture cannot leave Pause released; the updater has check (90 s) and no-progress (180 s) timeouts; support reports redact the profile path and `shell.jsonl` rotates at 1 MiB; notification settings write atomically.
+- **UI:** the Pickpocket target selection effect no longer loops, hotkey capture rejects Tab/Enter/arrows, and there is one focus ring.
+- **Tests and tooling:** bridge-contract test cross-checks command names against `UiBridge.cs`; `verify.ps1 -All` now checks version sync.
+- **Not fixed, on purpose:** items needing live play or a decision are recorded in backlog items 13 and 14. The audit report itself lived only in the session scratchpad and is not committed.
+- **Known low-severity edge:** if a hotkey field sits in capture for over 30 s while Settings stays focused, the current Start/Stop key re-arms and fires instead of being captured. Pause stays registered, and the alternative (hotkeys released forever) was worse. Fix later by having the UI cancel capture when the shell reports the timeout.
+- **Untracked placeholder:** an empty gitignored `ui/src-tauri/resources/engine/CuePilot.exe` exists in the working tree (created to satisfy `tauri-build`; staging overwrites it). Safe to delete when convenient.
 
 ## Carried over
 
