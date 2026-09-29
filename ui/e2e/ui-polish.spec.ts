@@ -92,3 +92,26 @@ test("intermediate window size and reference view remain usable", async ({ page 
   await expect(page.getByRole("button", { name: "Back to live workspace" })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(820);
 });
+
+test("focus ring visible on Apply changes and version chip", async ({ page }) => {
+  const ring = /rgba\(217, 119, 87, 0\.28\) 0px 0px 0px 3px/;
+  await page.goto("/?scenario=history");
+  await page.getByRole("button", { name: "Open Fishing", exact: true }).click();
+  await page.getByRole("group", { name: "Workspace tools" }).getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("spinbutton", { name: "Target tension percent" }).fill("60");
+  const apply = page.getByRole("button", { name: /Apply changes/ });
+  await expect(apply).toBeEnabled();
+  await expect(apply).toHaveClass(/dirty/);
+  await apply.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(apply).toBeFocused();
+  await expect.poll(() => apply.evaluate(el => getComputedStyle(el).boxShadow)).toMatch(ring);
+
+  await page.keyboard.press("Escape");
+  const chip = page.getByRole("button", { name: /Open updates/ });
+  await chip.evaluate(el => el.classList.add("available"));
+  await chip.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(chip).toBeFocused();
+  await expect.poll(() => chip.evaluate(el => getComputedStyle(el).boxShadow)).toMatch(ring);
+});

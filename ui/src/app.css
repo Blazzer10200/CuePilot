@@ -333,6 +333,10 @@ button:active:not(:disabled) {
   box-shadow: 0 0 14px rgba(217, 119, 87, 0.16);
 }
 
+.brand .app-version.available:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 .top-actions {
   display: flex;
   align-items: center;
@@ -1631,6 +1635,7 @@ button[disabled] {
 .sub-action--mini:focus-visible,
 .panel-close:focus-visible,
 .primary-action:focus-visible,
+.primary-action.dirty:not(:disabled):focus-visible,
 .sub-action:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
