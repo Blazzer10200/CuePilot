@@ -33,6 +33,14 @@ if (-not ($DotNet -or $Ui -or $Browser -or $Rust -or $Docs)) {
 }
 
 if ($Docs) {
+    Write-Host 'docs: six-file version sync'
+    . (Join-Path $PSScriptRoot 'project-version.ps1')
+    $versionInfo = Get-ProjectVersionInfo -RepositoryRoot $repoRoot
+    $versions = @($versionInfo.values | Sort-Object -Unique)
+    if ($versions.Count -ne 1) {
+        throw "CuePilot versions are not synchronized: $($versions -join ', ')"
+    }
+
     Write-Host 'docs: local links and repository-tool regressions'
     node scripts/check-docs.cjs
     Assert-NativeSuccess

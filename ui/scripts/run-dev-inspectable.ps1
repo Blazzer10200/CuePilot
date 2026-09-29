@@ -194,6 +194,8 @@ if (-not $NoKill) {
     Stop-StaleCuePilotDev
 }
 
+$elevated = Test-Elevated
+$devLogRedirect = if ($elevated) { " >`"$stdoutPath`" 2>`"$stderrPath`"" } else { '' }
 $devCommand = @"
 @echo off
 set "CARGO_TARGET_DIR=$cargoTargetPath"
@@ -201,11 +203,11 @@ set "CUEPILOT_OVERLAY_ENABLED=0"
 set "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=$cdpPort --remote-debugging-address=127.0.0.1 --remote-allow-origins=*"
 set "WEBVIEW2_USER_DATA_FOLDER=$profilePath"
 cd /d "$uiRoot"
-call npm run tauri:dev
+call npm run tauri:dev$devLogRedirect
 "@
 Set-Content -LiteralPath $batchPath -Value $devCommand -Encoding ASCII
 
-if (Test-Elevated) {
+if ($elevated) {
     Write-Output '[cdp:dev] elevated shell detected; launching the WebView at medium integrity.'
     $userName = "$env:USERDOMAIN\$env:USERNAME"
     $previousPreference = $ErrorActionPreference
@@ -224,7 +226,7 @@ if (Test-Elevated) {
     Start-Sleep -Seconds 2
     schtasks /Delete /TN $taskName /F *>$null
     $ErrorActionPreference = $previousPreference
-    Write-Output '[cdp:dev] inspectable app launched; temporary scheduled task removed.'
+    Write-Output "[cdp:dev] inspectable app launched; temporary scheduled task removed; logs: $stdoutPath and $stderrPath"
 }
 else {
     Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$batchPath`"" -WindowStyle Hidden `
