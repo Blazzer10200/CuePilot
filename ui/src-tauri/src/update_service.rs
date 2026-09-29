@@ -5,10 +5,13 @@
 //! a local Velopack feed. Every blocking Velopack call runs off the async/UI
 //! thread, and apply shuts down the owned .NET sidecar before Tauri exits.
 
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "update-test-feed")]
-use std::{io::Write, process::Stdio, time::Duration};
+use std::{io::Write, process::Stdio};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
@@ -18,6 +21,12 @@ use velopack::{UpdateCheck, UpdateInfo, UpdateManager};
 use crate::engine_bridge::EngineBridge;
 
 const UPDATE_REPOSITORY_URL: &str = "https://github.com/Blazzer10200/CuePilot";
+
+/// Velopack 1.2.0 builds its HTTP agent without timeouts, so a stalled socket
+/// would block forever. The feed check gets an overall deadline; a download gets
+/// a stall deadline that every progress report (every 5%) restarts.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(90);
+const DOWNLOAD_STALL_TIMEOUT: Duration = Duration::from_secs(180);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -113,51 +122,56 @@ impl UpdateService {
         }
     }
 
+    /// Marks an update operation as running under one lock. `select` picks what
+    /// the operation needs and runs only when nothing else is busy; the returned
+    /// guard clears `busy` on every exit, including a panic.
+    fn begin<R>(
+        &self,
+        select: impl FnOnce(&mut Inner) -> Result<R, String>,
+    ) -> Result<(R, BusyGuard<'_>), String> {
+        let mut inner = self.ready();
+        if inner.busy || inner.applying {
+            return Err("another update operation is already in progress".to_string());
+        }
+        let selected = select(&mut inner)?;
+        inner.busy = true;
+        Ok((selected, BusyGuard(self)))
+    }
+
     /// Check the public release feed and retain the exact update plan returned
     /// by Velopack for the later download/apply calls.
     pub fn check(&self) -> Result<Option<UpdateInfoDto>, String> {
-        let manager = {
-            let mut inner = self.ready();
-            if inner.busy || inner.applying {
-                return Err("another update operation is already in progress".to_string());
-            }
-            let manager = inner.manager.clone().ok_or_else(|| {
+        let (manager, _busy) = self.begin(|inner| {
+            inner.manager.clone().ok_or_else(|| {
                 inner
                     .init_error
                     .clone()
                     .unwrap_or_else(|| "Velopack is unavailable for this copy".to_string())
-            })?;
-            inner.busy = true;
-            manager
-        };
+            })
+        })?;
 
-        let result = manager.check_for_updates();
+        let result = run_bounded(CHECK_TIMEOUT, None, move |_| manager.check_for_updates())
+            .map_err(|error| format!("check for updates: {error}"))?;
+        let update = interpret_check(result)?;
         let mut inner = self.lock();
-        inner.busy = false;
-        match result {
-            Ok(UpdateCheck::UpdateAvailable(info)) => {
+        inner.downloaded = false;
+        match update {
+            Some(info) => {
                 let dto = update_dto(&info);
                 inner.pending = Some(*info);
-                inner.downloaded = false;
                 Ok(Some(dto))
             }
-            Ok(UpdateCheck::NoUpdateAvailable | UpdateCheck::RemoteIsEmpty) => {
+            None => {
                 inner.pending = None;
-                inner.downloaded = false;
                 Ok(None)
             }
-            Err(error) => Err(format!("check for updates: {error}")),
         }
     }
 
     /// Download the update selected by `check`, streaming progress through the
     /// supplied channel. Only a successful download arms apply.
-    pub fn download(&self, progress: std::sync::mpsc::Sender<i16>) -> Result<(), String> {
-        let (manager, pending) = {
-            let mut inner = self.ready();
-            if inner.busy || inner.applying {
-                return Err("another update operation is already in progress".to_string());
-            }
+    pub fn download(&self, progress: Sender<i16>) -> Result<(), String> {
+        let ((manager, pending), _busy) = self.begin(|inner| {
             let manager = inner
                 .manager
                 .clone()
@@ -166,17 +180,16 @@ impl UpdateService {
                 .pending
                 .clone()
                 .ok_or_else(|| "no update is pending; check for updates first".to_string())?;
-            inner.busy = true;
             inner.downloaded = false;
-            (manager, pending)
-        };
+            Ok((manager, pending))
+        })?;
 
-        let result = manager
-            .download_updates(&pending, Some(progress))
-            .map_err(|error| format!("download update: {error}"));
-        let mut inner = self.lock();
-        inner.busy = false;
-        inner.downloaded = result.is_ok();
+        let result = run_bounded(DOWNLOAD_STALL_TIMEOUT, Some(progress), move |progress| {
+            manager.download_updates(&pending, progress)
+        })
+        .and_then(|result| result.map_err(|error| error.to_string()))
+        .map_err(|error| format!("download update: {error}"));
+        self.lock().downloaded = result.is_ok();
         result
     }
 
@@ -234,6 +247,85 @@ impl UpdateService {
 impl Default for UpdateService {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+struct BusyGuard<'a>(&'a UpdateService);
+
+impl Drop for BusyGuard<'_> {
+    fn drop(&mut self) {
+        self.0.lock().busy = false;
+    }
+}
+
+/// Velopack reports an empty feed (no releases, or none with a full package) as
+/// `RemoteIsEmpty`. For a public repo that means the feed fetch failed, not that
+/// the install is current.
+fn interpret_check(
+    result: Result<UpdateCheck, velopack::Error>,
+) -> Result<Option<Box<UpdateInfo>>, String> {
+    match result {
+        Ok(UpdateCheck::UpdateAvailable(info)) => Ok(Some(info)),
+        Ok(UpdateCheck::NoUpdateAvailable) => Ok(None),
+        Ok(UpdateCheck::RemoteIsEmpty) => {
+            Err("check for updates: the release feed returned no packages".to_string())
+        }
+        Err(error) => Err(format!("check for updates: {error}")),
+    }
+}
+
+/// Runs a blocking Velopack call on its own thread and stops waiting when it
+/// exceeds `limit` (overall when `progress` is `None`, otherwise since the last
+/// progress report). The abandoned thread cannot be cancelled; it is left to
+/// finish and its result is dropped. Progress is relayed through a forwarder so
+/// the caller's `progress` sender is released as soon as this returns.
+fn run_bounded<T, F>(limit: Duration, progress: Option<Sender<i16>>, work: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(Option<Sender<i16>>) -> T + Send + 'static,
+{
+    let started = Instant::now();
+    let last_activity_ms = Arc::new(AtomicU64::new(0));
+    let abandoned = Arc::new(AtomicBool::new(false));
+
+    let worker_progress = progress.map(|outer| {
+        let (sender, receiver) = mpsc::channel::<i16>();
+        let last_activity_ms = last_activity_ms.clone();
+        let abandoned = abandoned.clone();
+        std::thread::spawn(move || loop {
+            match receiver.recv_timeout(Duration::from_millis(100)) {
+                Ok(percent) => {
+                    last_activity_ms.store(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+                    let _ = outer.send(percent);
+                }
+                Err(RecvTimeoutError::Timeout) if !abandoned.load(Ordering::Relaxed) => {}
+                Err(_) => break,
+            }
+        });
+        sender
+    });
+
+    let (done, finished) = mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = done.send(work(worker_progress));
+    });
+
+    loop {
+        let idle = started.elapsed().saturating_sub(Duration::from_millis(
+            last_activity_ms.load(Ordering::Relaxed),
+        ));
+        let Some(remaining) = limit.checked_sub(idle) else {
+            abandoned.store(true, Ordering::Relaxed);
+            return Err(format!("timed out after {}s", limit.as_secs()));
+        };
+        match finished.recv_timeout(remaining.min(Duration::from_millis(250))) {
+            Ok(value) => return Ok(value),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                abandoned.store(true, Ordering::Relaxed);
+                return Err("the update worker stopped unexpectedly".to_string());
+            }
+        }
     }
 }
 
@@ -522,5 +614,110 @@ mod tests {
                 notes_markdown: "Safer updates".to_string(),
             }
         );
+    }
+
+    fn resolved_service() -> UpdateService {
+        let service = UpdateService::new();
+        service.lock().resolved = true;
+        service
+    }
+
+    #[test]
+    fn busy_flag_clears_after_panic() {
+        let service = resolved_service();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let (_, _busy) = service.begin(|_| Ok(())).unwrap();
+            assert!(service.lock().busy);
+            panic!("simulated Velopack panic");
+        }));
+        assert!(outcome.is_err());
+        assert!(!service.lock().busy);
+        assert!(service.begin(|_| Ok(())).is_ok());
+    }
+
+    #[test]
+    fn begin_refuses_while_busy_and_does_not_select() {
+        let service = resolved_service();
+        let (_, _busy) = service.begin(|_| Ok(())).unwrap();
+        let mut selected = false;
+        let error = service
+            .begin(|_| {
+                selected = true;
+                Ok(())
+            })
+            .err()
+            .unwrap();
+        assert_eq!(error, "another update operation is already in progress");
+        assert!(!selected);
+    }
+
+    #[test]
+    fn check_times_out() {
+        let started = Instant::now();
+        let result = run_bounded(Duration::from_millis(150), None, |_| {
+            std::thread::sleep(Duration::from_secs(5));
+        });
+        assert!(result.unwrap_err().starts_with("timed out after"));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn bounded_call_returns_its_value() {
+        let result = run_bounded(Duration::from_secs(5), None, |_| 7);
+        assert_eq!(result, Ok(7));
+    }
+
+    #[test]
+    fn bounded_call_reports_a_panicking_worker() {
+        let result = run_bounded(Duration::from_secs(5), None, |_| -> u8 {
+            panic!("simulated Velopack panic")
+        });
+        assert_eq!(
+            result.unwrap_err(),
+            "the update worker stopped unexpectedly"
+        );
+    }
+
+    #[test]
+    fn download_stall_times_out_and_releases_the_progress_sender() {
+        let (progress, receiver) = mpsc::channel::<i16>();
+        let result = run_bounded(Duration::from_millis(200), Some(progress), |progress| {
+            let _held = progress;
+            std::thread::sleep(Duration::from_secs(5));
+        });
+        assert!(result.is_err());
+        // The caller's channel must close, or the command layer's progress join would hang.
+        assert_eq!(
+            receiver.recv_timeout(Duration::from_secs(2)),
+            Err(RecvTimeoutError::Disconnected)
+        );
+    }
+
+    #[test]
+    fn download_progress_restarts_the_stall_clock() {
+        let (progress, receiver) = mpsc::channel::<i16>();
+        let result = run_bounded(Duration::from_millis(400), Some(progress), |progress| {
+            let progress = progress.unwrap();
+            for percent in [5, 10, 15, 20, 25, 30] {
+                std::thread::sleep(Duration::from_millis(150));
+                progress.send(percent).unwrap();
+            }
+        });
+        assert!(result.is_ok());
+        assert_eq!(receiver.into_iter().last(), Some(30));
+    }
+
+    #[test]
+    fn empty_remote_feed_is_an_error_not_up_to_date() {
+        let error = interpret_check(Ok(UpdateCheck::RemoteIsEmpty)).unwrap_err();
+        assert!(error.contains("no packages"), "{error}");
+        assert!(matches!(
+            interpret_check(Ok(UpdateCheck::NoUpdateAvailable)),
+            Ok(None)
+        ));
+        assert!(matches!(
+            interpret_check(Ok(UpdateCheck::UpdateAvailable(Box::default()))),
+            Ok(Some(_))
+        ));
     }
 }
