@@ -12,7 +12,7 @@ Settings and safety
 
 Diagnostics
 
-- The Fishing evidence CSV is no longer emptied when the meter wait starts. Fishing debug logs no longer stop a run when the disk fails, and are bounded (64 MB for the event log, 8 MB per run for the loop log); dropped writes are counted.
+- The Fishing evidence CSV is no longer emptied when the meter wait starts. Fishing debug logs no longer stop a run when the disk fails, and are bounded (64 MB for the event log, about 8 MB per app session for the loop log); dropped writes are counted.
 - `--pickpocket-corpus` reports a failure when no session had audited frames instead of crashing. `--analyze-pickpocket` no longer says "no detector faults" for a session that never saw the panel, skips "never armed" for observe-only runs, and flags sessions whose evidence was incomplete. A malformed replay manifest gives an error message.
 - Replay of recorded Fishing meter crops now uses the recorded meter region instead of treating the crop as a whole window.
 - Two Pickpocket observer tests no longer write sessions into the real diagnostics folder. The Pickpocket detector timing test runs in the nonparallel timing collection.
