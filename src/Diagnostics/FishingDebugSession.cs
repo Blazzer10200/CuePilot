@@ -31,6 +31,8 @@ internal sealed class FishingDebugSession : IDisposable
 {
     private const int MaximumSessions = 5;
     private const long MaximumSessionBytes = 250L * 1024 * 1024;
+    // events.jsonl grew ~64 MB/hour in a fight; stop appending past this (noted once in the file).
+    internal const long DefaultMaximumEventBytes = 64L * 1024 * 1024;
     private const int MaximumPromptRollFrames = 120;
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -53,6 +55,10 @@ internal sealed class FishingDebugSession : IDisposable
     private readonly Task writerTask;
     private readonly List<DebugFrame> frames = [];
     private readonly Dictionary<string, double> bestFrameScores = new(StringComparer.OrdinalIgnoreCase);
+    private readonly long maximumEventBytes;
+    private long eventBytes;
+    private bool eventsCapped;
+    private long droppedWrites;
     private int eventCount;
     private bool active = true;
     private bool disposed;
@@ -69,17 +75,29 @@ internal sealed class FishingDebugSession : IDisposable
     private FishingDebugDecision prompt = new("None", 0, false, "No prompt sample yet");
     private FishingDebugDecision meter = new("Missing", 0, false, "No meter sample yet");
 
-    internal FishingDebugSession(FishingRoutineSettings requestedSettings, string? sessionsDirectory = null)
+    internal FishingDebugSession(
+        FishingRoutineSettings requestedSettings,
+        string? sessionsDirectory = null,
+        long maximumEventBytes = DefaultMaximumEventBytes)
     {
         settings = requestedSettings.Copy();
+        this.maximumEventBytes = maximumEventBytes;
         SessionId = $"{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..24];
         var root = sessionsDirectory ?? AppPaths.DebugSessionsDirectory;
         directory = Path.Combine(root, SessionId);
         eventsPath = Path.Combine(directory, "events.jsonl");
         manifestPath = Path.Combine(directory, "session.json");
-        Directory.CreateDirectory(directory);
-        PruneOldSessions(root);
-        writes = Channel.CreateBounded<DebugWrite>(new BoundedChannelOptions(128)
+        try
+        {
+            Directory.CreateDirectory(directory);
+            PruneOldSessions(root);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Diagnostics must not stop a run; the writer recreates the directory per write.
+        }
+
+        writes =Channel.CreateBounded<DebugWrite>(new BoundedChannelOptions(128)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
@@ -121,6 +139,8 @@ internal sealed class FishingDebugSession : IDisposable
 
     internal string SessionId { get; }
     internal string DirectoryPath => directory;
+    /// <summary>Diagnostic writes that were dropped (full queue, failed I/O, or past the events cap).</summary>
+    internal long DroppedWrites => Interlocked.Read(ref droppedWrites);
 
     internal FishingDebugSnapshot Snapshot
     {
@@ -325,8 +345,48 @@ internal sealed class FishingDebugSession : IDisposable
             eventName,
             detail,
         }, CompactJson);
-        lock (sync) lastEvent = $"{category}: {eventName}";
-        Queue(new DebugWrite(DebugWriteKind.AppendEvent, eventsPath, payload + Environment.NewLine));
+        var line = payload + Environment.NewLine;
+        var size = System.Text.Encoding.UTF8.GetByteCount(line);
+        var accepted = false;
+        var capNoted = false;
+        lock (sync)
+        {
+            lastEvent = $"{category}: {eventName}";
+            if (!eventsCapped && eventBytes + size <= maximumEventBytes)
+            {
+                eventBytes += size;
+                accepted = true;
+            }
+            else if (!eventsCapped)
+            {
+                eventsCapped = true;
+                capNoted = true;
+            }
+        }
+
+        if (capNoted)
+        {
+            var note = JsonSerializer.Serialize(new
+            {
+                sequence,
+                elapsedMilliseconds = clock.ElapsedMilliseconds,
+                capturedAt = DateTimeOffset.Now,
+                category = "session",
+                eventName = "events_capped",
+                detail = new { maximumEventBytes },
+            }, CompactJson);
+            Queue(new DebugWrite(DebugWriteKind.AppendEvent, eventsPath, note + Environment.NewLine));
+        }
+
+        if (accepted)
+        {
+            Queue(new DebugWrite(DebugWriteKind.AppendEvent, eventsPath, line));
+        }
+        else
+        {
+            Interlocked.Increment(ref droppedWrites);
+        }
+
         QueueManifest(force: false);
     }
 
@@ -453,6 +513,7 @@ internal sealed class FishingDebugSession : IDisposable
                 stage,
                 captureHealth,
                 eventCount,
+                droppedWrites = Interlocked.Read(ref droppedWrites),
                 outcome,
                 lastEvent,
                 prompt,
@@ -491,7 +552,12 @@ internal sealed class FishingDebugSession : IDisposable
         settings.InputMode,
     };
 
-    private bool Queue(DebugWrite write) => writes.Writer.TryWrite(write);
+    private bool Queue(DebugWrite write)
+    {
+        if (writes.Writer.TryWrite(write)) return true;
+        Interlocked.Increment(ref droppedWrites);
+        return false;
+    }
 
     private async Task WriterLoopAsync()
     {
@@ -524,6 +590,7 @@ internal sealed class FishingDebugSession : IDisposable
             catch
             {
                 // Debugging must never break capture or input safety.
+                Interlocked.Increment(ref droppedWrites);
             }
             finally
             {

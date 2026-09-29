@@ -1446,41 +1446,80 @@ internal sealed class FishingMeterFrameSample(
 internal sealed class FishingDiagnosticLog : IDisposable
 {
     private static readonly JsonSerializerOptions EvidenceJson = new() { WriteIndented = true };
-    private readonly StreamWriter writer;
+    private StreamWriter? writer;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly string directory;
+    private readonly string csvPath;
+    private bool csvDisabled;
+    private int droppedWrites;
 
     internal FishingDiagnosticLog(string? diagnosticsDirectory = null)
     {
         directory = diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory;
-        Directory.CreateDirectory(directory);
-        writer = new StreamWriter(Path.Combine(directory, "last-fishing.csv"), false);
-        writer.WriteLine("elapsed_ms,visible,tension_percent,progress_percent,caught,failed,confidence_percent,lmb,event,pulse_ms");
-        writer.Flush();
+        csvPath = Path.Combine(directory, "last-fishing.csv");
     }
+
+    /// <summary>Diagnostic writes lost to I/O failures; a failed write never aborts the run.</summary>
+    internal int DroppedWrites => droppedWrites;
+    internal bool IsCsvDisabled => csvDisabled;
 
     // Rows are written between a capture and the next input edge, so they must not
     // hit the disk one by one. Flush on a short interval and on dispose instead.
     private const long FlushIntervalMilliseconds = 500;
     private long lastFlushMilliseconds;
 
+    // The CSV is opened on the first row so a log that only captures evidence
+    // (the meter wait) never truncates the previous regulation's last-fishing.csv.
+    private StreamWriter OpenCsv()
+    {
+        Directory.CreateDirectory(directory);
+        var opened = new StreamWriter(csvPath, false);
+        try
+        {
+            opened.WriteLine("elapsed_ms,visible,tension_percent,progress_percent,caught,failed,confidence_percent,lmb,event,pulse_ms");
+            opened.Flush();
+            return opened;
+        }
+        catch
+        {
+            opened.Dispose();
+            throw;
+        }
+    }
+
     internal void Write(FishingMeterObservation observation, bool holding, string eventName = "sample", int pulseMilliseconds = 0)
     {
-        writer.WriteLine(string.Join(',',
-            clock.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture),
-            observation.IsVisible ? "1" : "0",
-            (observation.TensionRatio * 100).ToString("F1", CultureInfo.InvariantCulture),
-            (observation.ProgressRatio * 100).ToString("F1", CultureInfo.InvariantCulture),
-            observation.IsCaught ? "1" : "0",
-            observation.IsFailed ? "1" : "0",
-            (observation.Confidence * 100).ToString("F1", CultureInfo.InvariantCulture),
-            holding ? "down" : "up",
-            eventName,
-            pulseMilliseconds.ToString(CultureInfo.InvariantCulture)));
-        if (clock.ElapsedMilliseconds - lastFlushMilliseconds >= FlushIntervalMilliseconds)
+        if (csvDisabled)
         {
-            writer.Flush();
-            lastFlushMilliseconds = clock.ElapsedMilliseconds;
+            droppedWrites++;
+            return;
+        }
+
+        try
+        {
+            writer ??= OpenCsv();
+            writer.WriteLine(string.Join(',',
+                clock.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture),
+                observation.IsVisible ? "1" : "0",
+                (observation.TensionRatio * 100).ToString("F1", CultureInfo.InvariantCulture),
+                (observation.ProgressRatio * 100).ToString("F1", CultureInfo.InvariantCulture),
+                observation.IsCaught ? "1" : "0",
+                observation.IsFailed ? "1" : "0",
+                (observation.Confidence * 100).ToString("F1", CultureInfo.InvariantCulture),
+                holding ? "down" : "up",
+                eventName,
+                pulseMilliseconds.ToString(CultureInfo.InvariantCulture)));
+            if (clock.ElapsedMilliseconds - lastFlushMilliseconds >= FlushIntervalMilliseconds)
+            {
+                writer.Flush();
+                lastFlushMilliseconds = clock.ElapsedMilliseconds;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Disk full or an antivirus lock must not abort a fishing run.
+            csvDisabled = true;
+            droppedWrites++;
         }
     }
 
@@ -1538,7 +1577,17 @@ internal sealed class FishingDiagnosticLog : IDisposable
             }
         }
 
-        annotated.Save(imagePath, ImageFormat.Png);
+        try
+        {
+            Directory.CreateDirectory(directory);
+            annotated.Save(imagePath, ImageFormat.Png);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ExternalException)
+        {
+            droppedWrites++;
+            return string.Empty;
+        }
+
         var primary = analysis.PrimaryCandidate;
         var metadata = new
         {
@@ -1573,7 +1622,15 @@ internal sealed class FishingDiagnosticLog : IDisposable
                 candidateConfidence = primary.Value.Evidence.CandidateConfidence,
             },
         };
-        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, EvidenceJson));
+        try
+        {
+            File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, EvidenceJson));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            droppedWrites++;
+        }
+
         FishingLoopDiagnosticLog.Write(
             $"{safeEventName.Replace('-', '_')}_capture",
             $"file={imageName};tracked={analysis.UsedTrackedRegion};candidates={analysis.CandidateCount}",
@@ -1581,24 +1638,98 @@ internal sealed class FishingDiagnosticLog : IDisposable
         return imagePath;
     }
 
-    public void Dispose() => writer.Dispose();
+    public void Dispose()
+    {
+        try
+        {
+            writer?.Dispose();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The final flush can fail on the same disk error that disabled the log.
+        }
+    }
+}
+
+/// <summary>
+/// Append-only fishing-loop.csv that never throws into the routine: the first I/O
+/// error disables it, and it stops writing (noting that once) after
+/// <see cref="DefaultMaximumBytes"/> written by this process.
+/// </summary>
+internal sealed class FishingLoopLogFile(string path, long maximumBytes = FishingLoopLogFile.DefaultMaximumBytes)
+{
+    internal const long DefaultMaximumBytes = 8L * 1024 * 1024;
+
+    private readonly object sync = new();
+    private long bytesWritten;
+    private bool disabled;
+    private bool capNoted;
+    private long droppedWrites;
+
+    internal long DroppedWrites => Interlocked.Read(ref droppedWrites);
+    internal bool IsDisabled => Volatile.Read(ref disabled);
+
+    internal void Append(string line)
+    {
+        lock (sync)
+        {
+            if (disabled)
+            {
+                droppedWrites++;
+                return;
+            }
+
+            var text = line + Environment.NewLine;
+            var size = System.Text.Encoding.UTF8.GetByteCount(text);
+            if (bytesWritten + size > maximumBytes)
+            {
+                droppedWrites++;
+                if (capNoted) return;
+                capNoted = true;
+                text = string.Join(',',
+                    DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),
+                    "log_capped",
+                    $"size cap of {maximumBytes} bytes reached; later rows are dropped") + Environment.NewLine;
+                size = System.Text.Encoding.UTF8.GetByteCount(text);
+            }
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.AppendAllText(path, text);
+                bytesWritten += size;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                disabled = true;
+                droppedWrites++;
+            }
+        }
+    }
 }
 
 internal static class FishingLoopDiagnosticLog
 {
     private static readonly object Sync = new();
+    private static readonly Dictionary<string, FishingLoopLogFile> Files = new(StringComparer.OrdinalIgnoreCase);
 
     internal static void Write(string eventName, string detail = "", string? diagnosticsDirectory = null)
     {
         var directory = diagnosticsDirectory ?? AppPaths.DiagnosticsDirectory;
-        Directory.CreateDirectory(directory);
         var line = string.Join(',',
             DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture),
             eventName.Replace(',', '_'),
             detail.Replace(',', ';'));
+        FishingLoopLogFile file;
         lock (Sync)
         {
-            File.AppendAllText(Path.Combine(directory, "fishing-loop.csv"), line + Environment.NewLine);
+            if (!Files.TryGetValue(directory, out file!))
+            {
+                file = new FishingLoopLogFile(Path.Combine(directory, "fishing-loop.csv"));
+                Files[directory] = file;
+            }
         }
+
+        file.Append(line);
     }
 }

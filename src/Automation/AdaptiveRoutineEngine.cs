@@ -20,9 +20,17 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
     internal RoutineState State => state;
     internal FishingDebugSnapshot? DebugSnapshot => latestDebugSession?.Snapshot;
 
-    internal AdaptiveRoutineEngine(InputReleaseSafety? inputRelease = null)
+    private readonly Func<IFrameSource> createFrameSource;
+    private readonly Func<FishingRoutineSettings, FishingDebugSession> createDebugSession;
+
+    internal AdaptiveRoutineEngine(
+        InputReleaseSafety? inputRelease = null,
+        Func<IFrameSource>? frameSourceFactory = null,
+        Func<FishingRoutineSettings, FishingDebugSession>? debugSessionFactory = null)
     {
         inputGate = new AutomationInputGate(inputRelease);
+        createFrameSource = frameSourceFactory ?? (() => FrameSourceFactory.Create(responsive: true));
+        createDebugSession = debugSessionFactory ?? (routineSettings => new FishingDebugSession(routineSettings));
     }
 
     internal void Arm(FishingRoutineSettings requestedSettings)
@@ -42,21 +50,38 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             settings = requestedSettings.Copy();
             settings.Clamp();
             frameSource?.Dispose();
-            frameSource = FrameSourceFactory.Create(responsive: true);
-            meterTracker.Reset();
-            input = new TargetInputRouter(settings.InputMode);
-            var debugSession = new FishingDebugSession(settings);
-            latestDebugSession = debugSession;
-            debugSession.SetStage("Preflight", "Resolving the target application.");
-            SetState(RoutineState.Casting, "Preflight: resolving the target application.");
-            inputGate.BeginRun();
+            frameSource = null;
+            FishingDebugSession? debugSession = null;
             try
             {
-                routineWorker.Start((_, token) => RunRoutineSafeAsync(token, debugSession));
+                frameSource = createFrameSource();
+                meterTracker.Reset();
+                input = new TargetInputRouter(settings.InputMode);
+                debugSession = createDebugSession(settings);
+                latestDebugSession = debugSession;
+                debugSession.SetStage("Preflight", "Resolving the target application.");
+                SetState(RoutineState.Casting, "Preflight: resolving the target application.");
+                inputGate.BeginRun();
+                var session = debugSession;
+                routineWorker.Start((_, token) => RunRoutineSafeAsync(token, session));
             }
-            catch
+            catch (Exception exception)
             {
                 inputGate.StopAndReleaseOwnedInput();
+                frameSource?.Dispose();
+                frameSource = null;
+                debugSession?.Complete($"Faulted: {exception.Message}");
+                debugSession?.Dispose();
+                state = RoutineState.Faulted;
+                try
+                {
+                    Raise(new RoutineStatus(RoutineState.Faulted, exception.Message));
+                }
+                catch
+                {
+                    // A throwing status listener must not mask the arm failure.
+                }
+
                 throw;
             }
         }
