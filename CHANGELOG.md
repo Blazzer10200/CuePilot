@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased - Audit fixes on top of 5.3.18
+## 5.3.19 - 2026-09-29 - Audit fixes: safer settings, sturdier Fishing, updater timeouts
 
 Settings and safety
 

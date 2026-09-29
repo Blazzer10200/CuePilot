@@ -1,6 +1,6 @@
 [package]
 name = "cuepilot-ui"
-version = "5.3.18"
+version = "5.3.19"
 description = "CuePilot Tauri activity console"
 edition = "2021"
 
