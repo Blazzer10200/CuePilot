@@ -35,6 +35,9 @@ const KEY_LABELS: Record<string, string> = {
 export const RESERVED_KEYS: Record<string, string> = {
   F8: "F8 is reserved for the FiveM console.",
   Escape: "Escape cancels capture, so it can't be a shortcut.",
+  ...Object.fromEntries(
+    ["Tab", "Enter", "NumpadEnter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].map(code => [code, "Tab, Enter, and arrow keys are needed to move around the app, so they can't be a shortcut."]),
+  ),
 };
 
 export const LEFT_RIGHT_MOUSE_MESSAGE = "Left and right mouse buttons stay with the game.";
@@ -96,4 +99,11 @@ export type TakenBinding = { binding: HotkeyBinding; owner: string };
 /** Name of the control already using this binding, or null when it is free. */
 export function conflictFor(binding: HotkeyBinding, taken: TakenBinding[]): string | null {
   return taken.find(entry => sameHotkey(entry.binding, binding))?.owner ?? null;
+}
+
+/** The one gate every new binding passes through, whether captured or reset to its default. */
+export function claimBinding(binding: HotkeyBinding, taken: TakenBinding[]): { binding: HotkeyBinding } | { error: string } {
+  const owner = conflictFor(binding, taken);
+  if (owner) return { error: `${hotkeyDisplay(binding)} already belongs to ${owner}.` };
+  return { binding };
 }

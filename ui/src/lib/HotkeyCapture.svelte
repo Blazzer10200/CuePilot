@@ -3,7 +3,7 @@
   import { Keyboard, Mouse, RotateCcw } from "@lucide/svelte";
   import { phaseLock } from "./motion";
   import {
-    bindingFromKeyboardEvent, bindingFromMouseEvent, conflictFor, hotkeyDisplay, hotkeyParts, isMouseKey, sameHotkey,
+    bindingFromKeyboardEvent, bindingFromMouseEvent, claimBinding, hotkeyDisplay, hotkeyParts, isMouseKey, sameHotkey,
     type HotkeyBinding, type TakenBinding,
   } from "./hotkeys";
 
@@ -58,20 +58,19 @@
     else begin();
   }
 
-  function reset() {
-    error = null;
-    value = { ...defaultBinding };
-  }
-
   function commit(binding: HotkeyBinding) {
-    const owner = conflictFor(binding, taken);
-    if (owner) {
-      error = `${hotkeyDisplay(binding)} already belongs to ${owner}.`;
+    const claim = claimBinding(binding, taken);
+    if ("error" in claim) {
+      error = claim.error;
       return;
     }
     error = null;
-    value = binding;
+    value = claim.binding;
     capturing = false;
+  }
+
+  function reset() {
+    commit({ ...defaultBinding });
   }
 
   function swallow(event: Event) {
@@ -107,6 +106,10 @@
     swallow(event);
     if (event.button === 0 || event.button === 2) {
       skipNextClick = event.button === 0;
+      if (skipNextClick) {
+        // The click follows the mouseup in the same task; if it lands elsewhere the flag must not outlive it.
+        window.addEventListener("mouseup", () => setTimeout(() => { skipNextClick = false; }), { once: true, capture: true });
+      }
       cancel();
       return;
     }
@@ -119,6 +122,7 @@
   }
 
   function onBlur() {
+    skipNextClick = false;
     cancel();
   }
 

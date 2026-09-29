@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bindingFromKeyboardEvent, bindingFromMouseEvent, conflictFor, describeKey, hotkeyDisplay, isMouseKey, sameHotkey } from "./hotkeys";
+import { bindingFromKeyboardEvent, bindingFromMouseEvent, claimBinding, conflictFor, describeKey, hotkeyDisplay, isMouseKey, sameHotkey } from "./hotkeys";
 
 const binding = (key: string, extra: Partial<{ control: boolean; shift: boolean; alt: boolean }> = {}) => ({ key, control: false, shift: false, alt: false, ...extra });
 
@@ -36,6 +36,13 @@ describe("keyboard capture", () => {
     expect(bindingFromKeyboardEvent(key("KeyG", { ctrlKey: true, shiftKey: true }))).toEqual({ binding: binding("KeyG", { control: true, shift: true }) });
     expect(bindingFromKeyboardEvent(key("F13"))).toEqual({ binding: binding("F13") });
     expect(bindingFromKeyboardEvent(key("MediaPlayPause"))).toEqual({ binding: binding("MediaPlayPause") });
+  });
+
+  it("rejects Tab, Enter, and arrow keys so keyboard navigation keeps working", () => {
+    for (const code of ["Tab", "Enter", "NumpadEnter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+      expect(bindingFromKeyboardEvent(key(code))).toMatchObject({ error: expect.stringContaining("arrow keys") });
+      expect(bindingFromKeyboardEvent(key(code, { altKey: true }))).toMatchObject({ error: expect.stringContaining("arrow keys") });
+    }
   });
 
   it("waits while only modifiers are held", () => {
@@ -79,5 +86,11 @@ describe("conflicts", () => {
     expect(conflictFor(binding("F7"), taken)).toBe("Pickpocket Start / Stop");
     expect(conflictFor(binding("Pause"), taken)).toBe("Emergency stop");
     expect(conflictFor(binding("MouseX1"), taken)).toBeNull();
+  });
+
+  it("gives a reset-to-default the same conflict check as a captured key", () => {
+    const taken = [{ binding: binding("F10"), owner: "Pickpocket Start / Stop" }];
+    expect(claimBinding(binding("F10"), taken)).toEqual({ error: "F10 already belongs to Pickpocket Start / Stop." });
+    expect(claimBinding(binding("F10", { control: true }), taken)).toEqual({ binding: binding("F10", { control: true }) });
   });
 });
