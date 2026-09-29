@@ -651,7 +651,7 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || event.defaultPrevented || updates.dialogOpen) return;
     if (targetPickerOpen) {
       closeTargetPicker();
       return;
@@ -775,7 +775,7 @@
       <button class="rail__item" data-rail={activity.id} class:active={selectedActivity === activity.id} aria-current={selectedActivity === activity.id ? "page" : undefined} aria-label={`Switch to ${activity.shortName}`} title={activity.name} onclick={() => selectActivity(activity.id)} disabled={!!runPending || selectedActivity === activity.id}>
         {#if activity.id === "fishing"}<Waves size={18} strokeWidth={1.8} />{:else}<Hand size={18} strokeWidth={1.8} />{/if}
         <span>{activity.id === "fishing" ? "Fish" : "Pocket"}</span>
-        {#if selectedActivity === activity.id && anyActivityRunning}<b class="rail__dot" aria-hidden="true"><i class="live-ring" use:phaseLock></i></b>{/if}
+        {#if activity.id === "fishing" ? active : !!engine.snapshot?.pickpocket?.observing}<b class="rail__dot" aria-hidden="true"><i class="live-ring" use:phaseLock></i></b>{/if}
       </button>
     {/each}
     <i class="rail__divider" aria-hidden="true"></i>
@@ -905,7 +905,7 @@
     </article>
     <article class="fishing-card fishing-card--safety" aria-labelledby="fishing-safety-title">
       <h3 id="fishing-safety-title" class="fishing-card__title"><ShieldCheck size={14} strokeWidth={1.9} /> Safe control</h3>
-      <kbd>Pause / Break</kbd>
+      <kbd>{hotkeyDisplay(engine.snapshot?.settings.emergencyStop, "Pause")}</kbd>
       <p>Always releases held input. Fishing input only reaches FiveM while it is in the foreground.</p>
     </article>
   </div>

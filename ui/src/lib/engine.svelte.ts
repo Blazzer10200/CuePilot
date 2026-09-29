@@ -328,7 +328,12 @@ export class EngineClient {
       const state = message.payload as { connected: boolean; detail: string };
       if (!state.connected) {
         this.connected = false;
-        this.status = { ...this.status, detail: state.detail };
+        this.status = { ...this.status, state: "Stopped", detail: state.detail };
+        if (this.snapshot) {
+          this.snapshot.routineState = "Stopped";
+          this.snapshot.status = this.status;
+          if (this.snapshot.pickpocket) this.snapshot.pickpocket.observing = false;
+        }
         this.scheduleReconnect();
       }
     }

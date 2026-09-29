@@ -166,6 +166,27 @@ describe("EngineClient", () => {
     client.disconnect();
   });
 
+  it("bridge disconnect clears running state", async () => {
+    tauri.invoke.mockResolvedValue(snapshot());
+    const client = new EngineClient();
+    await client.connect();
+    tauri.eventHandler?.({
+      payload: { name: "status", payload: { state: "Regulating", detail: "Meter locked.", sampleCount: 20, confidence: 0.88, debug: null } },
+    });
+    tauri.eventHandler?.({
+      payload: { name: "pickpocket_status", payload: { observing: true, state: "Watching" } },
+    });
+
+    tauri.eventHandler?.({
+      payload: { name: "bridge_state", payload: { connected: false, detail: "Local engine exited." } },
+    });
+
+    expect(client.status.state).toBe("Stopped");
+    expect(client.snapshot?.routineState).toBe("Stopped");
+    expect(client.snapshot?.pickpocket?.observing).toBe(false);
+    client.disconnect();
+  });
+
   it("keeps live debug-session evidence on status updates", async () => {
     tauri.invoke.mockResolvedValue(snapshot());
     const client = new EngineClient();
