@@ -38,7 +38,7 @@ The app opens on the activity library. Returning there stops any running activit
 4. Preflight resolves FiveM, waits for it to become foreground without activating it, verifies capture, and checks input.
 5. The loop verifies the Cast prompt before pressing `E`, detects and controls the circular meter, verifies Keep Fish before collecting, then waits for the next verified Cast prompt.
 
-Every LMB hold is independently capped at 35–90 ms by the feedback controller. LMB is never sent outside the active circle minigame.
+Each LMB hold is a feedback-controlled pulse of 35–90 ms at a healthy sample rate. If capture slows, pulses stretch in proportion to the measured sample interval (up to 2.5x, so 225 ms with the default range) so tension does not drop between reads. LMB is never sent outside the active circle minigame.
 
 ## Dashboard
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased - Audit fixes on top of 5.3.18
+
+Settings and safety
+
+- A settings file that cannot be read, has no valid format version, or fails validation is copied to `settings.json.bak` before defaults are used, instead of being silently overwritten on the next save. A file written by a newer version is backed up too, and saving refuses to overwrite it.
+- Saving settings now writes the temp file to disk before swapping it in. A save request without a valid format version is rejected, and a shortcut that collides with the emergency stop (Pause) is no longer accepted.
+- Settings and the chosen FiveM target only change in the running engine after they were saved, so a failed disk write no longer leaves the app and the file disagreeing.
+- If starting Fishing fails partway, input, screen capture and the debug session are released and the state shows as faulted, instead of leaving capture open.
+- A screen frame is no longer leaked when releasing a capture frame fails.
+
+Diagnostics
+
+- The Fishing evidence CSV is no longer emptied when the meter wait starts. Fishing debug logs no longer stop a run when the disk fails, and are bounded (64 MB for the event log, 8 MB per run for the loop log); dropped writes are counted.
+- `--pickpocket-corpus` reports a failure when no session had audited frames instead of crashing. `--analyze-pickpocket` no longer says "no detector faults" for a session that never saw the panel, skips "never armed" for observe-only runs, and flags sessions whose evidence was incomplete. A malformed replay manifest gives an error message.
+- Replay of recorded Fishing meter crops now uses the recorded meter region instead of treating the crop as a whole window.
+- Two Pickpocket observer tests no longer write sessions into the real diagnostics folder. The Pickpocket detector timing test runs in the nonparallel timing collection.
+- `verify.ps1` now checks that the six version fields match. The inspectable dev launcher writes its logs when it runs elevated.
+
+Interface and shell
+
+- The rail's running dot follows the activity that is actually running. The safe-control card shows the emergency stop key you set. Engine disconnect clears the running state.
+- Escape while the update dialog is open no longer closes Settings and throws away unsaved edits.
+- Pickpocket "Aim for", "Run mode" and "Yellow earlier by" no longer snap back to the old value when changed from the keyboard.
+- Tab, Enter and the arrow keys can no longer be bound as shortcuts. Reset to default checks for a conflict like any other binding, and a click elsewhere no longer leaves shortcut capture in a stale state.
+- Shortcut capture releases after 30 seconds if the window never finishes it, so the global shortcuts, including Pause, cannot stay off.
+- A critical notification no longer discards a waiting "cooldown ready" popup. A failed emergency-stop shortcut shows as a critical card. The notification preferences file is written atomically and an unknown value resets only that field.
+- Update check and download have time limits (90 s check, 180 s without download progress), an empty release feed is reported as an error instead of "up to date", and the busy flag clears even if the update worker panics.
+- The exported support report replaces your Windows user name in file paths with `<user>`. The shell log rotates at 1 MiB instead of stopping.
+- The Apply changes button and the update-available version chip show the keyboard focus ring again.
+
 ## 5.3.18 - 2026-09-29 - Pickpocket finds the panel on busy scenes, plus a session analyzer
 
 - Pickpocket no longer loses the panel over grass and pale clothing. On those scenes the detector saw 100+ marker-like stems and one junk stem could spend the whole header-search budget before the real marker was checked. Each search pass now has its own budget.

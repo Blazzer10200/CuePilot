@@ -9,8 +9,9 @@ The 2026-09-07 verified snapshot used Yellow 12 ms and Red 8 ms. Those values
 describe that checked build and session, not permanent preferences: confirm the
 saved Timing values and the selected attempt's report before drawing conclusions
 from a later run. The 5.3.5 detector recovery, retained through 5.3.11, fixes the recorded
-active-grass false-Hidden case; two newer grass misreads are open (backlog
-issue 9). Check `HANDOFF.md` for the build and the latest
+active-grass false-Hidden case. The 5.3.18 rework of grass and pale-clothing
+scenes was verified offline against saved frames; live confirmation is still
+open (backlog issue 9). Check `HANDOFF.md` for the build and the latest
 investigation before changing settings.
 
 ## Run controls

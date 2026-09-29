@@ -43,7 +43,7 @@ since changed. Use the maintained guides and current handoff for present behavio
 - [Recorded Pickpocket calibration trials](history/pickpocket-calibration-2026-09-04.md)
 - [Completed product backlog and acceptance history](history/product-backlog-2026-09-04.md)
 - [Pickpocket clip and live-run evidence, run by run](history/pickpocket-evidence-2026-09-03.md)
-- [Session handoffs for 5.3.7 – 5.3.9](history/handoff-batches-2026-09.md)
+- [Session handoffs for 5.3.7 – 5.3.15](history/handoff-batches-2026-09.md)
 
 ## Keep documentation organized
 
@@ -51,8 +51,8 @@ since changed. Use the maintained guides and current handoff for present behavio
   routes in the code map, and outstanding work in the backlog. Link to those
   pages instead of copying their instructions into several files.
 - Keep current session facts in `HANDOFF.md` and outstanding work in the
-  backlog's open-issue table; preserve replaced handoffs in the existing
-  external handoff archive. Long-lived design history belongs here.
+  backlog's open-issue table; preserve replaced handoffs in
+  [history/handoff-batches-2026-09.md](history/handoff-batches-2026-09.md). Long-lived design history belongs here.
 - Label evidence by date and distinguish recorded observations, proposed changes,
   automated verification, and live gameplay validation.
 - Link source files by path and symbol rather than fragile line numbers. Update
