@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -83,29 +84,71 @@ internal static class SettingsStore
 
     internal static string SettingsPath => AppPaths.SettingsPath;
 
-    internal static AppSettings Load()
+    internal static AppSettings Load() => Load(SettingsPath);
+
+    internal static AppSettings Load(string path)
     {
-        if (!File.Exists(SettingsPath)) return AppSettings.Defaults();
+        if (!File.Exists(path)) return AppSettings.Defaults();
         try
         {
-            return DeserializeAndMigrate(File.ReadAllText(SettingsPath));
+            var loaded = MigrateOrNull(File.ReadAllText(path));
+            if (loaded is not null) return loaded;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+            or JsonException or NotSupportedException or ArgumentException)
         {
-            return AppSettings.Defaults();
         }
+        BackupUnusableFile(path);
+        return AppSettings.Defaults();
     }
 
-    internal static void Save(AppSettings settings)
+    internal static void Save(AppSettings settings) => Save(settings, SettingsPath);
+
+    internal static void Save(AppSettings settings, string path)
     {
+        if (IsNewerFormatFile(path))
+            throw new InvalidOperationException(
+                "settings.json was written by a newer CuePilot and was not changed. Update CuePilot, or move that file aside to save new settings.");
         settings.FormatVersion = 9;
         settings.Routine.Clamp();
         settings.Pickpocket.Normalize();
-        var directory = Path.GetDirectoryName(SettingsPath)!;
+        var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
-        var temporaryPath = SettingsPath + ".tmp";
-        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(settings, Options));
-        File.Move(temporaryPath, SettingsPath, true);
+        var temporaryPath = path + ".tmp";
+        var bytes = new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(settings, Options));
+        using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            stream.Write(bytes);
+            stream.Flush(true);
+        }
+        File.Move(temporaryPath, path, true);
+    }
+
+    private static void BackupUnusableFile(string path)
+    {
+        try
+        {
+            File.Copy(path, path + ".bak", true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static bool IsNewerFormatFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return false;
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return document.RootElement.TryGetProperty("formatVersion", out var version)
+                && version.TryGetInt32(out var value) && value > 9;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+            or JsonException or ArgumentException)
+        {
+            return false;
+        }
     }
 
     internal static AppSettings RoundTripForTest(AppSettings settings) =>
@@ -116,13 +159,15 @@ internal static class SettingsStore
 
     internal static AppSettings DeserializeAndMigrateForBridge(string json) => DeserializeAndMigrate(json);
 
-    private static AppSettings DeserializeAndMigrate(string json)
+    private static AppSettings DeserializeAndMigrate(string json) => MigrateOrNull(json) ?? AppSettings.Defaults();
+
+    private static AppSettings? MigrateOrNull(string json)
     {
         using var document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("formatVersion", out var versionProperty)
             || versionProperty.GetInt32() is < 1 or > 9)
         {
-            return AppSettings.Defaults();
+            return null;
         }
 
         var formatVersion = versionProperty.GetInt32();
@@ -162,7 +207,7 @@ internal static class SettingsStore
 
         settings.FormatVersion = 9;
         settings.Routine.Clamp();
-        return IsValid(settings) ? settings : AppSettings.Defaults();
+        return IsValid(settings) ? settings : null;
     }
 
     internal static bool IsValid(AppSettings settings) =>
