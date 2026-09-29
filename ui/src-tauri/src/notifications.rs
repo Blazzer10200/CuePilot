@@ -90,6 +90,9 @@ struct Notice {
     /// Informational notices skip the chime; it is reserved for game events.
     #[serde(skip)]
     silent: bool,
+    /// One-shot alerts that nothing re-arms survive a Critical notice.
+    #[serde(skip)]
+    durable: bool,
 }
 
 impl Notice {
@@ -112,6 +115,7 @@ impl Notice {
                 DURATION_MS
             },
             silent: false,
+            durable: false,
         }
     }
 
@@ -122,6 +126,11 @@ impl Notice {
 
     fn quiet(mut self) -> Self {
         self.silent = true;
+        self
+    }
+
+    fn durable(mut self) -> Self {
+        self.durable = true;
         self
     }
 
@@ -138,6 +147,7 @@ impl Notice {
             "Ready for another pickpocket",
             "Cooldown complete. You can start a new attempt.",
         )
+        .durable()
     }
 
     fn fishing_cast() -> Self {
@@ -249,13 +259,13 @@ impl Notice {
             "toggle_pickpocket_observe" => "Pickpocket",
             _ => "Safety",
         };
-        Self::new(
-            activity,
-            "alert",
-            Tone::Warning,
-            "Shortcut didn't run",
-            detail,
-        )
+        // A failed emergency stop leaves input live, so it must break through.
+        let tone = if command == "stop" {
+            Tone::Critical
+        } else {
+            Tone::Warning
+        };
+        Self::new(activity, "alert", tone, "Shortcut didn't run", detail)
     }
 }
 
@@ -438,7 +448,7 @@ impl Delivery {
     fn enqueue(&mut self, notice: Notice, now: u64) {
         // Keep a bounded queue of meaningful transitions, not raw telemetry.
         if notice.interrupts() {
-            self.pending.clear();
+            self.pending.retain(|queued| queued.notice.durable);
         } else {
             self.pending
                 .retain(|queued| queued.notice.activity != notice.activity);
@@ -586,6 +596,41 @@ fn settings_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|e| e.to_string())
 }
 
+/// A crash mid-write must not leave a truncated file, so write beside it and rename.
+fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let temp = path.with_extension("json.tmp");
+    fs::write(&temp, bytes)?;
+    fs::rename(&temp, path).inspect_err(|_| {
+        let _ = fs::remove_file(&temp);
+    })
+}
+
+/// Unknown fields are ignored and a bad value resets only its own field, so a
+/// file from another build does not wipe the rest.
+fn parse_preferences(bytes: &[u8]) -> Result<Preferences, String> {
+    let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let object = value
+        .as_object()
+        .ok_or("notifications.json is not an object")?;
+    let mut preferences = Preferences::default();
+    for (name, slot) in [
+        ("popups", &mut preferences.popups),
+        ("sound", &mut preferences.sound),
+        ("shortcuts", &mut preferences.shortcuts),
+    ] {
+        if let Some(flag) = object.get(name).and_then(Value::as_bool) {
+            *slot = flag;
+        }
+    }
+    if let Some(corner) = object
+        .get("corner")
+        .and_then(|corner| serde_json::from_value(corner.clone()).ok())
+    {
+        preferences.corner = corner;
+    }
+    Ok(preferences)
+}
+
 #[tauri::command]
 pub(crate) fn notification_settings(app: AppHandle) -> Result<Preferences, String> {
     app.state::<NotificationState>()
@@ -605,9 +650,9 @@ pub(crate) fn save_notification_settings(
         .map_err(|e| e.to_string())?;
     let binding = app.state::<NotificationState>();
     let mut state = binding.0.lock().map_err(|e| e.to_string())?;
-    fs::write(
-        path,
-        serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?,
+    write_atomic(
+        &path,
+        &serde_json::to_vec_pretty(&settings).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
     state.preferences = settings;
@@ -804,7 +849,7 @@ pub(crate) fn setup(app: &mut tauri::App) -> tauri::Result<()> {
         let mut state = binding.0.lock().expect("notification setup lock");
         state.wake = Some(wake);
         match settings_path(app.handle()).and_then(|path| match fs::read(path) {
-            Ok(bytes) => serde_json::from_slice::<Preferences>(&bytes).map_err(|e| e.to_string()),
+            Ok(bytes) => parse_preferences(&bytes),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Preferences::default()),
             Err(e) => Err(e.to_string()),
         }) {
@@ -1154,6 +1199,64 @@ mod tests {
         assert_eq!(loaded.corner, Corner::TopRight);
         let corner: Preferences = serde_json::from_str(r#"{"corner":"bottom-left"}"#).unwrap();
         assert_eq!(corner.corner, Corner::BottomLeft);
+    }
+
+    #[test]
+    fn unknown_fields_and_values_reset_only_themselves() {
+        let loaded =
+            parse_preferences(br#"{"popups":false,"sound":"loud","corner":"center","future":1}"#)
+                .unwrap();
+        assert!(!loaded.popups);
+        assert!(loaded.sound);
+        assert_eq!(loaded.corner, Corner::TopRight);
+        assert!(parse_preferences(b"[]").is_err());
+        assert!(parse_preferences(br#"{"popups":"#).is_err());
+    }
+
+    #[test]
+    fn notifications_json_atomic_write_and_unknown_field() {
+        let dir = std::env::temp_dir().join(format!("cuepilot-notif-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("notifications.json");
+        write_atomic(&path, br#"{"sound":false,"corner":"top-left"}"#).unwrap();
+        write_atomic(
+            &path,
+            br#"{"popups":false,"corner":"diagonal","future":true}"#,
+        )
+        .unwrap();
+        assert!(!path.with_extension("json.tmp").exists());
+        let loaded = parse_preferences(&fs::read(&path).unwrap()).unwrap();
+        assert!(!loaded.popups);
+        assert!(loaded.sound);
+        assert_eq!(loaded.corner, Corner::TopRight);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn critical_notice_keeps_cooldown_ready() {
+        let mut delivery = ready_delivery();
+        delivery.enqueue(Notice::fishing_cast(), 0);
+        shown(delivery.advance(SETTLE_MS));
+        delivery.tracker.cooldown = Some(1000);
+        // The ready alert lands while the Fishing card is still up ...
+        assert!(matches!(delivery.advance(1000), Action::Idle));
+        // ... then an emergency stop interrupts without dropping it.
+        delivery.enqueue(Notice::shortcut("stop", &json!({}), "Pause").unwrap(), 1100);
+        assert_eq!(delivery.pending.len(), 2);
+        let at = 1100 + SETTLE_MS;
+        assert_eq!(shown(delivery.advance(at)).title, "Emergency stop");
+        assert_eq!(
+            shown(delivery.advance(at + ALERT_DURATION_MS)).title,
+            "Ready for another pickpocket"
+        );
+    }
+
+    #[test]
+    fn failed_emergency_stop_shortcut_is_critical() {
+        assert!(Notice::shortcut_failed("stop", "engine down").interrupts());
+        let toggle = Notice::shortcut_failed("toggle", "engine down");
+        assert_eq!(toggle.tone, Tone::Warning);
+        assert!(!toggle.interrupts());
     }
 
     #[test]
