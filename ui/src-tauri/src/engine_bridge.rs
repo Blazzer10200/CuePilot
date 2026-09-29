@@ -21,6 +21,7 @@ use std::os::windows::process::CommandExt;
 
 const EXPECTED_PROTOCOL_VERSION: u64 = 1;
 const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
+const CAPTURE_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -45,6 +46,7 @@ pub(crate) struct EngineBridge {
     /// keyboard shortcuts are released so the WebView can see them, and mouse
     /// shortcuts pass through to the page instead of firing commands.
     capture_suspended: Arc<AtomicBool>,
+    capture_epoch: Arc<AtomicU64>,
     start_stop_shortcut: Arc<Mutex<Option<String>>>,
     pickpocket_start_stop_shortcut: Arc<Mutex<Option<String>>>,
     emergency_shortcut: Arc<Mutex<Option<String>>>,
@@ -105,6 +107,16 @@ impl EngineBridge {
         if self.capture_suspended.swap(active, Ordering::Relaxed) == active {
             return;
         }
+        let epoch = self.capture_epoch.fetch_add(1, Ordering::Relaxed) + 1;
+        if active {
+            let bridge = self.clone();
+            let handle = app.clone();
+            self.schedule_capture_timeout(CAPTURE_TIMEOUT, move || {
+                if bridge.capture_still_open(epoch) {
+                    bridge.set_capture_suspended(&handle, false);
+                }
+            });
+        }
         let shortcuts = app.global_shortcut();
         for (slot, _, label) in self.shortcut_slots() {
             let Some(registered) = slot.lock().ok().and_then(|value| value.clone()) else {
@@ -128,6 +140,26 @@ impl EngineBridge {
                 );
             }
         }
+    }
+
+    /// True while the capture that started at `epoch` is still the open one.
+    fn capture_still_open(&self, epoch: u64) -> bool {
+        self.capture_epoch.load(Ordering::Relaxed) == epoch
+            && self.capture_suspended.load(Ordering::Relaxed)
+    }
+
+    /// An interrupted capture (drawer closed mid-listen, WebView reload) never
+    /// sends `active = false`, which would leave every hotkey, Pause included,
+    /// released. Run `on_expire` after `timeout` so the caller can re-claim them.
+    fn schedule_capture_timeout(
+        &self,
+        timeout: Duration,
+        on_expire: impl FnOnce() + Send + 'static,
+    ) {
+        thread::spawn(move || {
+            thread::sleep(timeout);
+            on_expire();
+        });
     }
 
     /// The stored text for a command's binding, used to label the overlay toast.
@@ -861,6 +893,40 @@ mod tests {
         assert_eq!(
             bridge.command_for_shortcut(&Shortcut::from_str("F7").unwrap()),
             Some("toggle_pickpocket_observe")
+        );
+    }
+
+    #[test]
+    fn capture_suspended_times_out() {
+        let bridge = EngineBridge::default();
+        bridge.set_shortcuts_enabled(true);
+        bridge.capture_suspended.store(true, Ordering::Relaxed);
+        let epoch = bridge.capture_epoch.fetch_add(1, Ordering::Relaxed) + 1;
+
+        let (tx, rx) = mpsc::channel();
+        let watcher = bridge.clone();
+        bridge.schedule_capture_timeout(Duration::from_millis(10), move || {
+            tx.send(watcher.capture_still_open(epoch)).unwrap();
+        });
+
+        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap());
+    }
+
+    #[test]
+    fn capture_timeout_ignores_a_capture_that_already_ended() {
+        let bridge = EngineBridge::default();
+        bridge.capture_suspended.store(true, Ordering::Relaxed);
+        let epoch = bridge.capture_epoch.fetch_add(1, Ordering::Relaxed) + 1;
+        assert!(bridge.capture_still_open(epoch));
+
+        bridge.capture_suspended.store(false, Ordering::Relaxed);
+        bridge.capture_epoch.fetch_add(1, Ordering::Relaxed);
+        assert!(!bridge.capture_still_open(epoch));
+
+        bridge.capture_suspended.store(true, Ordering::Relaxed);
+        assert!(
+            !bridge.capture_still_open(epoch),
+            "a newer capture must not be cut short by an older timer"
         );
     }
 
