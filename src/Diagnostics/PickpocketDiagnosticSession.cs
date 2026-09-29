@@ -9,7 +9,7 @@ using System.Threading.Channels;
 namespace CuePilot;
 
 internal sealed record PickpocketShotResult(string State, PickpocketBandColor Color, double WidthPixels, double? OffsetPixels,
-    double? SpeedPixelsPerSecond = null, double? AppliedAdvanceMs = null);
+    double? SpeedPixelsPerSecond = null, double? AppliedAdvanceMs = null, double? AppliedLeadMs = null);
 internal sealed record PickpocketDebugStatus(string State, int RecordsSaved, int RecordsDropped,
     int ImagesSaved, int ImagesSkipped, string? Error, string Report, PickpocketShotResult? Result = null);
 
@@ -41,7 +41,7 @@ internal sealed class PickpocketDiagnosticSession : IDisposable
     private bool previousActive;
     private int samples;
     private string? error;
-    private sealed record ShotGeometry(PickpocketBand Band, Rectangle Bar, double Speed, int Sample, double? AppliedAdvanceMs);
+    private sealed record ShotGeometry(PickpocketBand Band, Rectangle Bar, double Speed, int Sample, double? AppliedAdvanceMs, double? AppliedLeadMs);
     private ShotGeometry? shot;
     private string? shotResult;
     private PickpocketShotResult? shotOutcome;
@@ -79,7 +79,7 @@ internal sealed class PickpocketDiagnosticSession : IDisposable
         if (shot is null && status.AutomatedPressCount == 1 && status.InputDelivery?.KeyDownMs is not null
             && status.Observation.State == PickpocketVisualState.Active && status.SelectedBandIndex is int selected
             && selected >= 0 && selected < status.Observation.Bands.Count && status.Prediction is { } prediction)
-            shot = new(status.Observation.Bands[selected], status.Observation.Bar, prediction.SpeedPixelsPerSecond, status.SampleCount, prediction.AppliedAdvanceMs);
+            shot = new(status.Observation.Bands[selected], status.Observation.Bar, prediction.SpeedPixelsPerSecond, status.SampleCount, prediction.AppliedAdvanceMs, prediction.AppliedLeadMs);
         if (shotResult is null && shot is { } fired && status.SampleCount > fired.Sample
             && status.Observation.State is PickpocketVisualState.Grabbed or PickpocketVisualState.Missed)
         {
@@ -90,7 +90,7 @@ internal sealed class PickpocketDiagnosticSession : IDisposable
             shotOutcome = new(result.State.ToString(), fired.Band.Color, fired.Band.Width,
                 result.Bar == fired.Bar && double.IsFinite(result.MarkerX) && motion
                     ? (result.MarkerX - fired.Band.Center) * Math.Sign(fired.Speed) : null,
-                motion ? fired.Speed : null, fired.AppliedAdvanceMs);
+                motion ? fired.Speed : null, fired.AppliedAdvanceMs, fired.AppliedLeadMs);
             shotResult = result.Bar == fired.Bar && double.IsFinite(result.MarkerX) && double.IsFinite(fired.Speed) && fired.Speed != 0
                 ? $"Shot result: {result.State} | {fired.Band.Color} width {fired.Band.Width:F2} px | stopped marker {(result.MarkerX - fired.Band.Center) * Math.Sign(fired.Speed):F2} px past center (negative = before center). Visual offset, not measured input latency."
                 : $"Shot result: {result.State} | visual offset unavailable because geometry or motion changed.";

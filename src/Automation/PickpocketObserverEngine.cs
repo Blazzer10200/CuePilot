@@ -148,7 +148,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
             // for the run; history only changes when an attempt completes.
             var redCalibration = sessionState.Calibrate(PickpocketBandColor.Red, redAdvance);
             var yellowCalibration = sessionState.Calibrate(PickpocketBandColor.Yellow, yellowAdvance);
-            var calibration = $"Thin-target timing from history: {redCalibration.Describe()} | {yellowCalibration.Describe()}.";
+            var wideLead = sessionState.CalibrateWide();
+            var calibration = $"Timing from history: {redCalibration.Describe()} | {yellowCalibration.Describe()} | {wideLead.Describe()}.";
             PickpocketObservation? previous = null;
             // A lone Hidden read is usually a misread, not the panel leaving. Keep the last panel as a
             // search hint for a short while so reacquisition can use header-less continuation and the
@@ -269,7 +270,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         // timestamp, so do not issue a timing candidate from it.
                         prediction = capture.Backend.Contains("DXGI", StringComparison.OrdinalIgnoreCase)
                             ? predictor.Observe(observation, observation.Bands[index].Color, presentation, analyzedAt, new(0, 16), index, precision,
-                                observation.Bands[index].Color == PickpocketBandColor.Yellow ? yellowCalibration.AppliedMs : observation.Bands[index].Color == PickpocketBandColor.Red ? redCalibration.AppliedMs : 8)
+                                observation.Bands[index].Color == PickpocketBandColor.Yellow ? yellowCalibration.AppliedMs : observation.Bands[index].Color == PickpocketBandColor.Red ? redCalibration.AppliedMs : 8, wideLead.AppliedMs)
                             : PickpocketTimingPrediction.Wait("Capture backend lacks a verified presentation timestamp.");
                         // A thin target needs a measured marker speed first: either a
                         // confirmed cruise on this pass or a full sweep with its turnaround.

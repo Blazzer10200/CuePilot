@@ -7,7 +7,15 @@ internal sealed record PickpocketRecentAttempt(string Id, long EndedAtUnixMs, st
     PickpocketBandColor? Color, double? WidthPixels, double? OffsetPixels, int AutomaticPresses,
     string? ItemName = null, int? RedAdvanceMs = null, int? YellowAdvanceMs = null,
     string? EngineVersion = null, string? SessionId = null, string? InputMode = null, string? TargetPolicy = null,
-    double? SpeedPixelsPerSecond = null, double? AppliedAdvanceMs = null);
+    double? SpeedPixelsPerSecond = null, double? AppliedAdvanceMs = null, double? AppliedLeadMs = null);
+
+/// <summary>Extra early press for wide targets, derived from where recent wide shots stopped.</summary>
+internal sealed record PickpocketWideLead(double AppliedMs, int Samples, double MedianOffsetPixels)
+{
+    internal string Describe() => Samples < PickpocketSessionState.WideCalibrationMinimumSamples
+        ? $"wide targets 0 ms lead ({Samples} of {PickpocketSessionState.WideCalibrationMinimumSamples} shots recorded)"
+        : $"wide targets {AppliedMs:F1} ms lead from {Samples} shots (median stop {MedianOffsetPixels:+0.0;-0.0} px)";
+}
 
 /// <summary>Per-color thin-target early correction derived from saved shot results.</summary>
 internal sealed record PickpocketAdvanceCalibration(PickpocketBandColor Color, int BaseMs, double AppliedMs, int Samples, int LegacySamples, double MedianOffsetPixels)
@@ -23,7 +31,10 @@ internal sealed class PickpocketSessionState
     internal const int MaximumAttempts = 1000;
     internal const int CalibrationMinimumSamples = 6;
     internal const int CalibrationWindow = 20;
-    internal const double CalibrationMaximumShiftMs = 6;
+    internal const double CalibrationMaximumShiftMs = 10;
+    internal const int WideCalibrationMinimumSamples = 3;
+    internal const int WideCalibrationWindow = 10;
+    internal const double WideMaximumLeadMs = 40;
     internal const double LegacySpeedPixelsPerSecond = 390;
     private sealed record SavedState(int Version, long CooldownUntilUnixMs, PickpocketRecentAttempt[] Recent);
     private static readonly JsonSerializerOptions Json = new()
@@ -53,7 +64,7 @@ internal sealed class PickpocketSessionState
     /// marker on center: applied advance plus (stop offset / marker speed). A
     /// positive offset means the marker stopped past center, so press earlier.
     /// Entries saved before speed was recorded assume the measured live speed.
-    /// The result never moves more than six ms from the saved value.
+    /// The result never moves more than ten ms from the saved value.
     /// </summary>
     internal PickpocketAdvanceCalibration Calibrate(PickpocketBandColor color, int baseMs)
     {
@@ -75,6 +86,28 @@ internal sealed class PickpocketSessionState
         if (shots.Length < CalibrationMinimumSamples) return new(color, baseMs, baseMs, shots.Length, legacyCount, 0);
         var applied = Math.Clamp(Math.Round(Math.Clamp(Median(shots.Select(s => s.Implied)), baseMs - CalibrationMaximumShiftMs, baseMs + CalibrationMaximumShiftMs), 1), 0, 20);
         return new(color, baseMs, applied, shots.Length, legacyCount, Median(shots.Select(s => s.Offset)));
+    }
+
+    /// <summary>
+    /// Wide targets are aimed at the window middle assuming the nominal input delay.
+    /// When the game or system adds delay, every wide shot lands late by the same
+    /// amount, so the lead is the median of (applied lead + stop offset / speed)
+    /// over the most recent wide shots. It follows a change in either direction.
+    /// </summary>
+    internal PickpocketWideLead CalibrateWide()
+    {
+        var shots = state.Recent
+            .Where(r => r.Color is not null && r.AutomaticPresses == 1 && r.Outcome is "Grabbed" or "Missed"
+                && r.WidthPixels is > 6 && r.OffsetPixels is { } offset && double.IsFinite(offset) && Math.Abs(offset) <= 30)
+            .OrderByDescending(r => r.EndedAtUnixMs).Take(WideCalibrationWindow)
+            .Select(r =>
+            {
+                var speed = r.SpeedPixelsPerSecond is { } s ? Math.Abs(s) : LegacySpeedPixelsPerSecond;
+                return (Implied: speed >= 50 ? (r.AppliedLeadMs ?? 0) + r.OffsetPixels!.Value / speed * 1000 : double.NaN, Offset: r.OffsetPixels!.Value);
+            })
+            .Where(s => double.IsFinite(s.Implied)).ToArray();
+        if (shots.Length < WideCalibrationMinimumSamples) return new(0, shots.Length, 0);
+        return new(Math.Clamp(Math.Round(Median(shots.Select(s => s.Implied)), 1), 0, WideMaximumLeadMs), shots.Length, Median(shots.Select(s => s.Offset)));
     }
 
     private static double Median(IEnumerable<double> values)
@@ -102,6 +135,7 @@ internal sealed class PickpocketSessionState
                     || r.RedAdvanceMs is < 0 or > 20 || r.YellowAdvanceMs is < 0 or > 20
                     || (r.SpeedPixelsPerSecond is { } speed && !double.IsFinite(speed))
                     || (r.AppliedAdvanceMs is { } applied && (!double.IsFinite(applied) || applied is < 0 or > 20))
+                    || (r.AppliedLeadMs is { } lead && (!double.IsFinite(lead) || lead is < 0 or > WideMaximumLeadMs))
                     || r.ItemName?.Length > 100 || r.EngineVersion?.Length > 100 || r.SessionId?.Length > 100
                     || r.InputMode?.Length > 50 || r.TargetPolicy?.Length > 50))
                 throw new InvalidDataException("Saved state is invalid.");
@@ -121,7 +155,7 @@ internal sealed class PickpocketSessionState
             target?.ItemName, status.RedAdvanceMs, status.YellowAdvanceMs,
             typeof(PickpocketSessionState).Assembly.GetName().Version?.ToString(),
             string.IsNullOrEmpty(status.EvidenceDirectory) ? null : Path.GetFileName(status.EvidenceDirectory), status.InputMode, status.TargetPolicy,
-            result?.SpeedPixelsPerSecond, result?.AppliedAdvanceMs);
+            result?.SpeedPixelsPerSecond, result?.AppliedAdvanceMs, result?.AppliedLeadMs);
         state = new(2, now + 180_000, new[] { entry }.Concat(state.Recent).Take(MaximumAttempts).ToArray());
         if (path is null) return;
         try

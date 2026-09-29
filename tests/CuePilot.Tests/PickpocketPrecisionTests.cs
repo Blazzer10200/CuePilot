@@ -7,6 +7,29 @@ public sealed class PickpocketPrecisionTests
     [Theory]
     [InlineData(0)]
     [InlineData(12)]
+    [InlineData(26)]
+    public void WideTargetLeadMovesThePressEarlierAndIsReportedBack(int lead)
+    {
+        var baseline = new PickpocketTimingPredictor();
+        var adjusted = new PickpocketTimingPredictor();
+        PickpocketTimingPrediction? original = null, changed = null;
+        for (var t = 0; t <= 240; t += 16)
+        {
+            var observation = new PickpocketObservation(PickpocketVisualState.Active, new Rectangle(0, 100, 576, 23), 200 + .4 * t,
+                [new(PickpocketBandColor.Purple, 300, 330)], 1, "Wide lead fixture");
+            original = baseline.Observe(observation, PickpocketBandColor.Purple, t, t + 2, new(0, 16));
+            changed = adjusted.Observe(observation, PickpocketBandColor.Purple, t, t + 2, new(0, 16), wideLeadMs: lead);
+        }
+        Assert.True(original!.CanSchedule);
+        Assert.True(changed!.CanSchedule);
+        Assert.Equal(lead, original.PressAtMs!.Value - changed.PressAtMs!.Value, 5);
+        Assert.Equal(original.LatestPressAtMs, changed.LatestPressAtMs);
+        Assert.Equal(lead == 0 ? null : lead, changed.AppliedLeadMs);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(12)]
     [InlineData(20)]
     public void ConfiguredThinTargetAdvanceMovesOnlyThePlannedDeadline(int advance)
     {

@@ -85,10 +85,10 @@ public sealed class PickpocketSessionStateTests
         Assert.Equal(6, red.LegacySamples);
         Assert.Equal(11.6, red.AppliedMs);
         Assert.Contains("older shots assume 390 px/s", red.Describe());
-        // A large median shift is bounded to six ms; wide targets never calibrate.
+        // A large median shift is bounded to ten ms; wide targets never calibrate the thin advance.
         for (var i = 0; i < 6; i++)
             store.Complete(precision, new("Missed", PickpocketBandColor.Red, 4, 10, 400, 8), null);
-        Assert.Equal(14, store.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
+        Assert.Equal(18, store.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
         for (var i = 0; i < 6; i++)
             store.Complete(precision, new("Missed", PickpocketBandColor.Blue, 40, 10, 400), null);
         Assert.Equal(0, store.Calibrate(PickpocketBandColor.Blue, 8).Samples);
@@ -96,7 +96,46 @@ public sealed class PickpocketSessionStateTests
         var restored = new PickpocketSessionState(path, () => now);
         Assert.Null(restored.Error);
         Assert.Equal(17, restored.Calibrate(PickpocketBandColor.Yellow, 12).AppliedMs);
-        Assert.Equal(14, restored.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
+        Assert.Equal(18, restored.Calibrate(PickpocketBandColor.Red, 8).AppliedMs);
+    }
+
+    [Fact]
+    public void WideLeadFollowsWhereRecentWideShotsStoppedAndSurvivesRestart()
+    {
+        var now = 1_000_000L;
+        var path = StatePath();
+        var store = new PickpocketSessionState(path, () => ++now);
+        var precision = Result() with { InputMode = "PrecisionAttempt" };
+        Assert.Equal(0, store.CalibrateWide().AppliedMs);
+        // Thin shots never count. Two wide shots are too few.
+        for (var i = 0; i < 6; i++) store.Complete(precision, new("Missed", PickpocketBandColor.Red, 4, 5, 400, 11), null);
+        for (var i = 0; i < 2; i++) store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 30, 8, 400), null);
+        var pending = store.CalibrateWide();
+        Assert.Equal(0, pending.AppliedMs);
+        Assert.Equal(2, pending.Samples);
+        Assert.Contains("2 of 3", pending.Describe());
+        // Three wide shots stopping 8 px late at 400 px/s ask for a 20 ms lead.
+        store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, 8, 400), null);
+        var lead = store.CalibrateWide();
+        Assert.Equal(20, lead.AppliedMs);
+        Assert.Equal(3, lead.Samples);
+        // Once that lead is applied and the shots land on center, the value holds.
+        for (var i = 0; i < 10; i++)
+            store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 30, 0, 400, null, 20), null);
+        Assert.Equal(20, store.CalibrateWide().AppliedMs);
+        // Shots that land early bring it back down; the lead never goes negative.
+        for (var i = 0; i < 10; i++)
+            store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 30, -6, 400, null, 20), null);
+        Assert.Equal(5, store.CalibrateWide().AppliedMs);
+        for (var i = 0; i < 10; i++)
+            store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 30, -20, 400, null, 5), null);
+        Assert.Equal(0, store.CalibrateWide().AppliedMs);
+        Assert.Equal(0, new PickpocketSessionState(path, () => now).CalibrateWide().AppliedMs);
+        for (var i = 0; i < 10; i++)
+            store.Complete(precision, new("Missed", PickpocketBandColor.Purple, 19, 12, 400, null, 15), null);
+        var restored = new PickpocketSessionState(path, () => now);
+        Assert.Null(restored.Error);
+        Assert.Equal(40, restored.CalibrateWide().AppliedMs);
     }
 
     [Fact]

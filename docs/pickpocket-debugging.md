@@ -28,7 +28,11 @@ investigation before changing settings.
   against a retained diagnostic session; do not infer game-receipt latency from
   a result-frame offset. Precision runs shift the saved value by the median
   stop offset of that color's last twenty thin-target shots (six or more, at
-  most ±6 ms); the Timing view and the debug report show the value in use.
+  most ±10 ms). Wide targets (over 6 px, any color) get a separate early
+  "lead" from the last ten wide shots (three or more, 0-40 ms): the median of
+  the lead in use plus how far past center each shot stopped, so it follows a
+  slower or faster machine in either direction. The Timing view and the debug
+  report show the values in use.
 - **Safety:** F7 starts or stops a Pickpocket run. A new run must see Preparing
   before input can arm. A manual Space press, Stop, an error, or a cooldown
   closes the input gate. Focus loss pauses the run: tracking restarts on return

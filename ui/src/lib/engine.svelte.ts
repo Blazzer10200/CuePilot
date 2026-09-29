@@ -73,7 +73,7 @@ export interface PickpocketRecentAttempt {
   color: PickpocketColor | null; widthPixels: number | null; offsetPixels: number | null; automaticPresses: number;
   itemName?: string | null; redAdvanceMs?: number | null; yellowAdvanceMs?: number | null;
   engineVersion?: string | null; sessionId?: string | null; inputMode?: string | null; targetPolicy?: string | null;
-  speedPixelsPerSecond?: number | null; appliedAdvanceMs?: number | null;
+  speedPixelsPerSecond?: number | null; appliedAdvanceMs?: number | null; appliedLeadMs?: number | null;
 }
 export interface PickpocketObserveStatus {
   recentAttempts?: PickpocketRecentAttempt[];

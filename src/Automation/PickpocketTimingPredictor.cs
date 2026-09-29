@@ -12,10 +12,12 @@ internal sealed record PickpocketTimingBudget(double MinimumInputDelayMs, double
 /// <summary>
 /// <paramref name="AppliedAdvanceMs"/> is the early correction actually planned into a
 /// thin-target center shot; null when no correction applied. History uses it to calibrate.
+/// <paramref name="AppliedLeadMs"/> is the same for wide targets: how much earlier than the
+/// nominal-delay center press this shot was planned.
 /// </summary>
 internal sealed record PickpocketTimingPrediction(
     bool CanSchedule, double? PressAtMs, double? LatestPressAtMs,
-    double SpeedPixelsPerSecond, double UncertaintyPixels, string Reason, double? AppliedAdvanceMs = null)
+    double SpeedPixelsPerSecond, double UncertaintyPixels, string Reason, double? AppliedAdvanceMs = null, double? AppliedLeadMs = null)
 {
     internal static PickpocketTimingPrediction Wait(string reason, double speed = 0, double uncertainty = 0) => new(false, null, null, speed, uncertainty, reason);
 }
@@ -45,7 +47,7 @@ internal sealed class PickpocketTimingPredictor
     }
 
     internal PickpocketTimingPrediction Observe(PickpocketObservation observation, PickpocketBandColor color,
-        double presentationMs, double nowMs, PickpocketTimingBudget budget, int? bandIndex = null, bool precision = false, double tinyAdvanceMs = 8)
+        double presentationMs, double nowMs, PickpocketTimingBudget budget, int? bandIndex = null, bool precision = false, double tinyAdvanceMs = 8, double wideLeadMs = 0)
     {
         MotionFit = null;
         if (observation.State == PickpocketVisualState.Preparing && previous?.State != PickpocketVisualState.Preparing)
@@ -59,7 +61,7 @@ internal sealed class PickpocketTimingPredictor
             target = null;
             return PickpocketTimingPrediction.Wait(attempted ? "Attempt complete; wait for a new preparation state." : "Waiting for active play.");
         }
-        if (!budget.IsValid || !double.IsFinite(tinyAdvanceMs) || tinyAdvanceMs is < 0 or > 20 || !double.IsFinite(presentationMs) || !double.IsFinite(nowMs)
+        if (!budget.IsValid || !double.IsFinite(tinyAdvanceMs) || tinyAdvanceMs is < 0 or > 20 || !double.IsFinite(wideLeadMs) || wideLeadMs is < 0 or > 40 || !double.IsFinite(presentationMs) || !double.IsFinite(nowMs)
             || nowMs < presentationMs || nowMs - presentationMs > budget.MaximumFrameAgeMs
             || !double.IsFinite(observation.MarkerX) || observation.Confidence < 0.80 || observation.Bar.Width <= 0)
         {
@@ -164,10 +166,11 @@ internal sealed class PickpocketTimingPredictor
             var nominalDelay = (budget.MinimumInputDelayMs + budget.MaximumInputDelayMs) / 2;
             // Slivers get an early correction. The caller supplies it: the saved
             // per-color value, shifted by the median result offset of recent
-            // thin-target shots. Wider targets keep their uncorrected center shot.
+            // thin-target shots. Wider targets get the shared wide lead instead.
             var tiny = target.Width <= 6 * scale;
             var advanceMs = tiny ? tinyAdvanceMs : 0;
-            var planned = centerTime - nominalDelay - advanceMs;
+            var leadMs = tiny ? 0 : wideLeadMs;
+            var planned = centerTime - nominalDelay - advanceMs - leadMs;
             var windowMs = target.Width / Math.Abs(velocity);
             if (planned < nowMs)
                 return PickpocketTimingPrediction.Wait("Precision center deadline passed; tracking the next sweep.", speed, uncertainty);
@@ -177,7 +180,7 @@ internal sealed class PickpocketTimingPredictor
             // envelope fits. Preserve a tight host deadline and all input gates.
             return new(true, planned, planned + Math.Min(4, windowMs / 2), speed, uncertainty,
                 $"Experimental center shot: {windowMs:F1} ms target window; {advanceMs:F1} ms early correction. Timing remains uncalibrated; a miss is possible.",
-                tiny ? advanceMs : null);
+                tiny ? advanceMs : null, tiny ? null : leadMs);
         }
         if (target.Width <= 2 * uncertainty)
             return precision ? PrecisionCenter() : PickpocketTimingPrediction.Wait("Target window is smaller than the timing uncertainty.", speed, uncertainty);
@@ -187,10 +190,15 @@ internal sealed class PickpocketTimingPredictor
         var latest = presentationMs + (exit - fittedX) / velocity - budget.MaximumInputDelayMs;
         if (earliest > latest || latest < nowMs)
             return precision ? PrecisionCenter() : PickpocketTimingPrediction.Wait("Target window is smaller than the timing uncertainty.", speed, uncertainty);
-        var pressAt = Math.Max(nowMs, (earliest + latest) / 2);
+        // The window midpoint assumes the nominal input delay. The wide lead moves the
+        // press earlier by the extra delay measured from recent wide-target results.
+        var middle = (earliest + latest) / 2;
+        var wideLead = target.Width > 6 * scale ? wideLeadMs : 0;
+        var pressAt = Math.Max(nowMs, middle - wideLead);
         if (pressAt > nowMs + budget.MaximumHorizonMs)
             return PickpocketTimingPrediction.Wait("Tracking toward the selected target.", speed, uncertainty);
         return new PickpocketTimingPrediction(true, pressAt, latest, speed, uncertainty,
-            "Replay candidate only; live execution must revalidate foreground, stop gate, target, and deadline.");
+            "Replay candidate only; live execution must revalidate foreground, stop gate, target, and deadline.",
+            AppliedLeadMs: wideLead > 0 ? Math.Clamp(middle - pressAt, 0, wideLead) : null);
     }
 }

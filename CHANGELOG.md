@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.20 - 2026-09-29 - Pickpocket: wide targets follow your real input delay
+
+Fixed
+
+- Purple and other wide Pickpocket targets were being pressed late, and had been landing further past center since about 09-27 (history: +2 to +6 px through the month, +8 to +12 px on 09-28 and 09-29, enough to miss a 19 px target). Only thin Red/Yellow targets had any timing correction, so a slower game or system left wide shots uncorrected. Wide targets now get an early lead measured from the last ten wide shots (three or more, 0-40 ms), which moves the press earlier by however far those shots stopped past center and relaxes again if they start landing early. Saved per shot as `appliedLeadMs`, shown in the Timing view and debug report.
+- The thin Red/Yellow correction may now move up to 10 ms from the saved value (was 6), because recent Red shots kept stopping 2-5 px late with the old limit already reached.
+
 ## 5.3.19 - 2026-09-29 - Audit fixes: safer settings, sturdier Fishing, updater timeouts
 
 Settings and safety
