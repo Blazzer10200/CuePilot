@@ -68,7 +68,7 @@ internal static class PickpocketReplay
             Console.WriteLine($"frames={frames.Length} mismatches={mismatches} hypothetical_presses={candidates} detector_mean_ms={times.Average():F3} detector_p95_ms={times[(int)Math.Floor((times.Count - 1) * .95)]:F3} detector_max_ms={times[^1]:F3}");
             return mismatches == 0 ? 0 : 1;
         }
-        catch (Exception exception) when (exception is IOException or ArgumentException or JsonException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or ArgumentException or JsonException or UnauthorizedAccessException or InvalidDataException)
         {
             Console.Error.WriteLine($"PICKPOCKET_REPLAY_FAILED {exception.Message}");
             return 2;

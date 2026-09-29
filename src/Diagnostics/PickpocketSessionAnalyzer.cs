@@ -15,7 +15,7 @@ namespace CuePilot;
 internal static partial class PickpocketSessionAnalyzer
 {
     internal sealed record Sample(int Index, double Ms, string Engine, string Visual, string VisualReason, double Confidence, IReadOnlyList<PickpocketBand> BandList,
-        double MarkerX, Rectangle Bar, double IntervalMs, string Detail, string PredictionReason, int Presses, int ManualSpaces)
+        double MarkerX, Rectangle Bar, double IntervalMs, string Detail, string PredictionReason, int Presses, int ManualSpaces, string InputMode = "")
     {
         internal int Bands => BandList.Count;
     }
@@ -37,8 +37,10 @@ internal static partial class PickpocketSessionAnalyzer
         if (directory is null) { Console.Error.WriteLine($"PICKPOCKET_ANALYZE_FAILED no session at '{target}'. Pass a session folder or 'latest'."); return 2; }
         var samples = ReadTrace(Path.Combine(directory, "trace.jsonl"));
         if (samples.Count == 0) { Console.Error.WriteLine($"PICKPOCKET_ANALYZE_FAILED {directory} has no readable trace records."); return 2; }
+        Console.WriteLine($"Analyzing session folder: {directory}");
         var audits = frames ? AuditFrames(directory, samples) : [];
-        var report = Build(Path.GetFileName(directory), samples, audits, File.Exists(Path.Combine(directory, "summary.json")));
+        var summaryPath = Path.Combine(directory, "summary.json");
+        var report = Build(Path.GetFileName(directory), samples, audits, File.Exists(summaryPath), ReadRecorderState(summaryPath));
         try { File.WriteAllText(Path.Combine(directory, "ANALYSIS.md"), report); } catch (IOException) { }
         Console.WriteLine(report);
         return 0;
@@ -85,6 +87,7 @@ internal static partial class PickpocketSessionAnalyzer
                 if (a.SearchMissed && a.Warm != "Active") panelLostCold++;
             }
         }
+        if (frames == 0) { Console.Error.WriteLine($"PICKPOCKET_CORPUS_FAILED no session under '{root}' had audited frames (needs trace.jsonl, frames.jsonl and more than 14 PNGs)."); return 2; }
         times.Sort();
         Console.WriteLine($"frames {frames}; cold analyze ms (with ledger): p50 {times[times.Count / 2]:F2} p99 {times[(int)(times.Count * .99)]:F2} max {times[^1]:F2}");
         Console.WriteLine($"live Active: {liveActive}; cold Active now {liveActiveNowActive}; cold-or-warm Active now {liveActiveNowWarmActive}; NOT Active now {liveActive - liveActiveNowWarmActive}");
@@ -108,6 +111,19 @@ internal static partial class PickpocketSessionAnalyzer
             : null;
     }
 
+    /// <summary>The recorder's own verdict from summary.json ("Saved", "Limited", "Error"), or null when there is no readable summary.</summary>
+    internal static string? ReadRecorderState(string summaryPath)
+    {
+        try
+        {
+            if (!File.Exists(summaryPath)) return null;
+            using var document = JsonDocument.Parse(File.ReadAllText(summaryPath));
+            return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("debug", out var debug)
+                && debug.ValueKind == JsonValueKind.Object && debug.TryGetProperty("state", out var state) && state.ValueKind == JsonValueKind.String ? state.GetString() : null;
+        }
+        catch (Exception failure) when (failure is JsonException or IOException or UnauthorizedAccessException) { return null; }
+    }
+
     internal static List<Sample> ReadTrace(string path)
     {
         var samples = new List<Sample>();
@@ -125,7 +141,7 @@ internal static partial class PickpocketSessionAnalyzer
     internal static Sample? Parse(string line)
     {
         using var document = JsonDocument.Parse(line);
-        if (!document.RootElement.TryGetProperty("status", out var status)) return null;
+        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.Object) return null;
         var observation = status.TryGetProperty("observation", out var o) ? o : default;
         string Text(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
         double Number(JsonElement e, string name, double fallback = 0) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : fallback;
@@ -139,7 +155,7 @@ internal static partial class PickpocketSessionAnalyzer
         var prediction = status.TryGetProperty("prediction", out var p) ? Text(p, "reason") : "";
         return new Sample((int)Number(status, "sampleCount"), Number(status, "monotonicMilliseconds"), Text(status, "state"), Text(observation, "state"),
             Text(observation, "reason"), Number(observation, "confidence"), bands, Number(observation, "markerX", double.NaN), bar,
-            Number(status, "sampleIntervalMilliseconds"), Text(status, "detail"), prediction, (int)Number(status, "automatedPressCount"), (int)Number(status, "manualSpacePressCount"));
+            Number(status, "sampleIntervalMilliseconds"), Text(status, "detail"), prediction, (int)Number(status, "automatedPressCount"), (int)Number(status, "manualSpacePressCount"), Text(status, "inputMode"));
     }
 
     private static List<FrameAudit> AuditFrames(string directory, List<Sample> samples)
@@ -234,18 +250,20 @@ internal static partial class PickpocketSessionAnalyzer
     private static IEnumerable<string> Compact(IEnumerable<string> ledger) =>
         ledger.GroupBy(l => l.Trim()).Select(g => g.Count() > 1 ? $"{g.Key}  (x{g.Count()})" : g.Key);
 
-    internal static string Build(string session, IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, bool finished)
+    internal static string Build(string session, IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, bool finished, string? recorderState = null)
     {
         var t0 = samples.FirstOrDefault(s => s.Ms > 0)?.Ms ?? samples[0].Ms;
         string At(double ms) => ((ms - t0) / 1000).ToString("F2", CultureInfo.InvariantCulture) + "s";
         var report = new StringBuilder();
         report.AppendLine($"# Pickpocket session analysis: {session}");
-        report.AppendLine(finished ? "Session finished cleanly." : "Session has no summary.json: still recording, or it did not finish cleanly. Analysis reads what is on disk.");
+        report.AppendLine(!finished ? "Session has no summary.json: still recording, or it did not finish cleanly. Analysis reads what is on disk."
+            : recorderState is "Limited" or "Error" ? $"Session finished, but the recorder reported {recorderState}: some records or images were dropped."
+            : "Session finished cleanly.");
         report.AppendLine($"{samples.Count} recorded samples over {(samples[^1].Ms - t0) / 1000:F1}s.");
         report.AppendLine();
 
         report.AppendLine("## Verdict");
-        foreach (var finding in Diagnose(samples, audits, At)) report.AppendLine($"- {(finding.Problem ? "[!!]" : "[ok]")} **{finding.Title}** {finding.Detail}");
+        foreach (var finding in Diagnose(samples, audits, At, recorderState)) report.AppendLine($"- {(finding.Problem ? "[!!]" : "[ok]")} **{finding.Title}** {finding.Detail}");
         report.AppendLine();
 
         report.AppendLine("## What the detector saw (changes only)");
@@ -285,9 +303,11 @@ internal static partial class PickpocketSessionAnalyzer
         return report.ToString();
     }
 
-    internal static List<Finding> Diagnose(IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, Func<double, string> at)
+    internal static List<Finding> Diagnose(IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, Func<double, string> at, string? recorderState = null)
     {
         var findings = new List<Finding>();
+        if (recorderState is "Limited" or "Error")
+            findings.Add(new(true, "Evidence incomplete.", $"The recorder ended {recorderState}: records or images were dropped or a write failed, so gaps below may be missing evidence rather than detector faults."));
         // Runs of the same visual state, closed by the next run's first sample.
         var runs = new List<(string Visual, double Start, double End, int First, int Count)>();
         foreach (var s in samples.Where(s => s.Ms > 0))
@@ -320,10 +340,10 @@ internal static partial class PickpocketSessionAnalyzer
                 findings.Add(new(true, "False attempt end.", $"The panel was last read Active at {at(lastActive.Ms)}, then read Hidden until {at(cooldown.s.Ms)} ({(cooldown.s.Ms - lastActive.Ms) / 1000:F1}s) with no Grabbed/Missed result. The attempt tracker treats 3s of Hidden as the attempt ending and starts the 3-minute cooldown, so the next real attempt was blocked."));
         }
 
-        var presses = samples.Max(s => s.Presses);
+        var presses = samples.Select(s => s.Presses).DefaultIfEmpty().Max();
         var prepared = samples.Any(s => s.Visual == "Preparing");
         var waiting = samples.Count(s => s.PredictionReason.Contains("new preparation state", StringComparison.OrdinalIgnoreCase) || s.Detail.Contains("new preparation state", StringComparison.OrdinalIgnoreCase));
-        if (active.Count > 0 && presses == 0 && !prepared && waiting > 0)
+        if (active.Count > 0 && presses == 0 && !prepared && waiting > 0 && samples.All(s => s.InputMode != "Observe"))
             findings.Add(new(true, "Never armed.", $"No Preparing state was ever read, so automatic input could not arm ('waiting for a new preparation state' on {waiting} samples). Either the fade-in was missed or it was misread like the frames below."));
         else if (presses > 0)
             findings.Add(new(false, "Shot fired.", $"{presses} automatic tap(s) sent. Check the run's REPORT.md for the visual offset."));
@@ -363,7 +383,10 @@ internal static partial class PickpocketSessionAnalyzer
             findings.Add(new(false, "Live and offline reads differ.", $"{differ} frame(s) were read differently offline. Usually tracking history; see the frame list."));
 
         if (findings.All(f => !f.Problem))
-            findings.Add(new(false, "No detector faults found.", active.Count > 0 ? "The panel was recognized and tracked without flicker or false ends." : "No Active panel was seen in this session; check the FiveM window and capture bounds."));
+        {
+            if (active.Count > 0) findings.Add(new(false, "No detector faults found.", "The panel was recognized and tracked without flicker or false ends."));
+            else findings.Add(new(true, audits.Count == 0 ? "No frames audited." : "No Active panel seen.", "No Active panel was seen in this session, so there was nothing to judge; check the FiveM window and capture bounds."));
+        }
         return findings;
     }
 }

@@ -232,13 +232,15 @@ public sealed class PickpocketObserverTests
         var keySamples = 0;
         using var observer = new PickpocketObserverEngine(() => new FixtureSource(),
             _ => new(IntPtr.Zero, 3258, "FiveM_b3258_GTAProcess", "Fixture", new Rectangle(0, 0, 1920, 1080), true, false),
-            _ => Interlocked.Increment(ref keySamples) is 1 or 2 or 4);
+            _ => Interlocked.Increment(ref keySamples) is 1 or 2 or 4,
+            createDiagnostics: (policy, target) => new(policy, target, EvidenceRoot));
         var target = new WindowTargetSettings { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 };
         var completion = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
         observer.StatusChanged += (_, status) => { if (status.State == "Cooldown") completion.TrySetResult(status); };
         observer.Configure("Purple");
         observer.Start(target);
         var cooldown = await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        AssertEvidenceIsUnderTestRoot(cooldown.EvidenceDirectory);
         Assert.InRange(cooldown.CooldownUntilUnixMs - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), 178000, 180001);
         Assert.False(cooldown.Prediction!.CanSchedule);
         observer.Stop();
@@ -265,6 +267,16 @@ public sealed class PickpocketObserverTests
         observer.Stop();
     }
 
+    private static string EvidenceRoot => Path.Combine(Path.GetTempPath(), "CuePilotTests", "pickpocket-observer");
+
+    private static void AssertEvidenceIsUnderTestRoot(string evidenceDirectory)
+    {
+        var real = Path.GetFullPath(Path.Combine(AppPaths.DiagnosticsDirectory, "pickpocket")) + Path.DirectorySeparatorChar;
+        var actual = Path.GetFullPath(evidenceDirectory);
+        Assert.StartsWith(Path.GetFullPath(EvidenceRoot), actual, StringComparison.OrdinalIgnoreCase);
+        Assert.False(actual.StartsWith(real, StringComparison.OrdinalIgnoreCase), $"Test evidence leaked into the real diagnostics folder: {actual}");
+    }
+
     private sealed class FixtureSource : IFrameSource
     {
         private int index;
@@ -289,7 +301,8 @@ public sealed class PickpocketObserverTests
             {
                 var call = Interlocked.Increment(ref resolves);
                 return new(IntPtr.Zero, 3258, "FiveM_b3258_GTAProcess", "Fixture", new Rectangle(0, 0, 1920, 1080), call is 1 or >= 4, call == 3);
-            });
+            },
+            createDiagnostics: (policy, target) => new(policy, target, EvidenceRoot));
         var paused = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
         var resumed = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
         observer.StatusChanged += (_, status) =>
@@ -299,6 +312,7 @@ public sealed class PickpocketObserverTests
         };
         observer.Start(new WindowTargetSettings { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
         var pause = await paused.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        AssertEvidenceIsUnderTestRoot(pause.EvidenceDirectory);
         Assert.True(pause.Observing);
         Assert.Equal("Waiting", pause.State);
         Assert.Null(pause.Prediction);
