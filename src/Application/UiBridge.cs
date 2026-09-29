@@ -177,8 +177,10 @@ internal static class UiBridge
                             var availableTargets = findFiveMTargets();
                             var selectedTarget = availableTargets.SingleOrDefault(candidate => candidate.ProcessId == processId)
                                 ?? throw new InvalidOperationException("That FiveM window is no longer available. Scan again.");
-                            settings.Routine.TargetWindow = selectedTarget.ToSettings();
-                            saveSettings(settings);
+                            var retargeted = settings.Copy();
+                            retargeted.Routine.TargetWindow = selectedTarget.ToSettings();
+                            saveSettings(retargeted);
+                            settings = retargeted;
                             lock (statusLock)
                             {
                                 lastStatus = new RoutineStatus(
@@ -194,6 +196,12 @@ internal static class UiBridge
                             EnsureStopped(routine.State, "Settings");
                             if (!root.TryGetProperty("settings", out var settingsValue))
                                 throw new InvalidOperationException("The settings payload is required.");
+                            if (settingsValue.ValueKind != JsonValueKind.Object
+                                || !settingsValue.TryGetProperty("formatVersion", out var versionValue)
+                                || versionValue.ValueKind != JsonValueKind.Number
+                                || !versionValue.TryGetInt32(out var payloadVersion)
+                                || payloadVersion is < 1 or > 9)
+                                throw new InvalidOperationException("The settings payload needs a valid formatVersion.");
                             var proposed = JsonSerializer.Deserialize<AppSettings>(settingsValue.GetRawText(), Json);
                             if (proposed is not null && new[] { (proposed.StartStop, settings.StartStop), (proposed.PickpocketStartStop, settings.PickpocketStartStop) }
                                 .Any(pair => pair.Item1.Key.Equals("F8", StringComparison.OrdinalIgnoreCase) &&
@@ -206,8 +214,10 @@ internal static class UiBridge
                             updated.Pickpocket = settings.Pickpocket.Copy();
                             updated.EmergencyStop = settings.EmergencyStop.Copy();
                             updated.Routine.TargetWindow = settings.Routine.TargetWindow.Copy();
+                            if (!SettingsStore.IsValid(updated))
+                                throw new InvalidOperationException("Choose valid, different shortcuts for each activity and emergency stop.");
+                            saveSettings(updated);
                             settings = updated;
-                            saveSettings(settings);
                             var settingsSnapshot = Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot);
                             Emit(output, "settings", settingsSnapshot);
                             Respond(output, id, true, settingsSnapshot);

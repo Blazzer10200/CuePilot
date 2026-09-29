@@ -369,6 +369,67 @@ public sealed class UiBridgeTests
         Assert.Equal("Pause", saved.EmergencyStop.Key);
     }
 
+    [Fact]
+    public void SaveSettings_FailedWrite_LeavesEngineSettingsUnchanged()
+    {
+        var incoming = AppSettings.Defaults();
+        incoming.StartStop.Key = "F11";
+        var messages = RunBridge(
+            AppSettings.Defaults(),
+            JsonSerializer.Serialize(new { id = "save", command = "save_settings", settings = incoming }, Json)
+                + "\n" + """{"id":"after","command":"snapshot"}""",
+            _ => throw new IOException("disk full"));
+
+        Assert.False(FindResponse(messages, "save").GetProperty("ok").GetBoolean());
+        var after = FindResponse(messages, "after").GetProperty("result").GetProperty("settings");
+        Assert.Equal("F10", after.GetProperty("startStop").GetProperty("key").GetString());
+    }
+
+    [Fact]
+    public void SelectTarget_FailedWrite_LeavesEngineSettingsUnchanged()
+    {
+        var messages = RunBridge(
+            AppSettings.Defaults(),
+            """{"id":"pick","command":"select_target","processId":3258}""" + "\n" + """{"id":"after","command":"snapshot"}""",
+            _ => throw new IOException("disk full"),
+            () => [Candidate(3258, "FiveM")]);
+
+        Assert.False(FindResponse(messages, "pick").GetProperty("ok").GetBoolean());
+        var after = FindResponse(messages, "after").GetProperty("result").GetProperty("settings");
+        Assert.Equal(0, after.GetProperty("routine").GetProperty("targetWindow").GetProperty("processId").GetInt32());
+    }
+
+    [Fact]
+    public void SaveSettings_MissingFormatVersion_IsRejected()
+    {
+        var saveCount = 0;
+        var messages = RunBridge(
+            AppSettings.Defaults(),
+            """{"id":"save","command":"save_settings","settings":{"startStop":{"key":"F11"}}}""",
+            _ => saveCount++);
+
+        var response = FindResponse(messages, "save");
+        Assert.False(response.GetProperty("ok").GetBoolean());
+        Assert.Contains("formatVersion", response.GetProperty("error").GetString());
+        Assert.Equal(0, saveCount);
+    }
+
+    [Fact]
+    public void SaveSettings_ShortcutCollidingWithKeptEmergencyStop_IsRejected()
+    {
+        var incoming = AppSettings.Defaults();
+        incoming.StartStop = new HotkeyBinding { Key = "Pause" };
+        incoming.EmergencyStop = new HotkeyBinding { Key = "F12" };
+        var saveCount = 0;
+        var messages = RunBridge(
+            AppSettings.Defaults(),
+            JsonSerializer.Serialize(new { id = "save", command = "save_settings", settings = incoming }, Json),
+            _ => saveCount++);
+
+        Assert.False(FindResponse(messages, "save").GetProperty("ok").GetBoolean());
+        Assert.Equal(0, saveCount);
+    }
+
     [Theory]
     [InlineData("FiveM")]
     [InlineData("FiveM_b3258_GTAProcess")]
