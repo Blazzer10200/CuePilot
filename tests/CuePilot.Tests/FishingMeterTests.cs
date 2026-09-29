@@ -357,6 +357,82 @@ public sealed class FishingMeterTests
     }
 
     [Fact]
+    public void CroppedFrame_IsReplayedWithItsOrigin()
+    {
+        using var frame = LoadFixture("video-day-active.png");
+        var frameBounds = new Rectangle(Point.Empty, frame.Size);
+        var tracker = new FishingMeterTracker();
+        var live = FishingMeterService.AnalyzeFrameDetailed(frame, tracker);
+        Assert.True(live.Observation.IsVisible, live.ToString());
+        // A 1440p session saves a crop larger than the 512 px tiny-frame shortcut; widen
+        // the 1080p crop past it so the whole-window read below is not a shortcut hit.
+        var crop = FishingMeterService.GetTrackedCaptureRegion(frameBounds, tracker)!.Value;
+        crop.Inflate(150, 150);
+        crop.Intersect(frameBounds);
+        Assert.True(crop.Width > 512 && crop.Height > 512, crop.ToString());
+        using var cropped = frame.Clone(crop, PixelFormat.Format32bppArgb);
+        var cropAnalysis = FishingMeterService.AnalyzeTrackedCrop(cropped, crop.Location, frameBounds, tracker);
+        Assert.True(cropAnalysis.Observation.IsVisible, cropAnalysis.ToString());
+        var metadata = ReplayMetadata(cropAnalysis, crop.Location);
+
+        var tracker2 = new FishingMeterTracker();
+        var replayed = Program.AnalyzeReplayMeterFrame(cropped, metadata, tracker2);
+
+        Assert.NotNull(replayed);
+        Assert.True(replayed.Observation.IsVisible, replayed.ToString());
+        Assert.Equal(cropAnalysis.Observation.Confidence, replayed.Observation.Confidence, 3);
+        // Replayed as a whole window, the region would come back in crop coordinates
+        // and the tracker would be updated with them.
+        Assert.Equal(cropAnalysis.PrimaryCandidate!.Value.Region, replayed.PrimaryCandidate!.Value.Region);
+        Assert.False(tracker2.HasLock);
+    }
+
+    [Fact]
+    public void CroppedFrameWithoutARecordedRegion_IsNotJudgedAsAWholeWindow()
+    {
+        using var scenery = new Bitmap(300, 240, PixelFormat.Format32bppArgb);
+        var metadata = JsonSerializer.Serialize(
+            new { label = "meter-confirmed", detail = new { frameOrigin = new Point(500, 300) } },
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        Assert.Null(Program.AnalyzeReplayMeterFrame(scenery, metadata, new FishingMeterTracker()));
+    }
+
+    [Fact]
+    public void FrameWithoutAnOrigin_IsReplayedAsAWholeWindow()
+    {
+        using var frame = LoadFixture("video-day-active.png");
+        var direct = FishingMeterService.AnalyzeFrameDetailed(frame, new FishingMeterTracker());
+        var metadata = ReplayMetadata(direct, Point.Empty);
+
+        var replayed = Program.AnalyzeReplayMeterFrame(frame, metadata, new FishingMeterTracker());
+        var legacy = Program.AnalyzeReplayMeterFrame(frame, null, new FishingMeterTracker());
+
+        Assert.NotNull(replayed);
+        Assert.NotNull(legacy);
+        Assert.Equal(direct.Observation.IsVisible, replayed.Observation.IsVisible);
+        Assert.Equal(direct.Observation.IsVisible, legacy.Observation.IsVisible);
+        Assert.Equal(direct.Observation.Confidence, replayed.Observation.Confidence, 3);
+    }
+
+    // Mirrors the metadata FishingDebugSession.RecordMeter writes next to each saved frame.
+    private static string ReplayMetadata(FishingMeterFrameAnalysis analysis, Point frameOrigin) =>
+        JsonSerializer.Serialize(
+            new
+            {
+                label = "meter-confirmed",
+                detail = new
+                {
+                    observation = analysis.Observation,
+                    candidate = analysis.PrimaryCandidate,
+                    analysis.CandidateCount,
+                    sampleCount = 1,
+                    frameOrigin,
+                },
+            },
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+    [Fact]
     public void LocalContrastKeepsAnExposureLiftedMeterVisible()
     {
         using var source = LoadFixture("video-day-active.png");

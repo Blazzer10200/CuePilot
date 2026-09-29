@@ -327,8 +327,23 @@ var pickpocketAnalyze = ArgumentValue(args, "--analyze-pickpocket");
             }
             else if (label.StartsWith("meter-", StringComparison.OrdinalIgnoreCase))
             {
-                var analysis = FishingMeterService.AnalyzeFrameDetailed(bitmap, meterTracker);
                 var expected = label.Equals("meter-confirmed", StringComparison.OrdinalIgnoreCase);
+                var metadataName = frame.TryGetProperty("metadataName", out var metadataElement)
+                    ? metadataElement.GetString()
+                    : null;
+                var metadataPath = string.IsNullOrEmpty(metadataName) ? null : Path.Combine(directory, metadataName);
+                var metadataJson = metadataPath is not null && File.Exists(metadataPath)
+                    ? File.ReadAllText(metadataPath)
+                    : null;
+                var analysis = AnalyzeReplayMeterFrame(bitmap, metadataJson, meterTracker);
+                if (analysis is null)
+                {
+                    if (expected) failures++;
+                    Console.WriteLine(
+                        $"frame={label} detector=meter result={(expected ? "fail" : "pass")} reason=cropped frame has no recorded candidate region to replay");
+                    continue;
+                }
+
                 var passed = !expected || analysis.Observation.IsVisible;
                 if (!passed) failures++;
                 Console.WriteLine(
@@ -338,5 +353,54 @@ var pickpocketAnalyze = ArgumentValue(args, "--analyze-pickpocket");
 
         Console.WriteLine($"REPLAY_COMPLETE frames={checkedFrames} failures={failures}");
         return failures == 0 ? 0 : 2;
+    }
+
+    // Tracked-crop evidence frames keep their window offset in frameOrigin and the
+    // meter region in window coordinates, so they are re-read through the same
+    // region-in-crop call the live crop path uses. A crop with no recorded region
+    // returns null instead of being judged as a whole-window frame.
+    internal static FishingMeterFrameAnalysis? AnalyzeReplayMeterFrame(
+        Bitmap bitmap,
+        string? metadataJson,
+        FishingMeterTracker tracker)
+    {
+        var origin = Point.Empty;
+        Rectangle? recordedRegion = null;
+        if (metadataJson is not null)
+        {
+            using var metadata = JsonDocument.Parse(metadataJson);
+            if (metadata.RootElement.TryGetProperty("detail", out var detail)
+                && detail.ValueKind == JsonValueKind.Object)
+            {
+                if (detail.TryGetProperty("frameOrigin", out var originElement)
+                    && originElement.ValueKind == JsonValueKind.Object)
+                {
+                    origin = new Point(
+                        originElement.GetProperty("x").GetInt32(),
+                        originElement.GetProperty("y").GetInt32());
+                }
+
+                if (detail.TryGetProperty("candidate", out var candidate)
+                    && candidate.ValueKind == JsonValueKind.Object
+                    && candidate.TryGetProperty("region", out var region)
+                    && region.ValueKind == JsonValueKind.Object)
+                {
+                    recordedRegion = new Rectangle(
+                        region.GetProperty("x").GetInt32(),
+                        region.GetProperty("y").GetInt32(),
+                        region.GetProperty("width").GetInt32(),
+                        region.GetProperty("height").GetInt32());
+                }
+            }
+        }
+
+        if (origin == Point.Empty) return FishingMeterService.AnalyzeFrameDetailed(bitmap, tracker);
+        if (recordedRegion is not { } windowRegion) return null;
+
+        var local = windowRegion;
+        local.Offset(-origin.X, -origin.Y);
+        var observation = FishingMeterDetector.Analyze(bitmap, local, out var evidence, requireActiveIdentity: false);
+        var primary = new FishingMeterCandidateEvidence(-1, windowRegion, evidence, IsTracked: true);
+        return new FishingMeterFrameAnalysis(observation, primary, 1);
     }
 }
