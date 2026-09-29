@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { Timer, ShieldCheck, OctagonX, Eye, Copy, FolderOpen, Lock } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
   import PickpocketHistory from "./PickpocketHistory.svelte";
@@ -38,23 +38,26 @@
   const displayedPresses = $derived(savedAttempt ? savedAttempt.automaticPresses : status?.automatedPressCount ?? 0);
   $effect(() => { if (selectedHistoryId && !recent.some(attempt => attempt.id === selectedHistoryId)) selectedHistoryId = ""; });
   $effect(() => {
-    if (!pending && status) {
-      if (policy !== status.targetPolicy) policy = status.targetPolicy;
-      const nextInputMode = status.inputMode ?? "Observe";
+    if (pending || !status) return;
+    const nextPolicy = status.targetPolicy;
+    const nextInputMode = status.inputMode ?? "Observe";
+    const nextRedAdvanceMs = status.redAdvanceMs ?? 11;
+    const nextYellowAdvanceMs = status.yellowAdvanceMs ?? 20;
+    const nextCustomPriority = status.customPriority ?? defaultPriority;
+    const nextItemPriority = status.itemPriority ?? defaultItemPriority;
+    // Local fields are read untracked: a user edit must not re-run this effect and revert itself before its change handler saves it.
+    untrack(() => {
+      if (policy !== nextPolicy) policy = nextPolicy;
       if (inputMode !== nextInputMode) inputMode = nextInputMode;
-      const nextRedAdvanceMs = status.redAdvanceMs ?? 11;
       if (redAdvanceMs !== nextRedAdvanceMs) redAdvanceMs = nextRedAdvanceMs;
-      const nextYellowAdvanceMs = status.yellowAdvanceMs ?? 20;
       if (yellowAdvanceMs !== nextYellowAdvanceMs) yellowAdvanceMs = nextYellowAdvanceMs;
-      const nextCustomPriority = status.customPriority ?? defaultPriority;
       if (customPriority.length !== nextCustomPriority.length || customPriority.some((value, index) => value !== nextCustomPriority[index])) {
         customPriority = [...nextCustomPriority];
       }
-      const nextItemPriority = status.itemPriority ?? defaultItemPriority;
       if (itemPriority.length !== nextItemPriority.length || itemPriority.some((value, index) => value !== nextItemPriority[index])) {
         itemPriority = [...nextItemPriority];
       }
-    }
+    });
   });
   let now = $state(Date.now());
   let debugAction = $state("");
