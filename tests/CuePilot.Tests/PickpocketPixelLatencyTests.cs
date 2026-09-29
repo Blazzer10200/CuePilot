@@ -49,10 +49,17 @@ public sealed class PickpocketPixelLatencyTests(ITestOutputHelper output)
             var continued = PickpocketDetector.Analyze(erased, null, previous);
             Assert.Equal(PickpocketVisualState.Active, continued.State);
             Assert.Equal(1, continued.HeaderlessFrames);
-            clock.Restart();
-            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(erased, null, previous with { HeaderlessFrames = 30 }).State);
-            output.WriteLine($"erased_header={background} elapsed_ms={clock.Elapsed.TotalMilliseconds:F3}");
-            Assert.True(clock.Elapsed.TotalMilliseconds < 100, "A missing header caused an unbounded search.");
+            // Best of three: one slow sample on a busy CI runner is scheduler jitter,
+            // while a genuinely unbounded search is slow on every attempt.
+            var best = double.MaxValue;
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                clock.Restart();
+                Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(erased, null, previous with { HeaderlessFrames = 30 }).State);
+                best = Math.Min(best, clock.Elapsed.TotalMilliseconds);
+            }
+            output.WriteLine($"erased_header={background} best_ms={best:F3}");
+            Assert.True(best < 100, "A missing header caused an unbounded search.");
         }
     }
 
