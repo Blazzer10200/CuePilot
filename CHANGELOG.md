@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.3.18 - 2026-09-29 - Pickpocket finds the panel on busy scenes, plus a session analyzer
+
+- Pickpocket no longer loses the panel over grass and pale clothing. On those scenes the detector saw 100+ marker-like stems and one junk stem could spend the whole header-search budget before the real marker was checked. Each search pass now has its own budget.
+- Dense (solid) marker stems get extra header probes: wider scale candidates and the resolution-derived panel scale over a few row offsets, because scenery joined to the stem inflates its length and shifts its middle off the bar row. While a panel is tracked, its known bar row is tried first.
+- A single Hidden frame no longer wipes tracking: the engine keeps the last panel as a 400 ms search hint (header-less continuation and fast sampling stay available). Timing and attempt-end logic are unchanged.
+- Scored offline on 11,459 saved frames: 43 of 44 frames the live engine had lost are now read; cold-start misses on frames with a readable panel went from 26 of 84 (last session) to 1 in the whole corpus; median analysis 1 ms. Not yet confirmed in live play.
+- New `--analyze-pickpocket <session|latest>` prints a plain verdict for a recorded session (flicker, false attempt end, never armed, search missed, header unreadable), re-reads every saved frame with the current detector and writes `ANALYSIS.md`. `--pickpocket-corpus <folder>` scores the detector over every saved session. See `docs/pickpocket-debugging.md`.
+- Thin Red/Yellow timing (0 of 3 since 5.3.15) is unchanged and still open.
+
 ## 5.3.17 - 2026-09-28 - Smoother, smarter notifications and a faster Pickpocket
 
 - Notifications slide in and now slide out too, instead of vanishing. A new notification for the same activity replaces the card in place rather than queueing behind it, and events that land together are collapsed into one card, so stale text no longer flashes up.

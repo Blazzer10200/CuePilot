@@ -37,18 +37,48 @@ internal static class PickpocketDetector
         // instead of the whole region. Shorter analysis leaves more of the frame
         // age budget for the press, and any failure falls back to the full scan
         // below, so this narrows work without narrowing what can be detected.
-        // One search per frame, shared by every pass below. The budget bounds the
-        // header work for the whole image, so a localized pass that falls back to
-        // the full scan cannot spend it twice.
-        var searchWork = new HeaderSearch();
+        // Every pass gets its own header budget. On grass or pale clothing the wide
+        // pass finds hundreds of marker-like stems and one of them can spend the
+        // whole budget, which starved the solid-stem pass that holds the real marker.
         if (TrackedBounds(bounds, previous) is Rectangle near)
         {
-            var tracked = ScanStems(pixels, near, previous, 36, searchWork) ?? ScanStems(pixels, near, previous, 3, searchWork);
+            var tracked = ScanStems(pixels, near, previous, 36, new HeaderSearch()) ?? ScanStems(pixels, near, previous, 3, new HeaderSearch());
             if (IsTrackedContinuation(tracked, previous))
                 return StabilizeMarkerOcclusion(tracked!, previous);
         }
-        var best = ScanStems(pixels, bounds, previous, 36, searchWork) ?? ScanStems(pixels, bounds, previous, 3, searchWork);
+        var best = ScanStems(pixels, bounds, previous, 36, new HeaderSearch()) ?? ScanStems(pixels, bounds, previous, 3, new HeaderSearch());
         return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
+    }
+
+    /// <summary>
+    /// Offline diagnostics only (the session analyzer sets it, live capture never does).
+    /// When non-null, each rejection point below records why, so "Hidden" stops being
+    /// an opaque answer. The live path pays one null check per rejection.
+    /// </summary>
+    [ThreadStatic] internal static List<string>? Ledger;
+
+    internal sealed record PanelProbe(PickpocketVisualState HeaderState, double HeaderScore, double HeaderText, double HeaderBackground,
+        bool MarkerFound, double MarkerX, IReadOnlyList<PickpocketBand> Bands);
+
+    /// <summary>
+    /// Offline: what a frame shows at a KNOWN bar, without trusting the status header.
+    /// <paramref name="bar"/> is in this bitmap's coordinates. Separates "the panel is not
+    /// there" (no marker, no target intervals) from "the panel is there but its header is
+    /// unreadable" (marker and intervals present, low header score).
+    /// </summary>
+    internal static PanelProbe ProbePanel(Bitmap frame, Rectangle bar)
+    {
+        using var pixels = new Pixels(frame);
+        var scale = bar.Width / 576d;
+        var y = bar.Top + bar.Height / 2;
+        var header = MatchHeaderDetailed(pixels, bar.Left, y, scale);
+        var area = Rectangle.Intersect(new Rectangle(0, 0, frame.Width, frame.Height),
+            Rectangle.FromLTRB(bar.Left - 3, bar.Top - (int)Math.Ceiling(30 * scale), bar.Right + 3, bar.Bottom + (int)Math.Ceiling(30 * scale)));
+        var stems = area.IsEmpty ? [] : FindStems(pixels, area, 3);
+        var found = stems.Count > 0;
+        var anchor = found ? stems.OrderByDescending(s => s.Density * s.Length).First() : default;
+        var bands = ReadBands(pixels, bar.Left, Math.Min(bar.Right, frame.Width) - 1, found ? anchor.X : -10000, y, scale);
+        return new PanelProbe(header.State, header.Score, header.Foreground, header.Background, found, found ? StemCentroid(stems, anchor) : double.NaN, bands);
     }
 
     /// <summary>
@@ -88,6 +118,33 @@ internal static class PickpocketDetector
     private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap, HeaderSearch searchWork)
     {
         PickpocketObservation? best = null;
+        var stems = FindStems(pixels, bounds, maximumGap);
+        Ledger?.Add($"scan gap={maximumGap}: {stems.Count} marker-like stem(s)"
+            + (stems.Count == 0 ? " (no green marker column found in the search area)"
+                : ": " + string.Join(", ", stems.Take(4).Select(s => $"x={s.X} len={s.Length} density={s.Density:F2}"))));
+        // Keep the occluded-marker path first. If scenery joins it into a long
+        // green column, recover with short gaps and rank solid stems before
+        // spending a separate bounded header budget. Neither path skips identity checks.
+        var candidates = maximumGap == 36 ? stems.AsEnumerable()
+            : stems.OrderByDescending(stem => stem.Density).ThenByDescending(stem => stem.Length);
+        (int X, int Top, int Length, double Density)? bestStem = null;
+        var inspected = 0;
+        foreach (var stem in candidates.Take(16))
+        {
+            inspected++;
+            var candidate = InspectStem(pixels, stem.X, stem.Top, stem.Length, stem.Density, previous, searchWork);
+            if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) { best = candidate; bestStem = stem; }
+            if (searchWork.Exhausted) break;
+        }
+        Ledger?.Add($"scan gap={maximumGap}: inspected {inspected} of {stems.Count} stems" + (searchWork.Exhausted ? "; HEADER SEARCH BUDGET EXHAUSTED" : "") + (best is null ? "; none accepted" : ""));
+        // Identity checks ran on one integer column. Report the marker at the
+        // hit-weighted centre of its adjacent stem columns so the motion fit and
+        // the result offset are not quantised to whole pixels.
+        return best is not null && bestStem is { } anchor ? best with { MarkerX = StemCentroid(stems, anchor) } : best;
+    }
+
+    private static List<(int X, int Top, int Length, double Density)> FindStems(Pixels pixels, Rectangle bounds, int maximumGap)
+    {
         var stems = new List<(int X, int Top, int Length, double Density)>();
         // The protruding green stem is longer than the colored bands. Scan columns
         // without copying a full-screen buffer or performing template-pyramid searches.
@@ -118,22 +175,7 @@ internal static class PickpocketDetector
                 hits = 0;
             }
         }
-        // Keep the occluded-marker path first. If scenery joins it into a long
-        // green column, recover with short gaps and rank solid stems before
-        // spending a separate bounded header budget. Neither path skips identity checks.
-        var candidates = maximumGap == 36 ? stems.AsEnumerable()
-            : stems.OrderByDescending(stem => stem.Density).ThenByDescending(stem => stem.Length);
-        (int X, int Top, int Length, double Density)? bestStem = null;
-        foreach (var stem in candidates.Take(16))
-        {
-            var candidate = InspectStem(pixels, stem.X, stem.Top, stem.Length, previous, searchWork);
-            if (candidate is not null && (best is null || candidate.Confidence > best.Confidence)) { best = candidate; bestStem = stem; }
-            if (searchWork.Exhausted) break;
-        }
-        // Identity checks ran on one integer column. Report the marker at the
-        // hit-weighted centre of its adjacent stem columns so the motion fit and
-        // the result offset are not quantised to whole pixels.
-        return best is not null && bestStem is { } anchor ? best with { MarkerX = StemCentroid(stems, anchor) } : best;
+        return stems;
     }
 
     private static double StemCentroid(List<(int X, int Top, int Length, double Density)> stems, (int X, int Top, int Length, double Density) anchor)
@@ -179,16 +221,44 @@ internal static class PickpocketDetector
         return observation with { Bands = bands };
     }
 
-    private static PickpocketObservation? InspectStem(Pixels pixels, int x, int top, int length, PickpocketObservation? previous, HeaderSearch searchWork)
+    private static PickpocketObservation? InspectStem(Pixels pixels, int x, int top, int length, double density, PickpocketObservation? previous, HeaderSearch searchWork)
     {
-        var y = top + length / 2;
-        if (IsMarker(pixels.At(x - 6, y)) || IsMarker(pixels.At(x + 6, y))) return null;
-        if (ContinueTrackedPanel(pixels, x, y, previous, searchWork) is { } continued) return continued;
+        var center = top + length / 2;
+        // Scenery touching one end of the stem moves its middle several pixels off
+        // the bar, which misaligns the header template. While a settled panel is
+        // tracked, try its known bar row first when the stem still spans it.
+        if (previous is { State: PickpocketVisualState.Active, Bar.Width: > 0 } tracked
+            && x >= tracked.Bar.Left - 3 && x <= tracked.Bar.Right + 3)
+        {
+            var barY = tracked.Bar.Top + tracked.Bar.Height / 2;
+            if (barY != center && Math.Abs(barY - center) <= 12 && barY >= top && barY < top + length
+                && InspectStemAt(pixels, x, top, length, density, barY, previous, searchWork) is { } snapped) return snapped;
+        }
+        return InspectStemAt(pixels, x, top, length, density, center, previous, searchWork);
+    }
+
+    private static PickpocketObservation? InspectStemAt(Pixels pixels, int x, int top, int length, double density, int y, PickpocketObservation? previous, HeaderSearch searchWork)
+    {
+        if (IsMarker(pixels.At(x - 6, y)) || IsMarker(pixels.At(x + 6, y)))
+        {
+            Ledger?.Add($"stem x={x} len={length}: rejected, marker-colored pixels 6 px to its side (scenery joined to the stem)");
+            return null;
+        }
+        if (ContinueTrackedPanel(pixels, x, y, previous, searchWork) is { } continued)
+        {
+            Ledger?.Add($"stem x={x} len={length}: kept Active by header-less continuation (frame {continued.HeaderlessFrames} without a readable header)");
+            return continued;
+        }
         // Anchor the panel to the status header and marker geometry, independently
         // of item count, ordering, spacing, and duplicate colors.
-        var panel = LocatePanel(pixels, x, y, length, previous, searchWork);
-        if (panel is null) return null;
-        var (left, scale, state, confidence) = panel.Value;
+        var panel = LocatePanel(pixels, x, y, length, density, previous, searchWork);
+        if (panel is null)
+        {
+            Ledger?.Add($"stem x={x} len={length}: no status header matched, so the panel was not verified");
+            return null;
+        }
+        var (left, scale, state, confidence, panelY) = panel.Value;
+        y = panelY;
         var width = (int)Math.Round(576 * scale);
         var right = left + width - 1;
         if (left < 0 || right >= pixels.Width) return null;
@@ -197,7 +267,12 @@ internal static class PickpocketDetector
         if (state == PickpocketVisualState.Missed)
             return new PickpocketObservation(state, bar, x, [], confidence, "Missed result verified; target intervals are no longer actionable.");
         var bands = ReadBands(pixels, left, right, x, y, scale);
-        if (bands.Count is < 1 or > 16) return null;
+        if (bands.Count is < 1 or > 16)
+        {
+            Ledger?.Add($"stem x={x}: header read as {state} ({confidence:F2}) but {bands.Count} target interval(s) found (need 1-16)");
+            return null;
+        }
+        Ledger?.Add($"stem x={x}: accepted as {state} (header score {confidence:F2}, {bands.Count} intervals)");
         return new PickpocketObservation(state, bar, x, bands, confidence, "Status header, marker, and current target intervals verified independently.");
     }
 
@@ -214,10 +289,21 @@ internal static class PickpocketDetector
     /// </summary>
     private static PickpocketObservation? ContinueTrackedPanel(Pixels pixels, int x, int y, PickpocketObservation? previous, HeaderSearch searchWork)
     {
-        if (previous is not { State: PickpocketVisualState.Active } prior || prior.Bar.Width <= 0
-            || prior.HeaderlessFrames >= MaximumHeaderlessFrames
-            || Math.Abs(prior.Bar.Top + prior.Bar.Height / 2 - y) > 3
-            || x < prior.Bar.Left - 3 || x > prior.Bar.Right + 3) return null;
+        if (previous is not { State: PickpocketVisualState.Active } prior || prior.Bar.Width <= 0)
+        {
+            Ledger?.Add("header-less continuation unavailable: the previous frame was not Active, so tracking had been reset");
+            return null;
+        }
+        if (prior.HeaderlessFrames >= MaximumHeaderlessFrames)
+        {
+            Ledger?.Add($"header-less continuation exhausted: {prior.HeaderlessFrames} frames in a row without a readable header");
+            return null;
+        }
+        if (Math.Abs(prior.Bar.Top + prior.Bar.Height / 2 - y) > 3 || x < prior.Bar.Left - 3 || x > prior.Bar.Right + 3)
+        {
+            Ledger?.Add("header-less continuation: this stem is not on the tracked bar");
+            return null;
+        }
         var scale = prior.Bar.Width / 576d;
         // Same key LocatePanel tries first, so this costs no extra header work.
         if (searchWork.Match(pixels, prior.Bar.Left, y, scale).Score >= .85) return null;
@@ -238,12 +324,18 @@ internal static class PickpocketDetector
             // The marker can hide or split an interval it overlaps.
             if (markerX >= old.Left - occlusion && markerX <= old.Right + occlusion) continue;
             if (!current.Any(band => band.Color == old.Color && Math.Abs(band.Left - old.Left) <= tolerance && Math.Abs(band.Right - old.Right) <= tolerance))
+            {
+                Ledger?.Add($"header-less continuation failed: the {old.Color} interval at x={old.Left:F0}-{old.Right:F0} is not at the same pixels now"
+                    + $" (frame shows: {(current.Count == 0 ? "no intervals" : string.Join(", ", current.Select(b => $"{b.Color} {b.Left:F0}-{b.Right:F0}")))})");
                 return false;
+            }
             matched++;
         }
         // Overlap, not containment: the previous frame's marker may have hidden an edge.
         var nothingNew = current.Where(Wide).All(band => prior.Any(old => old.Color == band.Color
             && band.Left <= old.Right + tolerance && band.Right >= old.Left - tolerance));
+        if (matched < 1) Ledger?.Add("header-less continuation failed: no wide interval away from the marker to compare");
+        else if (!nothingNew) Ledger?.Add("header-less continuation failed: a new wide interval appeared inside the bar");
         return matched >= 1 && nothingNew;
     }
 
@@ -282,8 +374,8 @@ internal static class PickpocketDetector
         return bands;
     }
 
-    private static (int Left, double Scale, PickpocketVisualState State, double Confidence)? LocatePanel(
-        Pixels pixels, int markerX, int y, int length, PickpocketObservation? previous, HeaderSearch searchWork)
+    private static (int Left, double Scale, PickpocketVisualState State, double Confidence, int Y)? LocatePanel(
+        Pixels pixels, int markerX, int y, int length, double density, PickpocketObservation? previous, HeaderSearch searchWork)
     {
         if (previous is { State: not PickpocketVisualState.Hidden } && previous.Bar.Width > 0
             && Math.Abs(previous.Bar.Top + previous.Bar.Height / 2 - y) <= 3)
@@ -291,7 +383,7 @@ internal static class PickpocketDetector
             var priorScale = previous.Bar.Width / 576d;
             var match = searchWork.Match(pixels, previous.Bar.Left, y, priorScale);
             if (match.Score >= .85 && markerX >= previous.Bar.Left - 3 && markerX <= previous.Bar.Right + 3)
-                return (previous.Bar.Left, priorScale, match.State, match.Score);
+                return (previous.Bar.Left, priorScale, match.State, match.Score, y);
         }
         var estimate = Math.Round(length / 45d * 40) / 40;
         var scales = new[] { estimate, estimate - .025, estimate + .025, estimate - .05, estimate + .05 }.Where(s => s >= .5).ToArray();
@@ -300,7 +392,37 @@ internal static class PickpocketDetector
             var left = (int)Math.Round((pixels.Width - 576 * scale) / 2);
             if (markerX < left - 3 || markerX > left + 576 * scale + 3) continue;
             var match = searchWork.Match(pixels, left, y, scale);
-            if (match.Score >= .85) return (left, scale, match.State, match.Score);
+            if (match.Score >= .85) return (left, scale, match.State, match.Score, y);
+        }
+        // A solid stem is very likely the real marker, but scenery touching its ends makes it
+        // longer than the panel implies, so the length-based scale estimate can be off by more
+        // than the usual tolerance. Try wider scales at the centered position before the
+        // expensive sparse scan.
+        if (density >= .6)
+            foreach (var offset in new[] { -.075, .075, -.1, .1, -.125, .125, -.15 })
+            {
+                var scale = estimate + offset;
+                if (scale < .5) continue;
+                var left = (int)Math.Round((pixels.Width - 576 * scale) / 2);
+                if (markerX < left - 3 || markerX > left + 576 * scale + 3) continue;
+                var match = searchWork.Match(pixels, left, y, scale);
+                if (match.Score >= .85) return (left, scale, match.State, match.Score, y);
+            }
+        if (density >= .6)
+        {
+            // Scenery also shifts the stem's middle off the bar row. The panel scale follows the capture
+            // width (the UI scales with a 16:9 window), so probe that scale over a few row offsets.
+            var natural = Math.Round(pixels.Width * .000744 * 40) / 40;
+            foreach (var scale in new[] { natural, natural - .025, natural + .025 })
+            {
+                var left = (int)Math.Round((pixels.Width - 576 * scale) / 2);
+                if (scale < .5 || markerX < left - 3 || markerX > left + 576 * scale + 3) continue;
+                foreach (var dy in new[] { 0, -3, 3, -6, 6, -9, 9, -12, 12 })
+                {
+                    var match = searchWork.Match(pixels, left, y + dy, scale);
+                    if (match.Score >= .85) return (left, scale, match.State, match.Score, y + dy);
+                }
+            }
         }
         // Non-centered/cropped layouts: sparsely prefilter glyph cores before the
         // full header check. This path is acquisition only when tracking is valid.
@@ -322,15 +444,37 @@ internal static class PickpocketDetector
                 // positive/negative mask remains the acceptance gate.
                 if (hits < 4) continue;
                 var match = searchWork.Match(pixels, left, y, scale);
-                if (match.Score >= .80) return (left, scale, match.State, match.Score);
+                if (match.Score >= .80) return (left, scale, match.State, match.Score, y);
             }
         }
+        if (Ledger is not null) LedgerHeaderProbes(pixels, y, length, previous, searchWork.Exhausted);
         return null;
+    }
+
+    private static void LedgerHeaderProbes(Pixels pixels, int y, int length, PickpocketObservation? previous, bool exhausted)
+    {
+        var probes = new List<(int Left, double Scale, string Where)>();
+        if (previous is { Bar.Width: > 0 }) probes.Add((previous.Bar.Left, previous.Bar.Width / 576d, "at the last known bar"));
+        var estimate = Math.Round(length / 45d * 40) / 40;
+        if (estimate >= .5) probes.Add(((int)Math.Round((pixels.Width - 576 * estimate) / 2), estimate, "centered"));
+        foreach (var (left, scale, where) in probes)
+        {
+            var m = MatchHeaderDetailed(pixels, left, y, scale);
+            Ledger!.Add($"  header probe {where}: best {m.State} score {m.Score:F2} (needs 0.85): text found {m.Foreground:P0}, clean background {m.Background:P0}");
+        }
+        if (exhausted) Ledger!.Add("  header search budget (96 positions) was used up before a match");
     }
 
     private static (PickpocketVisualState State, double Score) MatchHeader(Pixels pixels, int left, int y, double scale)
     {
-        var best = (State: PickpocketVisualState.Uncertain, Score: 0d);
+        var detailed = MatchHeaderDetailed(pixels, left, y, scale);
+        return (detailed.State, detailed.Score);
+    }
+
+    /// <summary>Score is min(text found, clean background); the two parts say which one failed.</summary>
+    private static (PickpocketVisualState State, double Score, double Foreground, double Background) MatchHeaderDetailed(Pixels pixels, int left, int y, double scale)
+    {
+        var best = (State: PickpocketVisualState.Uncertain, Score: 0d, Foreground: 0d, Background: 0d);
         Span<ulong> text = stackalloc ulong[HeaderWordCount];
         Span<ulong> brightText = stackalloc ulong[HeaderWordCount];
         text.Clear();
@@ -363,7 +507,7 @@ internal static class PickpocketDetector
                     var foreground = positives / (double)header.Foreground.Length;
                     var background = negatives / (double)header.Background.Length;
                     var score = Math.Min(foreground, background);
-                    if (score > best.Score) best = (header.State, score);
+                    if (score > best.Score) best = (header.State, score, foreground, background);
                 }
             }
         }

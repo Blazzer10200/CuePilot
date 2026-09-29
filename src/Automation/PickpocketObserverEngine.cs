@@ -150,6 +150,11 @@ internal sealed class PickpocketObserverEngine : IDisposable
             var yellowCalibration = sessionState.Calibrate(PickpocketBandColor.Yellow, yellowAdvance);
             var calibration = $"Thin-target timing from history: {redCalibration.Describe()} | {yellowCalibration.Describe()}.";
             PickpocketObservation? previous = null;
+            // A lone Hidden read is usually a misread, not the panel leaving. Keep the last panel as a
+            // search hint for a short while so reacquisition can use header-less continuation and the
+            // known bar row, and keep sampling fast. Never used for timing or attempt logic.
+            PickpocketObservation? trackingHint = null;
+            var trackingHintUntil = 0d;
             var targetTracker = new PickpocketTargetTracker();
             var itemReader = new PickpocketItemReader();
             var sweepTracker = new PickpocketSweepTracker();
@@ -181,6 +186,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         foregroundSeen = false;
                         preparationSeen = false;
                         previous = null;
+                        trackingHint = null;
                         selected = null;
                         lastTarget = null;
                         lastLoop = 0;
@@ -218,7 +224,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     // cannot shift the motion fit or make a stale image look fresh.
                     var presentation = capture.PresentationMilliseconds
                         ?? (capture.FrameAge == TimeSpan.MaxValue ? double.NaN : capturedAt - capture.FrameAge.TotalMilliseconds);
-                    var observation = analyze(frame.Bitmap, previous);
+                    var observation = analyze(frame.Bitmap, previous ?? trackingHint);
                     observation = itemReader.Annotate(frame.Bitmap, observation, presentation);
                     var analyzedAt = NowMs();
                     token.ThrowIfCancellationRequested();
@@ -327,8 +333,10 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         lastPublish = analyzedAt;
                     }
                     previous = observation.State == PickpocketVisualState.Hidden ? null : observation;
+                    if (previous is not null) { trackingHint = previous; trackingHintUntil = analyzedAt + 400; }
+                    else if (analyzedAt > trackingHintUntil) trackingHint = null;
                 }
-                var interval = previous?.State == PickpocketVisualState.Active && attempts.RemainingMs(NowMs()) == 0 ? 16 : 67;
+                var interval = (previous ?? trackingHint)?.State == PickpocketVisualState.Active && attempts.RemainingMs(NowMs()) == 0 ? 16 : 67;
                 // Capture keeps running through an owned Space hold; wake early to
                 // release it on time. Stop and the finally block release it regardless.
                 var wake = loopStart + interval;

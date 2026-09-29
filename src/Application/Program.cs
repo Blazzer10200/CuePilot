@@ -67,6 +67,10 @@ internal static class Program
         var pickpocketReplay = ArgumentValue(args, "--replay-pickpocket");
         if (pickpocketReplay is not null) return PickpocketReplay.Run(pickpocketReplay, ArgumentValue(args, "--target-color"), ArgumentDouble(args, "--advance-ms", 8));
 
+        if (args.Contains("--pickpocket-corpus", StringComparer.OrdinalIgnoreCase)) return PickpocketSessionAnalyzer.RunCorpus(ArgumentValue(args, "--pickpocket-corpus"));
+var pickpocketAnalyze = ArgumentValue(args, "--analyze-pickpocket");
+        if (pickpocketAnalyze is not null) return PickpocketSessionAnalyzer.Run(pickpocketAnalyze, !args.Contains("--no-frames", StringComparer.OrdinalIgnoreCase));
+
         Console.Error.WriteLine("CuePilot Engine is started by the Tauri desktop application. Use --self-test or a documented probe command for direct execution.");
         return 2;
     }

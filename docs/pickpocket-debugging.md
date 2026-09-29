@@ -69,6 +69,25 @@ reconstructed later. Use **Open logs** to open the local evidence directory.
    latest verified result from historical proposals and records applicable
    release checks.
 
+## Session analyzer
+
+Run after any pickpocket attempt, including one still recording. From the repo root:
+
+```powershell
+dotnet run --project CuePilot.csproj -c Release --no-build -- --analyze-pickpocket latest
+dotnet run --project CuePilot.csproj -c Release --no-build -- --analyze-pickpocket <session folder> [--no-frames]
+```
+
+It prints a plain verdict and writes `ANALYSIS.md` into the session folder. The verdict names the failure: panel flicker, false attempt end (3 s Hidden before the cooldown with no result), never armed, panel readable but missed by the search (header-search budget exhausted or the real marker never inspected), or panel present with an unreadable header. It also re-reads every saved frame with today's detector, cold and with the live tracking history, and prints the detector's own reason ledger for each miss. Saved PNGs are crops, so a cold read of a crop is stricter than the live full-region read; trust the warm read and the verdict counts.
+
+To score a detector change against every saved session at once (about 2.5 minutes for ~11k frames), run the corpus mode. It rebuilds each crop onto a full-size canvas, then reports regressions on frames the engine once read Active, gains on frames it lost, cold search misses, false-positive candidates and analysis time. Set `CUEPILOT_ANALYZE_VERBOSE=1` to print the whole reason ledger per frame instead of six lines.
+
+```powershell
+dotnet run --project CuePilot.csproj -c Release --no-build -- --pickpocket-corpus "$env:LOCALAPPDATA\CuePilot\diagnostics\pickpocket"
+```
+
+Test runs also write tiny "Pickpocket stopped" sessions here; ignore sessions with fewer than ~10 files.
+
 ## Offline replay
 
 Replay reads images and reports hypothetical scheduling only; it never creates

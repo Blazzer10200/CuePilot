@@ -68,7 +68,7 @@ live timing proof.
 
 1. [src/Automation/PickpocketSessionState.cs](../src/Automation/PickpocketSessionState.cs) — versioned bounded attempt history and cooldown persistence.
 2. [src/Automation/PickpocketObserverEngine.cs](../src/Automation/PickpocketObserverEngine.cs) — completion metadata and history query boundary.
-3. [src/Diagnostics/PickpocketDiagnosticSession.cs](../src/Diagnostics/PickpocketDiagnosticSession.cs) / `PickpocketReplay.cs` — bounded evidence and pixel replay with explicit timing overrides.
+3. [src/Diagnostics/PickpocketDiagnosticSession.cs](../src/Diagnostics/PickpocketDiagnosticSession.cs) / `PickpocketReplay.cs` — bounded evidence and pixel replay with explicit timing overrides. `PickpocketSessionAnalyzer.cs` (`--analyze-pickpocket`) turns one session into a verdict plus per-frame detector reason ledger.
 4. [ui/src/lib/activities/PickpocketHistory.svelte](../ui/src/lib/activities/PickpocketHistory.svelte) / `history.ts` — paginated history, selected report and timing labels.
    [PickpocketWorkspace.svelte](../ui/src/lib/activities/PickpocketWorkspace.svelte) switches Live / History / Reference; [PickpocketLiveWorkspace.svelte](../ui/src/lib/activities/PickpocketLiveWorkspace.svelte) is the window-sized live view; [pickpocket-session.ts](../ui/src/lib/activities/pickpocket-session.ts) derives the header status badge and cooldown.
 5. [ui/src-tauri/src/support.rs](../ui/src-tauri/src/support.rs) / [ui/src/lib/SupportCenter.svelte](../ui/src/lib/SupportCenter.svelte) — safe session resolution, health, timeline, and text-only export.
