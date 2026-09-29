@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 
 namespace CuePilot.Tests;
 
+[Collection("Detector timing")]
 public sealed class PickpocketTests(ITestOutputHelper output)
 {
     [Theory]
