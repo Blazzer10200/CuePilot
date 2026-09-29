@@ -17,14 +17,87 @@ pub(crate) fn log(kind: &str, detail: &str) {
     let Ok(_guard) = LOG_LOCK.lock() else { return };
     let Ok(root) = root() else { return };
     let _ = fs::create_dir_all(&root);
-    let path = root.join("shell.jsonl");
-    if fs::metadata(&path).is_ok_and(|m| m.len() >= 1024 * 1024) {
-        return;
-    }
     let event = json!({"timeUnixMs": SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
         "kind": kind, "detail": detail.chars().take(2048).collect::<String>(), "shellVersion": env!("CARGO_PKG_VERSION")});
+    append_shell_log(&root, &event, SHELL_LOG_CAP);
+}
+
+const SHELL_LOG_CAP: u64 = 1024 * 1024;
+
+fn append_shell_log(root: &Path, event: &Value, cap: u64) {
+    let path = root.join("shell.jsonl");
+    if fs::metadata(&path).is_ok_and(|m| m.len() >= cap) {
+        let _ = fs::rename(&path, root.join("shell.1.jsonl"));
+    }
     if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(file, "{event}");
+    }
+}
+
+fn replace_ignore_ascii_case(text: &str, needle: &str, with: &str) -> String {
+    if needle.is_empty() {
+        return text.to_owned();
+    }
+    let (lower, needle) = (text.to_ascii_lowercase(), needle.to_ascii_lowercase());
+    let mut out = String::with_capacity(text.len());
+    let mut from = 0;
+    while let Some(at) = lower[from..].find(&needle) {
+        out.push_str(&text[from..from + at]);
+        out.push_str(with);
+        from += at + needle.len();
+    }
+    out.push_str(&text[from..]);
+    out
+}
+
+fn redact_user_paths(text: &str) -> String {
+    let mut text = text.to_owned();
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        let profile = profile.trim_end_matches(['\\', '/']);
+        if !profile.is_empty() {
+            text = replace_ignore_ascii_case(&text, profile, "%USERPROFILE%");
+            text = replace_ignore_ascii_case(&text, &profile.replace('\\', "/"), "%USERPROFILE%");
+        }
+    }
+    let lower = text.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut from = 0;
+    let mut i = 1;
+    while i + 8 <= bytes.len() {
+        let marker = &bytes[i..i + 8];
+        if bytes[i - 1].is_ascii_alphabetic() && (marker == b":\\users\\" || marker == b":/users/")
+        {
+            let name_start = i + 8;
+            let name_end = text[name_start..]
+                .find(|c: char| {
+                    matches!(c, '\\' | '/' | '"' | '\'' | '<' | '>' | '|') || c.is_whitespace()
+                })
+                .map_or(text.len(), |n| name_start + n);
+            if name_end > name_start {
+                out.push_str(&text[from..name_start]);
+                out.push_str("<user>");
+                from = name_end;
+                i = name_end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out.push_str(&text[from..]);
+    out
+}
+
+fn redact_report(value: &Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(redact_user_paths(text)),
+        Value::Array(items) => Value::Array(items.iter().map(redact_report).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), redact_report(item)))
+                .collect(),
+        ),
+        other => other.clone(),
     }
 }
 
@@ -216,6 +289,38 @@ mod tests {
         assert!(super::session_path("pickpocket", "C:\\windows").is_err());
         assert!(super::activity_directory("../").is_err());
     }
+
+    #[test]
+    fn report_redacts_user_profile_path() {
+        let report = serde_json::json!({
+            "sessionId": "pickpocket-1",
+            "report": "Local evidence: C:\\Users\\Jane\\AppData\\Local\\CuePilot\\diagnostics\\pickpocket\\x\nat c:/users/Jane/src/a.cs:9 and D:\\Users\\Jane\\b",
+            "decisions": ["failed in C:\\Users\\Jane\\AppData", "no path here"],
+            "bounded": true,
+        });
+        let text = super::redact_report(&report).to_string();
+        assert!(!text.contains("Jane"), "{text}");
+        assert!(text.contains(r"C:\\Users\\<user>\\AppData"), "{text}");
+        assert!(text.contains("c:/users/<user>/src") && text.contains("no path here"));
+        assert!(text.contains("\"bounded\":true"));
+        let clean = r"C:\Windows\Users\x and Users:\ and C:\Users\";
+        assert_eq!(super::redact_user_paths(clean), clean);
+    }
+
+    #[test]
+    fn shell_log_rotates_at_cap() {
+        let dir = std::env::temp_dir().join(format!("cuepilot-shell-log-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for n in 0..6 {
+            super::append_shell_log(&dir, &serde_json::json!({"n": n}), 20);
+        }
+        let current = std::fs::read_to_string(dir.join("shell.jsonl")).unwrap();
+        let rotated = std::fs::read_to_string(dir.join("shell.1.jsonl")).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(current.contains("{\"n\":5}"), "{current}");
+        assert!(!rotated.is_empty());
+    }
 }
 
 #[tauri::command]
@@ -223,7 +328,7 @@ pub(crate) fn export_evidence_report(
     activity: String,
     session_id: String,
 ) -> Result<String, String> {
-    let report = support_report(activity.clone(), session_id.clone())?;
+    let report = redact_report(&support_report(activity.clone(), session_id.clone())?);
     let export_root = root()?.join("exports");
     fs::create_dir_all(&export_root).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
@@ -237,7 +342,7 @@ pub(crate) fn export_evidence_report(
         serde_json::to_vec_pretty(&report).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    fs::write(destination.join("manifest.json"), json!({"schemaVersion":1,"activity":activity,"sessionId":session_id,"included":["report.json"],"omitted":["screenshots","raw traces"],"note":"Local evidence may contain machine details. Review before sharing."}).to_string()).map_err(|e| e.to_string())?;
+    fs::write(destination.join("manifest.json"), json!({"schemaVersion":1,"activity":activity,"sessionId":session_id,"included":["report.json"],"omitted":["screenshots","raw traces"],"redacted":["user profile paths"],"note":"Local evidence may contain machine details. Review before sharing."}).to_string()).map_err(|e| e.to_string())?;
     Ok(format!(
         "Text evidence exported to {}",
         destination.display()
