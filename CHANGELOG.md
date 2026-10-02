@@ -1,5 +1,18 @@
 # Changelog
 
+## 5.3.21 - 2026-10-02 - Pickpocket: the shortcut always arms, and failures leave evidence
+
+Fixed
+
+- Pressing the Pickpocket key sometimes did nothing at all. In Automatic and Precision modes the key toggled the run, and a run never ended after its one tap, so the next press before a pickpocket stopped the run instead of arming one. A one-tap run now ends once its attempt is over, and in those modes the key always arms a fresh run (pressing it while a run is up restarts it). Pause / Break stops. Observe still toggles.
+- Arming after the panel had already appeared, or coming back from alt-tab, left the run unable to fire for that whole minigame, because input waited for the short fade-in. Three frames in a row of the panel with its header verified now arm input too. Frames read without the header never arm.
+
+Diagnostics
+
+- Every Pickpocket key press is logged to `diagnostics/pickpocket/shortcuts.jsonl` with what it did (started, restarted, stopped, refused and why).
+- An automatic run that ends without pressing Space writes `incident.json` into its session folder and a line to `incidents.jsonl`: no panel seen, panel seen but never armed, armed but no shot (with the last reason), or a manual Space press. `--analyze-pickpocket` shows it first.
+- While searching, a frame is saved every second for the first 30 seconds of a run (at most 30), so a panel the detector missed leaves a picture. No per-frame work was added.
+
 ## 5.3.20 - 2026-09-29 - Pickpocket: wide targets follow your real input delay
 
 Fixed
