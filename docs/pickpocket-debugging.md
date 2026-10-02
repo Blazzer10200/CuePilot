@@ -33,10 +33,14 @@ investigation before changing settings.
   the lead in use plus how far past center each shot stopped, so it follows a
   slower or faster machine in either direction. The Timing view and the debug
   report show the values in use.
-- **Safety:** F7 starts or stops a Pickpocket run. A new run must see Preparing
-  before input can arm. A manual Space press, Stop, an error, or a cooldown
-  closes the input gate. Focus loss pauses the run: tracking restarts on return
-  and input waits for a new Preparing state.
+- **Safety:** In the one-tap modes, F7 always arms a fresh run (a press while a
+  run is up restarts it), and a run ends by itself once its attempt is over, so
+  press F7 before each pickpocket. Pause / Break stops. In Observe, F7 still
+  starts or stops. Input arms after a Preparing state or three header-verified
+  Active frames in a row, so arming after the panel is up still works. A manual
+  Space press, Stop, an error, or a cooldown closes the input gate. Focus loss
+  pauses the run: tracking restarts on return and input waits for the panel to
+  be verified again.
 - **Capture:** Fishing releases desktop capture when its run
   ends. A report showing `Desktop GDI` with `E_INVALIDARG` means another
   duplication of that monitor was still open; Pickpocket cannot time a tap then. Pause / Break is the emergency stop and
@@ -59,7 +63,7 @@ reconstructed later. Use **Open logs** to open the local evidence directory.
 
 ## Failure triage
 
-1. Stop the run with F7 or Pause / Break. Do not change timing while a run is
+1. Stop the run with Pause / Break (or F7 in Observe). Do not change timing while a run is
    active.
 2. Open the saved evidence and establish the observed sequence: Preparing,
    Active, predicted candidate or rejection reason, key count, and final

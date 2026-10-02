@@ -1019,7 +1019,7 @@
           bind:value={pickpocketShortcutDraft}
           label="Pickpocket start and stop shortcut"
           descriptionId="settings-description"
-          description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press once to arm one precision tap; press again to stop." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press once to arm one wide-target tap; press again to stop." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
+          description={`${engine.snapshot?.pickpocket?.inputMode === "PrecisionAttempt" ? "Press before each pickpocket to arm one precision tap. Pause / Break stops." : engine.snapshot?.pickpocket?.inputMode === "SingleAttempt" ? "Press before each pickpocket to arm one wide-target tap. Pause / Break stops." : "Press once to observe; press again to stop. Space stays manual."} F8 is reserved for FiveM.`}
           defaultBinding={defaultShortcuts.pickpocket}
           taken={takenShortcuts("pickpocket")}
         />

@@ -149,9 +149,17 @@ internal static class UiBridge
                         case "toggle_pickpocket_observe":
                             if (command == "toggle_pickpocket_observe" && pickpocket.IsObserving)
                             {
-                                pickpocket.Stop("Stopped from the pickpocket shortcut.");
-                                Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
-                                break;
+                                // In one-tap modes the key always arms the next pickpocket: a press
+                                // while a run is still up restarts it fresh. A toggle here turned
+                                // "press before each pickpocket" into every other press stopping
+                                // the run. Pause / Break remains the stop key.
+                                if (pickpocket.Status.InputMode == "Observe")
+                                {
+                                    pickpocket.Stop("Stopped from the pickpocket shortcut.");
+                                    Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
+                                    break;
+                                }
+                                pickpocket.Stop("Restarted from the pickpocket shortcut.");
                             }
                             EnsureStopped(routine.State, "Pickpocket observation");
                             var pickpocketTargets = findFiveMTargets();

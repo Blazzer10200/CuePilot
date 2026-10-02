@@ -174,6 +174,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
             var start = NowMs();
             var foregroundSeen = false;
             var preparationSeen = false;
+            var verifiedActive = 0;
+            var attemptFinished = false;
             while (!token.IsCancellationRequested && NowMs() - start < 600_000)
             {
                 var window = resolve(target);
@@ -186,6 +188,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         // tracking restarts and input again needs a fresh Preparing state.
                         foregroundSeen = false;
                         preparationSeen = false;
+                        verifiedActive = 0;
                         previous = null;
                         trackingHint = null;
                         selected = null;
@@ -240,6 +243,11 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     if (automatic && completion) input.Disarm("Attempt ended; arm a new test explicitly.");
                     if (observation.State == PickpocketVisualState.Preparing && previous?.State != PickpocketVisualState.Preparing)
                     { predictor.Reset(); selected = null; lastTarget = null; targetTracker.Reset(); preparationSeen = true; spaceWasDown = false; }
+                    // The fade-in lasts ~250 ms and is sampled every ~67 ms, so arming late or
+                    // returning from alt-tab used to miss it and leave the run unable to fire.
+                    // Three header-verified Active frames in a row prove a live panel just as well.
+                    verifiedActive = observation.State == PickpocketVisualState.Active && observation.HeaderlessFrames == 0 ? verifiedActive + 1 : 0;
+                    if (verifiedActive >= 3 && attempts.RemainingMs(analyzedAt) == 0) preparationSeen = true;
                     if (observation.State == PickpocketVisualState.Hidden)
                     {
                         selected = null;
@@ -336,6 +344,9 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     previous = observation.State == PickpocketVisualState.Hidden ? null : observation;
                     if (previous is not null) { trackingHint = previous; trackingHintUntil = analyzedAt + 400; }
                     else if (analyzedAt > trackingHintUntil) trackingHint = null;
+                    // A one-tap run has nothing left to do once its attempt ends. Ending it here
+                    // means the next shortcut press always arms the next pickpocket.
+                    if (automatic && completion) { attemptFinished = true; break; }
                 }
                 var interval = (previous ?? trackingHint)?.State == PickpocketVisualState.Active && attempts.RemainingMs(NowMs()) == 0 ? 16 : 67;
                 // Capture keeps running through an owned Space hold; wake early to
@@ -348,7 +359,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
                 input.ReleaseIfDue();
             }
             token.ThrowIfCancellationRequested();
-            latest = latest with { Observing = false, State = "Stopped", Detail = "Ten-minute observation limit reached.", Prediction = null };
+            latest = latest with { Observing = false, State = "Stopped", Prediction = null,
+                Detail = attemptFinished ? "Attempt finished. Press the Pickpocket key before the next one." : "Ten-minute observation limit reached." };
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         { latest = latest with { Observing = false, State = "Stopped", Detail = Volatile.Read(ref stopReason), Prediction = null }; }

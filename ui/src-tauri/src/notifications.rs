@@ -205,17 +205,23 @@ impl Notice {
             "toggle_pickpocket_observe" => {
                 let pickpocket = &snapshot["pickpocket"];
                 let notice = if pickpocket["observing"].as_bool().unwrap_or(false) {
-                    let armed = match pickpocket["inputMode"].as_str().unwrap_or("Observe") {
-                        "PrecisionAttempt" => "Armed for one precision tap.",
-                        "SingleAttempt" => "Armed for one wide-target tap.",
-                        _ => "Watching the minigame. Space stays manual.",
+                    let detail = match pickpocket["inputMode"].as_str().unwrap_or("Observe") {
+                        "PrecisionAttempt" => format!(
+                            "Armed for one precision tap. Press {shortcut} before each pickpocket."
+                        ),
+                        "SingleAttempt" => format!(
+                            "Armed for one wide-target tap. Press {shortcut} before each pickpocket."
+                        ),
+                        _ => format!(
+                            "Watching the minigame. Space stays manual. Press {shortcut} again to stop."
+                        ),
                     };
                     Self::new(
                         "Pickpocket",
                         "hand",
                         Tone::Info,
                         "Pickpocket started",
-                        format!("{armed} Press {shortcut} again to stop."),
+                        detail,
                     )
                 } else {
                     Self::new(
@@ -1156,7 +1162,7 @@ mod tests {
         assert_eq!(started.title, "Pickpocket started");
         assert_eq!(
             started.detail,
-            "Armed for one precision tap. Press Mouse 4 again to stop."
+            "Armed for one precision tap. Press Mouse 4 before each pickpocket."
         );
         assert_eq!(started.duration_ms, SHORTCUT_DURATION_MS);
 

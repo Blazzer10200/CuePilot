@@ -8,12 +8,14 @@ namespace CuePilot.Tests;
 public sealed class PickpocketInputTests
 {
     [Theory]
-    [InlineData("SingleAttempt", true, 1)]
-    [InlineData("SingleAttempt", false, 0)]
-    [InlineData("Observe", true, 0)]
-    [InlineData("PrecisionAttempt", true, 1)]
-    [InlineData("PrecisionAttempt", false, 0)]
-    public async Task EngineRequiresNewPreparationAndRecordsOneTapThenDisarms(string mode, bool preparation, int expectedPresses)
+    [InlineData("SingleAttempt", true, false, 1)]
+    [InlineData("SingleAttempt", false, false, 1)] // Armed late: verified Active frames stand in for the fade-in.
+    [InlineData("SingleAttempt", false, true, 0)]  // Header-less Active frames never arm.
+    [InlineData("Observe", true, false, 0)]
+    [InlineData("PrecisionAttempt", true, false, 1)]
+    [InlineData("PrecisionAttempt", false, false, 1)]
+    [InlineData("PrecisionAttempt", false, true, 0)]
+    public async Task EngineArmsOnPreparationOrVerifiedPanelAndRecordsOneTapThenEnds(string mode, bool preparation, bool headerless, int expectedPresses)
     {
         var sent = new List<bool>();
         var input = new PickpocketInputController(up => sent.Add(up));
@@ -31,13 +33,25 @@ public sealed class PickpocketInputTests
                 var state = preparation && count <= 2 ? PickpocketVisualState.Preparing
                     : input.PressCount > 0 || elapsed > 1000 ? PickpocketVisualState.Grabbed : PickpocketVisualState.Active;
                 return new(state, new Rectangle(0, 100, 576, 23), 80 + elapsed * .38,
-                    [new(PickpocketBandColor.White, 250, 450)], 1, "Synthetic pipeline fixture");
+                    [new(PickpocketBandColor.White, 250, 450)], 1, "Synthetic pipeline fixture") { HeaderlessFrames = headerless ? 1 : 0 };
             });
         var completed = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
-        observer.StatusChanged += (_, status) => { if (status.State == "Cooldown") completed.TrySetResult(status); };
+        var ended = new TaskCompletionSource<PickpocketObserveStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        observer.StatusChanged += (_, status) =>
+        {
+            if (status.State == "Cooldown") completed.TrySetResult(status);
+            if (completed.Task.IsCompleted && !status.Observing && status.State == "Stopped") ended.TrySetResult(status);
+        };
         observer.Configure("Widest", mode);
         observer.Start(new() { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
         var result = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        if (mode != "Observe")
+        {
+            // A one-tap run ends itself once its attempt is over, so the next key press arms afresh.
+            var end = await ended.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Contains("Attempt finished", end.Detail);
+            Assert.True(SpinWait.SpinUntil(() => !observer.IsObserving, 2000));
+        }
         observer.Stop();
         Assert.Equal(expectedPresses, result.AutomatedPressCount);
         Assert.Equal(expectedPresses * 2, sent.Count);

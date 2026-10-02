@@ -26,8 +26,9 @@ An activity becomes **Ready for automatic input** only after it has:
 
 Until those conditions pass, do not label the activity Ready. Pickpocket remains
 calibration-only: it defaults to observation and its explicitly selected
-one-attempt modes require a new Preparing state, send at most one bounded tap,
-and disarm on completion, manual input, Stop, or error. Successful automatic
+one-attempt modes require a new Preparing state or three header-verified Active
+frames, send at most one bounded tap, and disarm on completion, manual input,
+Stop, or error. Successful automatic
 wide-target delivery is evidenced, but that does not make narrow-target timing
 generally calibrated. Other activities retain their existing input gates.
 
@@ -37,14 +38,14 @@ generally calibrated. Other activities retain their existing input gates.
 
 The live workspace reads the current regions and marker through the .NET observer. The default target policy is **Rarest → Common** (`RarestFirst`: Yellow, Red, Purple, Blue, White by detected color, then known item rank, then width); **Widest** (widest upcoming region), the Purple-Blue-White policy and a custom color order are selectable, and a color choice selects a region without claiming an item identity. Layouts are reacquired every popup, including uneven spacing and repeated known colors. The reference tab retains the explicitly labeled Luxury Watch recording and its local saved selection.
 
-Capture, presentation age, analysis timing, bounded evidence, and an engine-owned three-minute cooldown are connected through the bridge. A recognized grab/miss after Active, or a panel missing for three seconds after Active (three frames once the run's tap is spent), starts cooldown; a result with no Active before it is ignored. The persisted cooldown survives app restart when its state can be saved and restored. Focus loss or minimizing pauses the run and requires a fresh Preparing state on return; a ten-minute limit ends it. Two manual live grabs verified the detector, 16.8 ms sampling cadence, and complete result capture.
+Capture, presentation age, analysis timing, bounded evidence, and an engine-owned three-minute cooldown are connected through the bridge. A recognized grab/miss after Active, or a panel missing for three seconds after Active (three frames once the run's tap is spent), starts cooldown; a result with no Active before it is ignored. The persisted cooldown survives app restart when its state can be saved and restored. Focus loss or minimizing pauses the run and requires the panel to be verified again on return; a one-tap run ends once its attempt completes, and a ten-minute limit ends any run. Two manual live grabs verified the detector, 16.8 ms sampling cadence, and complete result capture.
 
 Observation remains the startup default. The selected automatic mode requires a
-fresh Preparing state, verified DXGI prediction, unchanged foreground window
+fresh Preparing state or three header-verified Active frames, verified DXGI prediction, unchanged foreground window
 and bounds, no physical Space press, and no cooldown. It performs a final gate
 check before one owned 35 ms Space tap; Stop or cancellation closes the gate and
-releases that key, and focus loss releases it and pauses until a new Preparing state. Stop preserves the selected mode, but only a
-new explicit F7 start arms another attempt. Use
+releases that key, and focus loss releases it and pauses until the panel is verified again. Stop preserves the selected mode, but only a
+new explicit F7 press arms another attempt; in the one-tap modes F7 always arms (restarting a live run) and Pause / Break stops. Use
 [Pickpocket debugging](pickpocket-debugging.md) for current operating guidance;
 the historical plan and evidence remain under `docs/history/` and
 [pickpocket-evidence.md](pickpocket-evidence.md).
