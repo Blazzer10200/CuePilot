@@ -31,11 +31,20 @@ internal static class UiBridge
         Func<AppSettings> loadSettings,
         Action<AppSettings> saveSettings,
         Func<IReadOnlyList<WindowTargetService.FiveMWindowTarget>> findFiveMTargets,
-        PickpocketSessionState? pickpocketState = null)
+        PickpocketSessionState? pickpocketState = null,
+        string? shortcutLogPath = null)
     {
         var settings = loadSettings();
+        var shortcutLog = shortcutLogPath ?? PickpocketFlightRecorder.DefaultShortcutLogPath;
+        var awaitingSession = 0;
         using var routine = new AdaptiveRoutineEngine();
         using var pickpocket = new PickpocketObserverEngine(sessionState: pickpocketState);
+        void LogShortcut(string command, bool wasObserving, string action, string? error) =>
+            PickpocketFlightRecorder.Append(shortcutLog, new
+            {
+                timeUtc = DateTime.UtcNow, command, wasObserving, action,
+                inputMode = pickpocket.Status.InputMode, error,
+            });
         settings.Pickpocket.Normalize();
         pickpocket.Configure(settings.Pickpocket.TargetPolicy, settings.Pickpocket.InputMode,
             settings.Pickpocket.RedAdvanceMs, settings.Pickpocket.YellowAdvanceMs, settings.Pickpocket.CustomPriority, settings.Pickpocket.ItemPriority);
@@ -50,7 +59,12 @@ internal static class UiBridge
         };
         routine.StatusChanged += statusChanged;
         EventHandler<PickpocketObserveStatus> pickpocketStatusChanged = (_, observeStatus) =>
+        {
+            // The evidence folder only exists once the worker creates it, so the run's session id lands as a follow-up line.
+            if (observeStatus.EvidenceDirectory.Length > 0 && Interlocked.Exchange(ref awaitingSession, 0) == 1)
+                PickpocketFlightRecorder.Append(shortcutLog, new { timeUtc = DateTime.UtcNow, @event = "session", sessionId = Path.GetFileName(observeStatus.EvidenceDirectory), evidenceDirectory = observeStatus.EvidenceDirectory });
             Emit(output, "pickpocket_status", observeStatus);
+        };
         pickpocket.StatusChanged += pickpocketStatusChanged;
         try
         {
@@ -118,6 +132,7 @@ internal static class UiBridge
                             }
                             break;
                         case "stop":
+                            LogShortcut(command, pickpocket.IsObserving, "stopped", null);
                             pickpocket.Stop();
                             routine.Stop("Stopped from CuePilot.");
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets(), debug: routine.DebugSnapshot));
@@ -147,27 +162,42 @@ internal static class UiBridge
                             break;
                         case "start_pickpocket_observe":
                         case "toggle_pickpocket_observe":
-                            if (command == "toggle_pickpocket_observe" && pickpocket.IsObserving)
+                            var wasObserving = pickpocket.IsObserving;
+                            var shortcutAction = "started";
+                            try
                             {
-                                // In one-tap modes the key always arms the next pickpocket: a press
-                                // while a run is still up restarts it fresh. A toggle here turned
-                                // "press before each pickpocket" into every other press stopping
-                                // the run. Pause / Break remains the stop key.
-                                if (pickpocket.Status.InputMode == "Observe")
+                                if (command == "toggle_pickpocket_observe" && wasObserving)
                                 {
-                                    pickpocket.Stop("Stopped from the pickpocket shortcut.");
-                                    Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
-                                    break;
+                                    // In one-tap modes the key always arms the next pickpocket: a press
+                                    // while a run is still up restarts it fresh. A toggle here turned
+                                    // "press before each pickpocket" into every other press stopping
+                                    // the run. Pause / Break remains the stop key.
+                                    if (pickpocket.Status.InputMode == "Observe")
+                                    {
+                                        pickpocket.Stop("Stopped from the pickpocket shortcut.");
+                                        LogShortcut(command, wasObserving, "stopped", null);
+                                        Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
+                                        break;
+                                    }
+                                    pickpocket.Stop("Restarted from the pickpocket shortcut.");
+                                    shortcutAction = "restarted";
                                 }
-                                pickpocket.Stop("Restarted from the pickpocket shortcut.");
+                                EnsureStopped(routine.State, "Pickpocket observation");
+                                var pickpocketTargets = findFiveMTargets();
+                                EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, pickpocketTargets);
+                                pickpocket.Start(settings.Routine.TargetWindow);
+                                Interlocked.Exchange(ref awaitingSession, 1);
+                                LogShortcut(command, wasObserving, shortcutAction, null);
+                                Respond(output, id, true, Snapshot(settings, ReadStatus(), pickpocketTargets));
                             }
-                            EnsureStopped(routine.State, "Pickpocket observation");
-                            var pickpocketTargets = findFiveMTargets();
-                            EnsureFiveMTargetAvailable(settings.Routine.TargetWindow, pickpocketTargets);
-                            pickpocket.Start(settings.Routine.TargetWindow);
-                            Respond(output, id, true, Snapshot(settings, ReadStatus(), pickpocketTargets));
+                            catch (Exception shortcutFailure)
+                            {
+                                LogShortcut(command, wasObserving, "rejected", shortcutFailure.Message);
+                                throw;
+                            }
                             break;
                         case "stop_pickpocket_observe":
+                            LogShortcut(command, pickpocket.IsObserving, "stopped", null);
                             pickpocket.Stop();
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
                             break;

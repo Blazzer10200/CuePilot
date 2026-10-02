@@ -131,6 +131,10 @@ internal sealed class PickpocketObserverEngine : IDisposable
         var precision = mode == "PrecisionAttempt";
         PickpocketDiagnosticSession? diagnostics = null;
         var latest = Status;
+        int runActive = 0, runHidden = 0, fastHiddenSaves = 0;
+        var everArmed = false;
+        var lastActiveReason = "";
+        var firstForeground = -1d;
         try
         {
             diagnostics = createDiagnostics(policy, target);
@@ -213,6 +217,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     continue;
                 }
                 foregroundSeen = true;
+                if (firstForeground < 0) firstForeground = NowMs();
                 var loopStart = NowMs();
                 var sampleInterval = lastLoop == 0 ? 0 : loopStart - lastLoop;
                 lastLoop = loopStart;
@@ -239,6 +244,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     if (automatic && spaceEdge) input.Disarm("Manual Space observed; automatic input cancelled for this run.");
                     if (manualDown.HasValue) spaceWasDown = manualDown.Value;
                     samples++;
+                    if (observation.State == PickpocketVisualState.Active) runActive++;
+                    else if (observation.State == PickpocketVisualState.Hidden) runHidden++;
                     var completion = attempts.Observe(observation.State, analyzedAt, automatic && input.Consumed);
                     if (automatic && completion) input.Disarm("Attempt ended; arm a new test explicitly.");
                     if (observation.State == PickpocketVisualState.Preparing && previous?.State != PickpocketVisualState.Preparing)
@@ -248,6 +255,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     // Three header-verified Active frames in a row prove a live panel just as well.
                     verifiedActive = observation.State == PickpocketVisualState.Active && observation.HeaderlessFrames == 0 ? verifiedActive + 1 : 0;
                     if (verifiedActive >= 3 && attempts.RemainingMs(analyzedAt) == 0) preparationSeen = true;
+                    if (preparationSeen) everArmed = true;
                     if (observation.State == PickpocketVisualState.Hidden)
                     {
                         selected = null;
@@ -306,6 +314,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         if (input.PressCount > countBefore) { predictions++; predictor.MarkAttempted(); shotAttempt = attempts.Attempt; }
                     }
                     else if (prediction.CanSchedule) { predictions++; predictor.MarkAttempted(); }
+                    if (observation.State == PickpocketVisualState.Active) lastActiveReason = prediction.Reason;
                     var next = new PickpocketObserveStatus(true, cooldown > 0 ? "Cooldown" : observation.State == PickpocketVisualState.Hidden ? "Searching" : "Tracking",
                         diagnostics.Error is { } evidenceError ? $"Evidence saving failed: {evidenceError}"
                             : cooldown > 0 ? "Three-minute cooldown is active. Input is disarmed." : input.Delivery?.Detail ?? prediction.Reason,
@@ -323,7 +332,11 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     var critical = changed || prediction.CanSchedule || completion || spaceEdge || input.PressCount > countBefore;
                     if (critical || observation.State == PickpocketVisualState.Active || analyzedAt - lastTrace >= 500)
                     {
-                        var saveImage = critical || analyzedAt - lastImage >= (observation.State == PickpocketVisualState.Active ? 50 : 5000);
+                        // Searching: one frame a second for the first 30 s in front, so a missed panel leaves
+                        // pictures. Capped at 30 so it can never eat the 112 non-critical image slots Active needs.
+                        var fastSearch = observation.State != PickpocketVisualState.Active && analyzedAt - firstForeground < 30_000 && fastHiddenSaves < 30;
+                        var saveImage = critical || analyzedAt - lastImage >= (observation.State == PickpocketVisualState.Active ? 50 : fastSearch ? 1000 : 5000);
+                        if (saveImage && !critical && fastSearch) fastHiddenSaves++;
                         diagnostics.Queue(next, frame.Bitmap, saveImage, critical);
                         if (completion)
                         {
@@ -381,6 +394,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
                 latest = latest with { Debug = diagnostics.Snapshot() };
             }
             else latest = latest with { Debug = new("Error", 0, 0, 0, 0, latest.Detail, $"Recorder could not start: {latest.Detail}") };
+            if (diagnostics is not null && automatic && input.PressCount == 0)
+                PickpocketFlightRecorder.WriteIncident(diagnostics.DirectoryPath, latest, runActive, runHidden, everArmed, lastActiveReason);
             Publish(latest with { Observing = false, Observation = PickpocketObservation.Missing });
         }
     }

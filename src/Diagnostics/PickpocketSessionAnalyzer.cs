@@ -40,7 +40,7 @@ internal static partial class PickpocketSessionAnalyzer
         Console.WriteLine($"Analyzing session folder: {directory}");
         var audits = frames ? AuditFrames(directory, samples) : [];
         var summaryPath = Path.Combine(directory, "summary.json");
-        var report = Build(Path.GetFileName(directory), samples, audits, File.Exists(summaryPath), ReadRecorderState(summaryPath));
+        var report = Build(Path.GetFileName(directory), samples, audits, File.Exists(summaryPath), ReadRecorderState(summaryPath), PickpocketFlightRecorder.ReadIncidentSummary(directory));
         try { File.WriteAllText(Path.Combine(directory, "ANALYSIS.md"), report); } catch (IOException) { }
         Console.WriteLine(report);
         return 0;
@@ -250,7 +250,7 @@ internal static partial class PickpocketSessionAnalyzer
     private static IEnumerable<string> Compact(IEnumerable<string> ledger) =>
         ledger.GroupBy(l => l.Trim()).Select(g => g.Count() > 1 ? $"{g.Key}  (x{g.Count()})" : g.Key);
 
-    internal static string Build(string session, IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, bool finished, string? recorderState = null)
+    internal static string Build(string session, IReadOnlyList<Sample> samples, IReadOnlyList<FrameAudit> audits, bool finished, string? recorderState = null, string? incident = null)
     {
         var t0 = samples.FirstOrDefault(s => s.Ms > 0)?.Ms ?? samples[0].Ms;
         string At(double ms) => ((ms - t0) / 1000).ToString("F2", CultureInfo.InvariantCulture) + "s";
@@ -263,6 +263,7 @@ internal static partial class PickpocketSessionAnalyzer
         report.AppendLine();
 
         report.AppendLine("## Verdict");
+        if (incident is not null) report.AppendLine($"- [!!] **Incident** {incident}");
         foreach (var finding in Diagnose(samples, audits, At, recorderState)) report.AppendLine($"- {(finding.Problem ? "[!!]" : "[ok]")} **{finding.Title}** {finding.Detail}");
         report.AppendLine();
 
