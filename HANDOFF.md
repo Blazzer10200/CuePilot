@@ -1,4 +1,4 @@
-# Handoff — CuePilot 5.3.20 — 2026-09-29
+# Handoff — CuePilot 5.3.21 (local) — 2026-10-02
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
@@ -6,7 +6,19 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Session — 2026-10-02 (Pickpocket arming fix, unreleased)
 
-### Completed
+**Status: waiting on the user's live play.** 5.3.21 is installed locally (not pushed, not published). The user will collect pickpockets over several days (one or two per sitting) and come back with "read the pickpocket results".
+
+### Completed (part 2)
+- Flight recorder `e7c5749`: `src/Diagnostics/PickpocketFlightRecorder.cs` — `UiBridge` logs every shortcut press + what it did to `shortcuts.jsonl`; a run that ends without tapping writes a categorized record to `incidents.jsonl`; Hidden frames saved every 1 s for the first 30 s of a run (cap 30); `--analyze-pickpocket` shows the incident first. Both files rotate at 1 MiB.
+- Release commit `0d2c374`: version 5.3.21 in all six files, CHANGELOG entry. Gates green except one known-flaky Fishing timing test under full-suite load (passes 3/3 alone).
+- Packaged + installed `release/velopack/CuePilotDesktop-win-Setup.exe` `--silent`. Single installed entry 5.3.21; old 5.3.20 replaced. First launch hung in WebView creation (backlog 5); relaunch from the shortcut started fine (setup_begin 5337 ms, engine sidecar up).
+- Dev background cleaned: .NET build servers shut down; no dev servers running.
+
+### Next (when the user returns)
+1. Read `%LOCALAPPDATA%\CuePilot\diagnostics\shortcuts.jsonl` + `incidents.jsonl`, then `--analyze-pickpocket` on each new session. Backlog 15.
+2. If it holds up: merge `fix/pickpocket-arming` → `main`, push, tag v5.3.21 (needs the user's OK).
+
+### Completed (part 1)
 - Analyzed 26 live 5.3.20 sessions (copies in `tmp/corpus-live/`, originals untouched) + full history scan (`tmp/all-active-sessions.txt`). **Detection 23/23** on panels that appeared; 18 Grabbed / 5 Missed, all misses thin Red (4 px), 4 of 5 landed 3-7 px late. Full history: 20 of 335 automatic runs never tapped, 0 since 5.3.18; causes = manual Space (11), never saw Preparing, GDI fallback (pre-5.3.11).
 - Root cause of "pressed F7, it never tried": F7 toggled (`UiBridge.cs` toggle case) and one-tap runs never ended after their attempt, so the next press stopped the run; plus input required the ~250 ms Preparing fade-in (sampled every ~67 ms), so late arming or alt-tab forfeited the minigame.
 - Fix committed `186c5ff` on `fix/pickpocket-arming` (branched from `main`): one-tap runs end after attempt completion (`PickpocketObserverEngine.cs`, `attemptFinished`), F7 in one-tap modes always (re)starts an armed run (Observe still toggles; Pause stops), 3 header-verified Active frames (`HeaderlessFrames == 0`) arm like Preparing. Popup/Settings/docs text updated. `verify.ps1 -All` green (dotnet 444, vitest 54, Playwright 30, cargo 52, clippy/fmt).
@@ -15,10 +27,11 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 - F7 = always arm, not toggle, in one-tap modes — user's 5.3.20 habit is F7 start → F7 stop seconds after result; auto-end alone would just shift the toggle by one press.
 - Header-less continuation frames never arm — keeps false-positive protection the Preparing gate gave.
 
-### Next Steps
-1. **Flight recorder before more fixes** (user frustration: "you've said it's solved for weeks"; fixes were only ever verified offline): log every shortcut press with what it did (started / restarted / stopped / rejected + reason) into the engine session or `shell.jsonl` (today shortcuts are not logged at all); add a "that failed" mark hotkey that saves the last ~10 s ring buffer of frames + states; save a Hidden frame ~1/s instead of 1/5 s (`PickpocketObserverEngine.cs` saveImage, mind the 128-image cap).
-2. Release 5.3.21 (needs user OK: version bump in six files, push, tag), then user plays 10-20 pickpockets; run `--analyze-pickpocket` per session.
-3. Thin Red timing (backlog 12) stays separate; 9 fresh shots is too few to retune.
+- No "mark failure" hotkey: runs that never fire write an incident automatically instead (no new cross-layer command, lower load).
+- Local install instead of publishing: publishing needs the user's explicit OK.
+
+### Notes
+- Thin Red timing (backlog 12) stays separate; 9 fresh shots is too few to retune.
 
 ### Gotchas
 - `chore/harness-audit-20260929` holds unmerged `759947b` (Cargo.toml only) — the fix branch does not include it.
@@ -30,10 +43,11 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 | | |
 | --- | --- |
-| Branch | `fix/pickpocket-arming` (`186c5ff`, unpushed) off `main`; `main` is the released 5.3.20 line |
-| Source version | **5.3.20** in all six release files |
+| Branch | `fix/pickpocket-arming` (`186c5ff` → `0d2c374` + docs, all unpushed) off `main`; `main` is the released 5.3.20 line |
+| Source version | **5.3.21** in all six release files on the fix branch; `main` is still 5.3.20 |
+| Installed locally (current) | **5.3.21** local build from `release/velopack/CuePilotDesktop-win-Setup.exe`, installed `--silent` 2026-10-02; replaced 5.3.20. Not the CI build |
 | Published | **v5.3.20** is the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
-| Installed locally | **5.3.20** from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
+| Previously installed | **5.3.20** (replaced 2026-10-02) from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
 | Package | `release/velopack/` holds 5.3.17 – 5.3.19 packages, Setup.exe, Portable.zip (local build; the official CI build differs byte-for-byte). Never delete the directory to clean up a build |
 | Last gates | 2026-09-29 `verify.ps1 -All` on 5.3.20: dotnet 442, vitest, Playwright, cargo 52, svelte-check, clippy all green |
 | Release CI | The tag run failed twice on runner flakes before passing on the third attempt: a 100 ms wall-clock assertion in `PickpocketPixelLatencyTests` (109.6 ms on the runner, now best-of-three) and `net::ERR_NO_BUFFER_SPACE` from Playwright's `page.goto`. Rerun with `gh run rerun <id> --failed` before assuming a real regression |
