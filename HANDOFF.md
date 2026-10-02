@@ -4,11 +4,33 @@ The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 ar
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
 user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## Session — 2026-10-02 (Pickpocket arming fix, unreleased)
+
+### Completed
+- Analyzed 26 live 5.3.20 sessions (copies in `tmp/corpus-live/`, originals untouched) + full history scan (`tmp/all-active-sessions.txt`). **Detection 23/23** on panels that appeared; 18 Grabbed / 5 Missed, all misses thin Red (4 px), 4 of 5 landed 3-7 px late. Full history: 20 of 335 automatic runs never tapped, 0 since 5.3.18; causes = manual Space (11), never saw Preparing, GDI fallback (pre-5.3.11).
+- Root cause of "pressed F7, it never tried": F7 toggled (`UiBridge.cs` toggle case) and one-tap runs never ended after their attempt, so the next press stopped the run; plus input required the ~250 ms Preparing fade-in (sampled every ~67 ms), so late arming or alt-tab forfeited the minigame.
+- Fix committed `186c5ff` on `fix/pickpocket-arming` (branched from `main`): one-tap runs end after attempt completion (`PickpocketObserverEngine.cs`, `attemptFinished`), F7 in one-tap modes always (re)starts an armed run (Observe still toggles; Pause stops), 3 header-verified Active frames (`HeaderlessFrames == 0`) arm like Preparing. Popup/Settings/docs text updated. `verify.ps1 -All` green (dotnet 444, vitest 54, Playwright 30, cargo 52, clippy/fmt).
+
+### Key Decisions
+- F7 = always arm, not toggle, in one-tap modes — user's 5.3.20 habit is F7 start → F7 stop seconds after result; auto-end alone would just shift the toggle by one press.
+- Header-less continuation frames never arm — keeps false-positive protection the Preparing gate gave.
+
+### Next Steps
+1. **Flight recorder before more fixes** (user frustration: "you've said it's solved for weeks"; fixes were only ever verified offline): log every shortcut press with what it did (started / restarted / stopped / rejected + reason) into the engine session or `shell.jsonl` (today shortcuts are not logged at all); add a "that failed" mark hotkey that saves the last ~10 s ring buffer of frames + states; save a Hidden frame ~1/s instead of 1/5 s (`PickpocketObserverEngine.cs` saveImage, mind the 128-image cap).
+2. Release 5.3.21 (needs user OK: version bump in six files, push, tag), then user plays 10-20 pickpockets; run `--analyze-pickpocket` per session.
+3. Thin Red timing (backlog 12) stays separate; 9 fresh shots is too few to retune.
+
+### Gotchas
+- `chore/harness-audit-20260929` holds unmerged `759947b` (Cargo.toml only) — the fix branch does not include it.
+- Run the analyzer via `dotnet run --project CuePilot.csproj -c Release --no-build -- --analyze-pickpocket <dir>`; the dll path under `bin/Release/net8.0-windows/` does not exist (real TFM is `net8.0-windows10.0.19041.0/win-x64`).
+
+---
+
 ## Snapshot
 
 | | |
 | --- | --- |
-| Branch | `main` (pushed directly, no PR). The audit fixes were fast-forward merged from `audit/fix-now-5.3.18` (branch left in place, fully merged) |
+| Branch | `fix/pickpocket-arming` (`186c5ff`, unpushed) off `main`; `main` is the released 5.3.20 line |
 | Source version | **5.3.20** in all six release files |
 | Published | **v5.3.20** is the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
 | Installed locally | **5.3.20** from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
