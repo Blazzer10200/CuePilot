@@ -42,8 +42,9 @@ public sealed class PickpocketLiveEvidenceTests(ITestOutputHelper output)
             using var frame = new Bitmap(Path.Combine(DirectoryPath, $"header-glitch-{glitched}.png"));
             var prior = PickpocketDetector.Analyze(before);
             Assert.Equal(PickpocketVisualState.Active, prior.State);
-            // Acquisition still requires a readable header.
-            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame).State);
+            // Acquisition never leans on tracking history. Since 5.3.22 a near-complete lettering match over a busy
+            // background may still read a glitched frame as a fresh, verified panel, but never as a header-less one.
+            Assert.Equal(0, PickpocketDetector.Analyze(frame).HeaderlessFrames);
 
             var tracked = PickpocketDetector.Analyze(frame, previous: prior);
             Assert.Equal(PickpocketVisualState.Active, tracked.State);
@@ -55,9 +56,22 @@ public sealed class PickpocketLiveEvidenceTests(ITestOutputHelper output)
 
             // Moved targets, or an exhausted header-less run, cannot continue.
             var moved = prior with { Bands = prior.Bands.Select(b => b with { Left = b.Left + 20, Right = b.Right + 20 }).ToArray() };
-            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame, previous: moved).State);
-            Assert.Equal(PickpocketVisualState.Hidden, PickpocketDetector.Analyze(frame, previous: prior with { HeaderlessFrames = 30 }).State);
+            Assert.Equal(0, PickpocketDetector.Analyze(frame, previous: moved).HeaderlessFrames);
+            Assert.Equal(0, PickpocketDetector.Analyze(frame, previous: prior with { HeaderlessFrames = 30 }).HeaderlessFrames);
         }
+    }
+
+    [Fact]
+    public void PanelOverBrightScenerySurvivesAnUnreadableBackgroundBehindTheHeader()
+    {
+        // 2026-10-05 session 20261005-203545: white clothing and pavement behind "TIME LEFT" left the lettering at 93%
+        // but the clean background at 72%, so the strict 0.85 header cut read a live panel as Hidden for 3 s and the
+        // run ended without a shot. Fresh acquisition (no tracking history) must still find it.
+        using var frame = new Bitmap(Path.Combine(DirectoryPath, "bright-header-138.png"));
+        var observation = PickpocketDetector.Analyze(frame);
+        Assert.Equal(PickpocketVisualState.Active, observation.State);
+        Assert.Equal(0, observation.HeaderlessFrames);
+        Assert.Equal(4, observation.Bands.Count);
     }
 
     [Fact]

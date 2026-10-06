@@ -33,10 +33,12 @@ investigation before changing settings.
   the lead in use plus how far past center each shot stopped, so it follows a
   slower or faster machine in either direction. The Timing view and the debug
   report show the values in use.
-- **Safety:** In the one-tap modes, F7 always arms a fresh run (a press while a
-  run is up restarts it), and a run ends by itself once its attempt is over, so
-  press F7 before each pickpocket. Pause / Break stops. In Observe, F7 still
-  starts or stops. Input arms after a Preparing state or three header-verified
+- **Safety:** In the one-tap modes with **auto-arm** on (the default), F7 is an
+  on/off switch for the whole play session: each run ends after its attempt and
+  the next one starts by itself (it also waits for FiveM to be running). Press F7
+  again or Pause / Break to stop. With auto-arm off, F7 always arms a fresh run
+  (a press while a run is up restarts it) and a run ends once its attempt is
+  over, so press F7 before each pickpocket. In Observe, F7 starts or stops. Input arms after a Preparing state or three header-verified
   Active frames in a row, so arming after the panel is up still works. A manual
   Space press, Stop, an error, or a cooldown closes the input gate. Focus loss
   pauses the run: tracking restarts on return and input waits for the panel to

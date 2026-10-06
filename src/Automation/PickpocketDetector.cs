@@ -47,6 +47,15 @@ internal static class PickpocketDetector
                 return StabilizeMarkerOcclusion(tracked!, previous);
         }
         var best = ScanStems(pixels, bounds, previous, 36, new HeaderSearch()) ?? ScanStems(pixels, bounds, previous, 3, new HeaderSearch());
+        // Last resort, only when the strict search found nothing: over bright scenery (white clothing, pale pavement
+        // behind "TIME LEFT") the header's clean-background share drops to 0.6-0.8 although its lettering matches
+        // almost completely. Accepting that inside the normal search let wrong spots beat the real panel, so it runs
+        // here alone, needs real item cards (two or more intervals), and never overrides a strict result.
+        if (best is null)
+        {
+            var relaxed = ScanStems(pixels, bounds, previous, 36, new HeaderSearch(relaxed: true)) ?? ScanStems(pixels, bounds, previous, 3, new HeaderSearch(relaxed: true));
+            if (relaxed is { Bands.Count: >= 2 }) best = relaxed;
+        }
         return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
     }
 
@@ -424,6 +433,9 @@ internal static class PickpocketDetector
                 }
             }
         }
+        // The relaxed pass stays on the centered layouts above: scanning every column with a lenient header
+        // accepted a stray green icon on a white jacket in a cropped frame.
+        if (searchWork.IsRelaxed) return null;
         // Non-centered/cropped layouts: sparsely prefilter glyph cores before the
         // full header check. This path is acquisition only when tracking is valid.
         foreach (var scale in scales)
@@ -465,14 +477,14 @@ internal static class PickpocketDetector
         if (exhausted) Ledger!.Add("  header search budget (96 positions) was used up before a match");
     }
 
-    private static (PickpocketVisualState State, double Score) MatchHeader(Pixels pixels, int left, int y, double scale)
+    private static (PickpocketVisualState State, double Score) MatchHeader(Pixels pixels, int left, int y, double scale, bool relaxed = false)
     {
-        var detailed = MatchHeaderDetailed(pixels, left, y, scale);
+        var detailed = MatchHeaderDetailed(pixels, left, y, scale, relaxed);
         return (detailed.State, detailed.Score);
     }
 
     /// <summary>Score is min(text found, clean background); the two parts say which one failed.</summary>
-    private static (PickpocketVisualState State, double Score, double Foreground, double Background) MatchHeaderDetailed(Pixels pixels, int left, int y, double scale)
+    private static (PickpocketVisualState State, double Score, double Foreground, double Background) MatchHeaderDetailed(Pixels pixels, int left, int y, double scale, bool relaxed = false)
     {
         var best = (State: PickpocketVisualState.Uncertain, Score: 0d, Foreground: 0d, Background: 0d);
         Span<ulong> text = stackalloc ulong[HeaderWordCount];
@@ -507,6 +519,10 @@ internal static class PickpocketDetector
                     var foreground = positives / (double)header.Foreground.Length;
                     var background = negatives / (double)header.Background.Length;
                     var score = Math.Min(foreground, background);
+                    // Relaxed pass only (see Analyze): near-complete lettering counts as a header despite a busy background.
+                    // Only the live-panel headers qualify; the short result headers also reach 90% text on pale scenery.
+                    if (relaxed && header.State is PickpocketVisualState.Preparing or PickpocketVisualState.Active && foreground >= .90 && background >= .60)
+                        score = Math.Max(score, .85 + (foreground - .90) * .1);
                     if (score > best.Score) best = (header.State, score, foreground, background);
                 }
             }
@@ -573,13 +589,16 @@ internal static class PickpocketDetector
     {
         // Per-frame only: never reuse a header result from an older image.
         private readonly Dictionary<(int Left, int Y, double Scale), (PickpocketVisualState State, double Score)> matches = new();
+        private readonly bool relaxed;
+        internal HeaderSearch(bool relaxed = false) => this.relaxed = relaxed;
+        internal bool IsRelaxed => relaxed;
         internal bool Exhausted => matches.Count >= 96;
         internal (PickpocketVisualState State, double Score) Match(Pixels pixels, int left, int y, double scale)
         {
             var key = (left, y, scale);
             if (matches.TryGetValue(key, out var cached)) return cached;
             if (Exhausted) return (PickpocketVisualState.Uncertain, 0);
-            var result = MatchHeader(pixels, left, y, scale);
+            var result = MatchHeader(pixels, left, y, scale, relaxed);
             matches.Add(key, result);
             return result;
         }

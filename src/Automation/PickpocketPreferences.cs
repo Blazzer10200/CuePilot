@@ -6,6 +6,7 @@ internal sealed record PickpocketPreferences
     public string InputMode { get; set; } = "Observe";
     public int RedAdvanceMs { get; set; } = 11;
     public int YellowAdvanceMs { get; set; } = 20;
+    public bool AutoArm { get; set; } = true;
     public PickpocketBandColor[] CustomPriority { get; set; } = [PickpocketBandColor.Yellow, PickpocketBandColor.Red, PickpocketBandColor.Purple, PickpocketBandColor.Blue, PickpocketBandColor.White];
     public string[] ItemPriority { get; set; } = PickpocketItemReader.Items.Keys.ToArray();
     internal PickpocketPreferences Copy() => this with { CustomPriority = CustomPriority.ToArray(), ItemPriority = ItemPriority.ToArray() };

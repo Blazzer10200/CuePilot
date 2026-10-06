@@ -205,7 +205,11 @@ impl Notice {
             "toggle_pickpocket_observe" => {
                 let pickpocket = &snapshot["pickpocket"];
                 let notice = if pickpocket["observing"].as_bool().unwrap_or(false) {
+                    let auto_arm = pickpocket["autoArm"].as_bool().unwrap_or(false);
                     let detail = match pickpocket["inputMode"].as_str().unwrap_or("Observe") {
+                        "PrecisionAttempt" | "SingleAttempt" if auto_arm => format!(
+                            "Auto-arm on. It re-arms after every pickpocket. Press {shortcut} again to stop."
+                        ),
                         "PrecisionAttempt" => format!(
                             "Armed for one precision tap. Press {shortcut} before each pickpocket."
                         ),

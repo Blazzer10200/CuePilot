@@ -70,6 +70,70 @@ public sealed class PickpocketInputTests
         }
     }
 
+    private static WindowTargetService.ResolvedWindowTarget FiveM() =>
+        new(IntPtr.Zero, 3258, "FiveM_b3258_GTAProcess", "Fixture", new Rectangle(0, 0, 1920, 1080), true, false);
+
+    [Fact]
+    public async Task AutoArmChainsRunsAfterEachAttemptWithoutEverShowingStopped()
+    {
+        var cycles = 0;
+        var started = 0d;
+        var stopping = false;
+        var stoppedEarly = false;
+        var input = new PickpocketInputController(_ => { });
+        using var observer = new PickpocketObserverEngine(() => new EmptyFixtureSource(), _ => FiveM(), _ => false,
+            (_, target) =>
+            {
+                Interlocked.Increment(ref cycles);
+                started = 0;
+                return new("SingleAttempt", target, Path.Combine(Path.GetTempPath(), "CuePilotTests", "pickpocket-input"));
+            }, input,
+            (_, _) =>
+            {
+                var time = HighResolutionSampleClock.NowMilliseconds;
+                if (started == 0) started = time;
+                var elapsed = time - started;
+                var state = input.PressCount > 0 || elapsed > 1000 ? PickpocketVisualState.Grabbed : PickpocketVisualState.Active;
+                return new(state, new Rectangle(0, 100, 576, 23), 80 + elapsed * .38,
+                    [new(PickpocketBandColor.White, 250, 450)], 1, "Synthetic pipeline fixture");
+            });
+        observer.Configure("Widest", "SingleAttempt", autoArm: true);
+        var trail = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        observer.StatusChanged += (_, status) =>
+        {
+            trail.Enqueue($"{(status.Observing ? "obs" : "STOPPED")}/{status.State}/{status.Detail}");
+            if (!status.Observing && !Volatile.Read(ref stopping)) stoppedEarly = true;
+        };
+        observer.Start(new() { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref cycles) >= 2, 10_000), "auto-arm never started a second run");
+        Assert.True(observer.Status.AutoArm);
+        Assert.True(observer.IsObserving);
+        Volatile.Write(ref stopping, true);
+        observer.Stop();
+        Assert.False(stoppedEarly, string.Join(" | ", trail.Where(line => line.StartsWith("STOPPED"))));
+        Assert.False(observer.IsObserving);
+        Assert.False(observer.Status.InputArmed);
+    }
+
+    [Fact]
+    public void AutoArmWaitsForFiveMInsteadOfFaulting()
+    {
+        var present = false;
+        using var observer = new PickpocketObserverEngine(() => new EmptyFixtureSource(),
+            _ => present ? FiveM() : throw new InvalidOperationException("FiveM is not running."), _ => false,
+            (_, target) => new("SingleAttempt", target, Path.Combine(Path.GetTempPath(), "CuePilotTests", "pickpocket-input")),
+            new PickpocketInputController(_ => { }), (_, _) => PickpocketObservation.Missing);
+        observer.Configure("Widest", "SingleAttempt", autoArm: true);
+        observer.Start(new() { ProcessName = "FiveM_b3258_GTAProcess", ProcessId = 3258 });
+        Assert.True(SpinWait.SpinUntil(() => observer.Status.Detail.StartsWith("Auto-arm: waiting for FiveM", StringComparison.Ordinal), 5_000), observer.Status.Detail);
+        Assert.True(observer.Status.Observing);
+        Assert.Equal("Waiting", observer.Status.State);
+        present = true;
+        Assert.True(SpinWait.SpinUntil(() => observer.Status.State == "Searching", 10_000), observer.Status.State);
+        observer.Stop();
+        Assert.False(observer.IsObserving);
+    }
+
     private sealed class EmptyFixtureSource : IFrameSource
     {
         public string Name => "DXGI fixture";

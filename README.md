@@ -46,7 +46,7 @@ Each LMB hold is a feedback-controlled pulse of 35–90 ms at a healthy sample r
 - Current automation state, detector confidence, and processed samples are shown live.
 - Controller settings and local detection evidence are available in focused secondary panels.
 - Each activity shares FiveM window selection, Settings, and Diagnostics. The Support Center provides local build health, recorded sessions, and text report export.
-- Pickpocket uses `F7` by default. In the one-tap modes, press it before each pickpocket to arm one tap (Pause / Break stops); in Observe it starts and stops. `F8` is reserved for the FiveM console.
+- Pickpocket uses `F7` by default. In the one-tap modes with auto-arm on (default), press it once per play session: it re-arms itself after every pickpocket until you press it again or Pause / Break. With auto-arm off, press it before each pickpocket to arm one tap. In Observe it starts and stops. `F8` is reserved for the FiveM console.
 - The Fishing Start / Stop shortcut is rebound by clicking its field in Settings and pressing any key or combo (`Ctrl`/`Shift`/`Alt` plus a key), or a side or middle mouse button (Mouse 4, Mouse 5, middle click). It works while FiveM remains focused. `F8`, `Escape`, the Windows key, and the left and right mouse buttons cannot be bound.
 - `Pause / Break` is the global emergency stop and releases held input.
 - Closing the window hides CuePilot to the notification area; the engine, a running activity, shortcuts, and popups keep working. Left-click the tray icon (or launch CuePilot again) to bring it back, and right-click it → **Quit CuePilot** to exit.

@@ -67,7 +67,7 @@ export interface FishingSetupCheck {
 export type PickpocketColor = "White" | "Purple" | "Red" | "PaleGreen" | "Blue" | "Yellow";
 export type PickpocketPolicy = "Widest" | "PurpleBlueWhite" | "RarestFirst" | "Custom" | PickpocketColor;
 export type PickpocketInputMode = "Observe" | "SingleAttempt" | "PrecisionAttempt";
-export interface PickpocketTiming { redAdvanceMs: number; yellowAdvanceMs: number; customPriority?: PickpocketColor[]; itemPriority?: string[]; }
+export interface PickpocketTiming { redAdvanceMs: number; yellowAdvanceMs: number; customPriority?: PickpocketColor[]; itemPriority?: string[]; autoArm?: boolean; }
 export interface PickpocketRecentAttempt {
   id: string; endedAtUnixMs: number; outcome: "Grabbed" | "Missed" | "Ended";
   color: PickpocketColor | null; widthPixels: number | null; offsetPixels: number | null; automaticPresses: number;
@@ -81,6 +81,7 @@ export interface PickpocketObserveStatus {
   customPriority?: PickpocketColor[];
   itemPriority?: string[];
   inputMode?: PickpocketInputMode;
+  autoArm?: boolean;
   redAdvanceMs?: number;
   yellowAdvanceMs?: number;
   calibration?: string | null;

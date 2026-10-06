@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.3.22 - 2026-10-05 - Pickpocket: auto-arm, and panels over bright scenery are no longer lost
+
+Added
+
+- **Auto-arm** (on by default, switch under Pickpocket > Run, Automatic and Precision modes). Press the shortcut once per play session. The run now watches for the minigame, taps once, then re-arms itself for the next pickpocket until you press the shortcut again or Pause / Break. It also survives the 10-minute limit and FiveM closing or restarting (it waits and re-attaches), and stops by itself after five failures in five minutes with the reason shown. Each pickpocket keeps its own evidence folder and history row. Idle re-armed runs save fewer search pictures (one every 20 s, no start-of-run burst) and write no `no-panel-seen` incident, so a long evening does not bury real incidents or fill the disk. With auto-arm off the 5.3.21 behavior is unchanged (the key arms one tap).
+- The shortcut is a plain on/off switch for the whole session when auto-arm is on (it used to restart the run). The badge reads "Auto-arm · watching" and the popup says auto-arm is on.
+
+Fixed
+
+- A live panel was read as Hidden for seconds when something bright sat behind its "TIME LEFT" header (white clothing, pale pavement). The lettering matched 91-96% but the clean-background share fell to 0.5-0.8, under the 0.85 cut, so the panel was rejected; the run then ended as `armed-no-shot` and started a cooldown that blocked the real attempt (session 20261005-203545). A header whose lettering matches at least 90% with at least 60% clean background is now accepted for the Preparing and Active headers only (the short Grabbed/Missed headers also reach 90% text on pale scenery, so they keep the strict rule).
+
 ## 5.3.21 - 2026-10-02 - Pickpocket: the shortcut always arms, and failures leave evidence
 
 Fixed

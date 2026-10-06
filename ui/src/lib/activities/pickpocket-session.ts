@@ -11,7 +11,7 @@ export function pickpocketSession(status: PickpocketObserveStatus | undefined, c
   const observing = connected && status?.observing === true;
   if (!connected) return { label: "Engine disconnected", tone: "warning" } as const;
   if (cooldownSeconds(status, now) > 0) return { label: "Cooldown · input paused", tone: "warning" } as const;
-  if (status?.inputArmed) return { label: "One tap armed", tone: "accent" } as const;
+  if (status?.inputArmed) return { label: status.autoArm ? "Auto-arm · watching" : "One tap armed", tone: "accent" } as const;
   if (observing && (status?.automatedPressCount ?? 0) > 0) return { label: "Tap sent · input off", tone: "accent" } as const;
   if (observing) return { label: "Observing · input off", tone: "accent" } as const;
   return { label: "Idle · input off", tone: "neutral" } as const;

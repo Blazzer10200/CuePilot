@@ -18,10 +18,12 @@ internal sealed record PickpocketObserveStatus(
     int RedAdvanceMs = 11, int YellowAdvanceMs = 20,
     IReadOnlyList<PickpocketRecentAttempt>? RecentAttempts = null, string? SessionStateError = null,
     IReadOnlyList<PickpocketBandColor>? CustomPriority = null, IReadOnlyList<string>? ItemPriority = null,
-    string? Calibration = null)
+    string? Calibration = null, bool AutoArm = false)
 {
     internal static PickpocketObserveStatus Stopped => new(false, "Stopped", "Ready for a live observation test. Input is off.", PickpocketObservation.Missing);
 }
+
+internal enum PickpocketRunEnd { Cancelled, AttemptFinished, TimedOut, Faulted }
 
 internal sealed class PickpocketObserverEngine : IDisposable
 {
@@ -81,15 +83,17 @@ internal sealed class PickpocketObserverEngine : IDisposable
     }
 
     internal void Configure(string policy, string inputMode = "Observe", int redAdvanceMs = 11, int yellowAdvanceMs = 20,
-        IReadOnlyList<PickpocketBandColor>? customPriority = null, IReadOnlyList<string>? itemPriority = null)
+        IReadOnlyList<PickpocketBandColor>? customPriority = null, IReadOnlyList<string>? itemPriority = null, bool autoArm = false)
     {
         var preferences = new PickpocketPreferences { TargetPolicy = policy, InputMode = inputMode, RedAdvanceMs = redAdvanceMs, YellowAdvanceMs = yellowAdvanceMs };
         if (customPriority is not null) preferences.CustomPriority = customPriority.ToArray();
         if (itemPriority is not null) preferences.ItemPriority = itemPriority.ToArray();
         preferences.Validate();
         if (IsObserving) throw new InvalidOperationException("Stop observation before changing its target policy.");
-        Publish(Status with { TargetPolicy = policy, InputMode = inputMode, InputArmed = false, RedAdvanceMs = redAdvanceMs, YellowAdvanceMs = yellowAdvanceMs, CustomPriority = preferences.CustomPriority, ItemPriority = preferences.ItemPriority,
-            Detail = inputMode != "Observe" ? "One-tap mode selected. Press F7 in FiveM before starting a new minigame." : "Observation selected. Space remains manual." });
+        Publish(Status with { TargetPolicy = policy, InputMode = inputMode, InputArmed = false, RedAdvanceMs = redAdvanceMs, YellowAdvanceMs = yellowAdvanceMs, CustomPriority = preferences.CustomPriority, ItemPriority = preferences.ItemPriority, AutoArm = autoArm,
+            Detail = inputMode == "Observe" ? "Observation selected. Space remains manual."
+                : autoArm ? "One-tap mode selected. Press the shortcut once; it re-arms itself after every pickpocket."
+                : "One-tap mode selected. Press F7 in FiveM before starting a new minigame." });
     }
 
     internal void Start(WindowTargetSettings target)
@@ -103,13 +107,71 @@ internal sealed class PickpocketObserverEngine : IDisposable
         var yellowAdvance = Status.YellowAdvanceMs;
         var customPriority = Status.CustomPriority?.ToArray() ?? new PickpocketPreferences().CustomPriority;
         var itemPriority = Status.ItemPriority?.ToArray() ?? new PickpocketPreferences().ItemPriority;
+        var autoArm = Status.AutoArm && mode != "Observe";
         input.BeginRun();
         attempts.ResetMotion();
         stopReason = "Pickpocket stopped. Input is disarmed.";
         Publish(PickpocketObserveStatus.Stopped with { Observing = true, State = "Waiting", TargetPolicy = policy, CooldownUntilUnixMs = Status.CooldownUntilUnixMs,
             InputMode = mode, InputArmed = mode != "Observe", RedAdvanceMs = redAdvance, YellowAdvanceMs = yellowAdvance, CustomPriority = customPriority, ItemPriority = itemPriority,
-            Detail = mode != "Observe" ? "One-tap mode armed. Return to FiveM and start a new pickpocket." : "Return to FiveM to begin observation. No input will be sent." });
-        worker.Start(async (_, token) => await RunAsync(copy, policy, mode, redAdvance, yellowAdvance, customPriority, itemPriority, token));
+            AutoArm = autoArm,
+            Detail = autoArm ? "Auto-arm on. Watching for pickpockets; it re-arms itself after each one." : mode != "Observe" ? "One-tap mode armed. Return to FiveM and start a new pickpocket." : "Return to FiveM to begin observation. No input will be sent." });
+        worker.Start(async (_, token) =>
+        {
+            try { await SuperviseAsync(copy, policy, mode, redAdvance, yellowAdvance, customPriority, itemPriority, autoArm, token); }
+            catch (Exception exception) when (!token.IsCancellationRequested)
+            { Publish(Status with { Observing = false, InputArmed = false, State = "Faulted", Detail = exception.Message, Prediction = null }); }
+        });
+    }
+
+    /// <summary>
+    /// Chains runs while auto-arm is on, so one shortcut press covers a whole play session. Each run keeps its
+    /// own evidence folder, input latch and history row; this loop only decides whether another one starts.
+    /// Stop (shortcut, Pause, Fishing start) cancels the token and ends the loop.
+    /// </summary>
+    private async Task SuperviseAsync(WindowTargetSettings target, string policy, string mode, int redAdvance, int yellowAdvance,
+        PickpocketBandColor[] customPriority, string[] itemPriority, bool autoArm, CancellationToken token)
+    {
+        var faults = new Queue<double>();
+        var quiet = false;
+        while (true)
+        {
+            var end = await RunAsync(target, policy, mode, redAdvance, yellowAdvance, customPriority, itemPriority, autoArm, quiet, token);
+            if (!autoArm || token.IsCancellationRequested || end == PickpocketRunEnd.Cancelled) return;
+            var final = Status;
+            if (final.State == "Faulted" && final.Detail.StartsWith("Space release failed", StringComparison.Ordinal))
+            {
+                // Input cleanup failed: never loop past it. Stop retries the release.
+                Publish(final with { Observing = false, InputArmed = false });
+                return;
+            }
+            if (end == PickpocketRunEnd.Faulted)
+            {
+                var now = NowMs();
+                faults.Enqueue(now);
+                while (faults.Count > 0 && now - faults.Peek() > 300_000) faults.Dequeue();
+                if (faults.Count >= 5)
+                {
+                    Publish(final with { Observing = false, InputArmed = false, State = "Faulted", Detail = $"Auto-arm stopped after repeated failures: {final.Detail}" });
+                    return;
+                }
+            }
+            // Only the run right after the user's own press saves the search pictures; idle re-armed runs stay light.
+            quiet = true;
+            try
+            {
+                Publish(final with { Observing = true, InputArmed = true, State = "Waiting", Prediction = null, Observation = PickpocketObservation.Missing,
+                    Detail = end == PickpocketRunEnd.Faulted ? $"Auto-arm: waiting for FiveM. ({final.Detail})" : "Auto-arm: watching for the next pickpocket." });
+                await Task.Delay(end == PickpocketRunEnd.AttemptFinished ? 500 : 2_000, token);
+                while (true)
+                {
+                    try { resolve(target); break; }
+                    catch (InvalidOperationException) { await Task.Delay(2_000, token); }
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            input.BeginRun();
+            attempts.ResetMotion();
+        }
     }
 
     internal void Stop(string detail = "Pickpocket stopped. Input is disarmed.")
@@ -125,8 +187,9 @@ internal sealed class PickpocketObserverEngine : IDisposable
         Publish(Status with { Observing = false, InputArmed = false, State = complete ? "Stopped" : "Faulted", Detail = complete ? detail : "Observation is still stopping; restart is blocked until cleanup finishes.", Prediction = null, Observation = PickpocketObservation.Missing });
     }
 
-    private async Task RunAsync(WindowTargetSettings target, string policy, string mode, int redAdvance, int yellowAdvance, PickpocketBandColor[] customPriority, string[] itemPriority, CancellationToken token)
+    private async Task<PickpocketRunEnd> RunAsync(WindowTargetSettings target, string policy, string mode, int redAdvance, int yellowAdvance, PickpocketBandColor[] customPriority, string[] itemPriority, bool autoArm, bool quiet, CancellationToken token)
     {
+        var end = PickpocketRunEnd.Cancelled;
         var automatic = mode != "Observe";
         var precision = mode == "PrecisionAttempt";
         PickpocketDiagnosticSession? diagnostics = null;
@@ -326,7 +389,7 @@ internal sealed class PickpocketObserverEngine : IDisposable
                         manualDown, manualPresses, lastSpace, CaptureDetail: capture.Detail, FrameWidth: frame.Bitmap.Width, FrameHeight: frame.Bitmap.Height,
                         InputMode: mode, InputArmed: automatic && !input.Consumed, AutomatedPressCount: input.PressCount, InputDelivery: input.Delivery,
                         RedAdvanceMs: redAdvance, YellowAdvanceMs: yellowAdvance, CustomPriority: customPriority, ItemPriority: itemPriority,
-                        Calibration: calibration);
+                        Calibration: calibration, AutoArm: autoArm);
                     // Null previous means acquisition, not a new Hidden transition on every frame.
                     var changed = observation.State != latest.Observation.State;
                     var critical = changed || prediction.CanSchedule || completion || spaceEdge || input.PressCount > countBefore;
@@ -334,8 +397,8 @@ internal sealed class PickpocketObserverEngine : IDisposable
                     {
                         // Searching: one frame a second for the first 30 s in front, so a missed panel leaves
                         // pictures. Capped at 30 so it can never eat the 112 non-critical image slots Active needs.
-                        var fastSearch = observation.State != PickpocketVisualState.Active && analyzedAt - firstForeground < 30_000 && fastHiddenSaves < 30;
-                        var saveImage = critical || analyzedAt - lastImage >= (observation.State == PickpocketVisualState.Active ? 50 : fastSearch ? 1000 : 5000);
+                        var fastSearch = !quiet && observation.State != PickpocketVisualState.Active && analyzedAt - firstForeground < 30_000 && fastHiddenSaves < 30;
+                        var saveImage = critical || analyzedAt - lastImage >= (observation.State == PickpocketVisualState.Active ? 50 : fastSearch ? 1000 : quiet ? 20_000 : 5000);
                         if (saveImage && !critical && fastSearch) fastHiddenSaves++;
                         diagnostics.Queue(next, frame.Bitmap, saveImage, critical);
                         if (completion)
@@ -371,14 +434,16 @@ internal sealed class PickpocketObserverEngine : IDisposable
                 else await Task.Delay(Math.Max(2, (int)Math.Ceiling(wake - NowMs())), token);
                 input.ReleaseIfDue();
             }
+            end = attemptFinished ? PickpocketRunEnd.AttemptFinished : PickpocketRunEnd.TimedOut;
             token.ThrowIfCancellationRequested();
             latest = latest with { Observing = false, State = "Stopped", Prediction = null,
-                Detail = attemptFinished ? "Attempt finished. Press the Pickpocket key before the next one." : "Ten-minute observation limit reached." };
+                Detail = attemptFinished ? (autoArm ? "Attempt finished. Re-arming automatically." : "Attempt finished. Press the Pickpocket key before the next one.") : "Ten-minute observation limit reached." };
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
-        { latest = latest with { Observing = false, State = "Stopped", Detail = Volatile.Read(ref stopReason), Prediction = null }; }
+        { end = PickpocketRunEnd.Cancelled; latest = latest with { Observing = false, State = "Stopped", Detail = Volatile.Read(ref stopReason), Prediction = null }; }
         catch (Exception exception)
         {
+            end = PickpocketRunEnd.Faulted;
             var failure = exception.ToString();
             latest = latest with { Observing = false, State = "Faulted", Detail = exception.Message, Prediction = null, Failure = failure[..Math.Min(failure.Length, 8000)] };
         }
@@ -394,10 +459,13 @@ internal sealed class PickpocketObserverEngine : IDisposable
                 latest = latest with { Debug = diagnostics.Snapshot() };
             }
             else latest = latest with { Debug = new("Error", 0, 0, 0, 0, latest.Detail, $"Recorder could not start: {latest.Detail}") };
-            if (diagnostics is not null && automatic && input.PressCount == 0)
+            if (diagnostics is not null && automatic && input.PressCount == 0 && !(quiet && runActive == 0))
                 PickpocketFlightRecorder.WriteIncident(diagnostics.DirectoryPath, latest, runActive, runHidden, everArmed, lastActiveReason);
-            Publish(latest with { Observing = false, Observation = PickpocketObservation.Missing });
+            // While auto-arm will start the next run the engine stays "observing", so the UI never shows a stopped gap.
+            var restarting = autoArm && released && !token.IsCancellationRequested && end != PickpocketRunEnd.Cancelled;
+            Publish(latest with { Observing = restarting, Observation = PickpocketObservation.Missing });
         }
+        return end;
     }
 
     private static readonly PickpocketBandColor[] RarityOrder = [PickpocketBandColor.Yellow, PickpocketBandColor.Red,

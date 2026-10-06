@@ -47,7 +47,7 @@ internal static class UiBridge
             });
         settings.Pickpocket.Normalize();
         pickpocket.Configure(settings.Pickpocket.TargetPolicy, settings.Pickpocket.InputMode,
-            settings.Pickpocket.RedAdvanceMs, settings.Pickpocket.YellowAdvanceMs, settings.Pickpocket.CustomPriority, settings.Pickpocket.ItemPriority);
+            settings.Pickpocket.RedAdvanceMs, settings.Pickpocket.YellowAdvanceMs, settings.Pickpocket.CustomPriority, settings.Pickpocket.ItemPriority, settings.Pickpocket.AutoArm);
         var statusLock = new object();
         var initialTargets = findFiveMTargets();
         var lastStatus = InitialStatus(settings, initialTargets);
@@ -145,7 +145,13 @@ internal static class UiBridge
                                 TargetPolicy = RequiredString(pickpocketSettings, "targetPolicy"),
                                 InputMode = pickpocketSettings.TryGetProperty("inputMode", out _) ? RequiredString(pickpocketSettings, "inputMode") : "Observe",
                                 RedAdvanceMs = pickpocketSettings.TryGetProperty("redAdvanceMs", out _) ? RequiredNonnegativeInt32(pickpocketSettings, "redAdvanceMs") : settings.Pickpocket.RedAdvanceMs,
-                                YellowAdvanceMs = pickpocketSettings.TryGetProperty("yellowAdvanceMs", out _) ? RequiredNonnegativeInt32(pickpocketSettings, "yellowAdvanceMs") : settings.Pickpocket.YellowAdvanceMs };
+                                YellowAdvanceMs = pickpocketSettings.TryGetProperty("yellowAdvanceMs", out _) ? RequiredNonnegativeInt32(pickpocketSettings, "yellowAdvanceMs") : settings.Pickpocket.YellowAdvanceMs,
+                                AutoArm = pickpocketSettings.TryGetProperty("autoArm", out var autoArmValue) ? autoArmValue.ValueKind switch
+                                {
+                                    JsonValueKind.True => true,
+                                    JsonValueKind.False => false,
+                                    _ => throw new InvalidOperationException("autoArm must be true or false."),
+                                } : settings.Pickpocket.AutoArm };
                             preferences.CustomPriority = pickpocketSettings.TryGetProperty("customPriority", out var customOrder)
                                 ? JsonSerializer.Deserialize<PickpocketBandColor[]>(customOrder.GetRawText(), Json) ?? []
                                 : settings.Pickpocket.CustomPriority.ToArray();
@@ -157,7 +163,7 @@ internal static class UiBridge
                             savedPreferences.Pickpocket = preferences;
                             saveSettings(savedPreferences);
                             settings = savedPreferences;
-                            pickpocket.Configure(preferences.TargetPolicy, preferences.InputMode, preferences.RedAdvanceMs, preferences.YellowAdvanceMs, preferences.CustomPriority, preferences.ItemPriority);
+                            pickpocket.Configure(preferences.TargetPolicy, preferences.InputMode, preferences.RedAdvanceMs, preferences.YellowAdvanceMs, preferences.CustomPriority, preferences.ItemPriority, preferences.AutoArm);
                             Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
                             break;
                         case "start_pickpocket_observe":
@@ -171,8 +177,9 @@ internal static class UiBridge
                                     // In one-tap modes the key always arms the next pickpocket: a press
                                     // while a run is still up restarts it fresh. A toggle here turned
                                     // "press before each pickpocket" into every other press stopping
-                                    // the run. Pause / Break remains the stop key.
-                                    if (pickpocket.Status.InputMode == "Observe")
+                                    // the run. Pause / Break remains the stop key. With auto-arm the run
+                                    // re-arms itself, so the key is a plain on/off switch for the whole session.
+                                    if (pickpocket.Status.InputMode == "Observe" || pickpocket.Status.AutoArm)
                                     {
                                         pickpocket.Stop("Stopped from the pickpocket shortcut.");
                                         LogShortcut(command, wasObserving, "stopped", null);

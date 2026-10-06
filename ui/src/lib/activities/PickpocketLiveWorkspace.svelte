@@ -17,6 +17,7 @@
   } = $props();
   let policy = $state<PickpocketPolicy>("Widest");
   let inputMode = $state<PickpocketInputMode>("Observe");
+  let autoArm = $state(true);
   let pending = $state(false);
   let saveMessage = $state("");
   let saveFailed = $state(false);
@@ -41,6 +42,7 @@
     if (pending || !status) return;
     const nextPolicy = status.targetPolicy;
     const nextInputMode = status.inputMode ?? "Observe";
+    const nextAutoArm = status.autoArm ?? true;
     const nextRedAdvanceMs = status.redAdvanceMs ?? 11;
     const nextYellowAdvanceMs = status.yellowAdvanceMs ?? 20;
     const nextCustomPriority = status.customPriority ?? defaultPriority;
@@ -49,6 +51,7 @@
     untrack(() => {
       if (policy !== nextPolicy) policy = nextPolicy;
       if (inputMode !== nextInputMode) inputMode = nextInputMode;
+      if (autoArm !== nextAutoArm) autoArm = nextAutoArm;
       if (redAdvanceMs !== nextRedAdvanceMs) redAdvanceMs = nextRedAdvanceMs;
       if (yellowAdvanceMs !== nextYellowAdvanceMs) yellowAdvanceMs = nextYellowAdvanceMs;
       if (customPriority.length !== nextCustomPriority.length || customPriority.some((value, index) => value !== nextCustomPriority[index])) {
@@ -70,7 +73,7 @@
   const seconds = $derived(cooldownSeconds(status, now));
   const armed = $derived(connected && !!status?.inputArmed && seconds === 0);
   const countdown = $derived(`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`);
-  const nextAction = $derived(!connected ? "Waiting for the local engine to reconnect." : !targetValid ? "Select a FiveM window above before starting." : seconds > 0 ? "Wait for cooldown to finish before the next prediction." : observing ? status?.inputArmed ? "Keep FiveM focused. One automatic press is armed." : "Watching the selected window. Automatic input is off." : inputMode === "Observe" ? "Start observing, then play the minigame manually." : "Arm one tap, then open the minigame in FiveM.");
+  const nextAction = $derived(!connected ? "Waiting for the local engine to reconnect." : !targetValid ? "Select a FiveM window above before starting." : seconds > 0 ? "Wait for cooldown to finish before the next prediction." : observing ? status?.inputArmed ? status.autoArm ? "Auto-arm is on. Keep FiveM focused; it re-arms after every pickpocket until you press the shortcut or Pause." : "Keep FiveM focused. One automatic press is armed." : "Watching the selected window. Automatic input is off." : inputMode === "Observe" ? "Start observing, then play the minigame manually." : "Arm one tap, then open the minigame in FiveM.");
   const colors = { White: "#e7eceb", Purple: "#ac88ef", Red: "#ef7580", PaleGreen: "#b8d8a1", Blue: "#7cd5ee", Yellow: "#e4d333" };
   const label = (color: string) => color === "PaleGreen" ? "Pale green" : color;
   const position = (x: number) => observation?.bar.width ? Math.max(0, Math.min(100, (x - observation.bar.x) / observation.bar.width * 100)) : 0;
@@ -95,8 +98,8 @@
     pending = true;
     saveMessage = "Saving…";
     saveFailed = false;
-    try { await onpolicy(policy, inputMode, { redAdvanceMs, yellowAdvanceMs, customPriority, itemPriority }); saveMessage = "Saved."; }
-    catch { policy = status?.targetPolicy ?? "Widest"; inputMode = status?.inputMode ?? "Observe"; saveFailed = true; saveMessage = "Could not save. Previous values restored."; }
+    try { await onpolicy(policy, inputMode, { redAdvanceMs, yellowAdvanceMs, customPriority, itemPriority, autoArm }); saveMessage = "Saved."; }
+    catch { policy = status?.targetPolicy ?? "Widest"; inputMode = status?.inputMode ?? "Observe"; autoArm = status?.autoArm ?? true; saveFailed = true; saveMessage = "Could not save. Previous values restored."; }
     finally { pending = false; }
   }
   async function adjust(color: "red" | "yellow", direction: "earlier" | "later") {
@@ -165,6 +168,7 @@
         <select id="pp-live-policy" bind:value={policy} onchange={changePolicy} disabled={locked}>
           {#each targetChoices as choice}<option value={choice.value}>{choice.label}</option>{/each}
         </select></div></div>
+        {#if inputMode !== "Observe"}<label class="auto-arm"><input type="checkbox" bind:checked={autoArm} onchange={changePolicy} disabled={locked} /><span>Re-arm automatically after each pickpocket</span></label>{/if}
         <p class="explanation">{targetHint(policy, inputMode, customPriority)}</p>
         <div class="strategy"><span>{inputMode === "Observe" ? "Manual Space" : "One automatic press"}</span><span>{inputMode === "PrecisionAttempt" ? "Thin targets · survey first" : inputMode === "SingleAttempt" ? "Wide windows only" : "Input stays off"}</span><span>{policy === "Widest" ? "Widest ignores item rank" : "Color rank → known item rank → width"}</span></div>
       {:else if view === "Timing"}
@@ -197,7 +201,7 @@
       </div>
       <div class="controls">
         <button class="run" class:stop={observing} onclick={toggle} disabled={pending || !connected || !status || (!observing && !targetValid)}>
-          {#if observing}<OctagonX size={16} />{:else}<Eye size={16} />{/if}{pending ? "Please wait…" : observing ? "Stop safely" : inputMode !== "Observe" ? "Arm one tap" : "Start observing"}<kbd>{shortcut}</kbd>
+          {#if observing}<OctagonX size={16} />{:else}<Eye size={16} />{/if}{pending ? "Please wait…" : observing ? "Stop safely" : inputMode !== "Observe" ? autoArm ? "Start auto-arm" : "Arm one tap" : "Start observing"}<kbd>{shortcut}</kbd>
         </button>
         <p class="next-action">{nextAction}</p>
       </div>
@@ -278,6 +282,7 @@
   select { width:100%; height:40px; padding:0 12px; border:1px solid rgba(255,255,255,.12); border-radius:var(--radius-control); background:var(--surface-sunken); color:var(--text); font:inherit; font-size:13px; }
   select:disabled { color:var(--text-3); cursor:not-allowed; }
   .explanation { margin:12px 0 0; color:var(--text-2); font-size:var(--fs-small); line-height:1.5; }
+  .auto-arm { display:flex; align-items:center; gap:10px; margin-top:12px; color:var(--text-2); font-size:var(--fs-small); }
   .strategy { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
   .chip, .strategy span { display:inline-flex; align-items:center; height:26px; padding:0 9px; border:1px solid var(--line); border-radius:var(--radius-chip); background:var(--surface-sunken); color:var(--text-2); font-size:var(--fs-caption); white-space:nowrap; }
   .timing-actions { margin-top:10px; }
