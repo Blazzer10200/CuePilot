@@ -131,15 +131,33 @@ public sealed class FishingMeterTests
     }
 
     [Fact]
-    public void FailureNeedsTwoConsecutiveFramesBeforeTheRoutineRecasts()
+    public void FailureNeedsFourConsecutiveFramesBeforeTheRoutineRecasts()
     {
         var gate = new FishingFailureGate();
         var failed = new FishingMeterObservation(true, 0.2, 0, false, 0.9, IsFailed: true);
 
         Assert.False(gate.Observe(failed));
+        Assert.False(gate.Observe(failed));
         Assert.False(gate.Observe(FishingMeterObservation.Missing));
+        // Live tension-ring flicker produced runs of two; three must not recast either.
+        Assert.False(gate.Observe(failed));
+        Assert.False(gate.Observe(failed));
         Assert.False(gate.Observe(failed));
         Assert.True(gate.Observe(failed));
+    }
+
+    [Theory]
+    [InlineData("bright-water-got-away.png")]
+    [InlineData("live-meter-day-failed-sky.png")]
+    public void RealFailureFramesClearTheFailureThresholdWithMargin(string name)
+    {
+        // There is no saved false-failure frame, so guard the margin instead:
+        // tuning that erodes real X strength toward the ring-flicker band fails here.
+        using var frame = LoadFixture(name);
+
+        var strongest = FishingMeterService.InspectFrame(frame).Max(candidate => candidate.Evidence.FailureStrength);
+
+        Assert.True(strongest >= FishingMeterDetector.FailureMarkThreshold * 2, $"{name}: {strongest:P1}");
     }
 
     [Theory]

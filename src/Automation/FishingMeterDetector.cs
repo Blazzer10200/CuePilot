@@ -90,7 +90,9 @@ internal sealed class FishingMeterStabilityGate(int requiredMatches = 2, int tol
     }
 }
 
-internal sealed class FishingFailureGate(int requiredMatches = 2)
+// A real failure X stays on screen for seconds; live tension-ring flicker
+// produced runs of up to two failed frames (2026-10-11), so require four.
+internal sealed class FishingFailureGate(int requiredMatches = 4)
 {
     private int matches;
 
@@ -103,6 +105,9 @@ internal sealed class FishingFailureGate(int requiredMatches = 2)
 
 internal static class FishingMeterDetector
 {
+    // Live regulation with the ring parked at 50-70% radius read 2.0-3.1%
+    // red from the ring itself; real failure X frames read 4.8-18.8%.
+    internal const double FailureMarkThreshold = 0.04;
     private const int AngleSamples = 120;
     private const int DarknessAngleSamples = 48;
     private static readonly (double X, double Y)[] MeterDirections = CreateDirections(AngleSamples);
@@ -261,7 +266,7 @@ internal static class FishingMeterDetector
         var completedArc = progress >= 0.18;
         var activeMeter = ringStrength >= 0.16
             && (progress >= 0.03
-                || darkness >= 0.18 && (caughtStrength >= 0.015 || failureStrength >= 0.02));
+                || darkness >= 0.18 && (caughtStrength >= 0.015 || failureStrength >= FailureMarkThreshold));
         // Before progress appears, demand a substantially coherent ring as well
         // as the nearby prompt. Daylight character/reel edges can satisfy the
         // old weak-ring rule, but the recorded initial meter remains well above
@@ -272,7 +277,7 @@ internal static class FishingMeterDetector
             && diskEvidence
             && progress < 0.03
             && caughtStrength < 0.015
-            && failureStrength < 0.02;
+            && failureStrength < FailureMarkThreshold;
         // Identity is measured on every plausible meter shape, not only the
         // zero-progress startup frame. A live session can enter this detector
         // after the progress arc has already begun, and acquisition still must
@@ -286,7 +291,7 @@ internal static class FishingMeterDetector
         // minigame, even when orange scenery contaminates the red-mark probe.
         // This exception is acquisition-only; after lock, the failure mark
         // remains authoritative because the prompt disappears on failure.
-        var failed = failureStrength >= 0.02
+        var failed = failureStrength >= FailureMarkThreshold
             && !(requireActiveIdentity && lmbPromptStrength >= 0.90);
         var currentLmbProof = lmbPromptStrength >= 0.97;
         var legacyLmbProof = HasLegacyLmbIdentity(lmbPromptStrength, darkness, diskContrast);
