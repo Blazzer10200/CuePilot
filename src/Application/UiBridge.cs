@@ -175,14 +175,20 @@ internal static class UiBridge
                                 if (command == "toggle_pickpocket_observe" && wasObserving)
                                 {
                                     // In one-tap modes the key always arms the next pickpocket: a press
-                                    // while a run is still up restarts it fresh. A toggle here turned
-                                    // "press before each pickpocket" into every other press stopping
-                                    // the run. Pause / Break remains the stop key. With auto-arm the run
-                                    // re-arms itself, so the key is a plain on/off switch for the whole session.
-                                    if (pickpocket.Status.InputMode == "Observe" || pickpocket.Status.AutoArm)
+                                    // while a run is still up restarts it fresh, or with auto-arm leaves
+                                    // the self-re-arming run alone. A toggle here turned "press before each
+                                    // pickpocket" into a stop (2026-10-13: auto-arm sat off for 2.5 h after
+                                    // one habit press). Pause / Break remains the stop key.
+                                    if (pickpocket.Status.InputMode == "Observe")
                                     {
                                         pickpocket.Stop("Stopped from the pickpocket shortcut.");
                                         LogShortcut(command, wasObserving, "stopped", null);
+                                        Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
+                                        break;
+                                    }
+                                    if (pickpocket.Status.AutoArm)
+                                    {
+                                        LogShortcut(command, wasObserving, "kept", null);
                                         Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
                                         break;
                                     }

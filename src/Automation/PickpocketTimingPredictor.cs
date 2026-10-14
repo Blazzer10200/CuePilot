@@ -61,7 +61,7 @@ internal sealed class PickpocketTimingPredictor
             target = null;
             return PickpocketTimingPrediction.Wait(attempted ? "Attempt complete; wait for a new preparation state." : "Waiting for active play.");
         }
-        if (!budget.IsValid || !double.IsFinite(tinyAdvanceMs) || tinyAdvanceMs is < 0 or > 20 || !double.IsFinite(wideLeadMs) || wideLeadMs is < 0 or > 40 || !double.IsFinite(presentationMs) || !double.IsFinite(nowMs)
+        if (!budget.IsValid || !double.IsFinite(tinyAdvanceMs) || tinyAdvanceMs is < 0 or > 20 || !double.IsFinite(wideLeadMs) || wideLeadMs is < 0 or > PickpocketSessionState.WideMaximumLeadMs || !double.IsFinite(presentationMs) || !double.IsFinite(nowMs)
             || nowMs < presentationMs || nowMs - presentationMs > budget.MaximumFrameAgeMs
             || !double.IsFinite(observation.MarkerX) || observation.Confidence < 0.80 || observation.Bar.Width <= 0)
         {

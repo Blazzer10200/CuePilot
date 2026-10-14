@@ -135,7 +135,41 @@ public sealed class PickpocketSessionStateTests
             store.Complete(precision, new("Missed", PickpocketBandColor.Purple, 19, 12, 400, null, 15), null);
         var restored = new PickpocketSessionState(path, () => now);
         Assert.Null(restored.Error);
-        Assert.Equal(40, restored.CalibrateWide().AppliedMs);
+        Assert.Equal(45, restored.CalibrateWide().AppliedMs);
+        for (var i = 0; i < 10; i++)
+            store.Complete(precision, new("Missed", PickpocketBandColor.Purple, 19, 20, 400, null, 15), null);
+        Assert.Equal(PickpocketSessionState.WideMaximumLeadMs, store.CalibrateWide().AppliedMs);
+    }
+
+    [Fact]
+    public void WideLeadReactsToAStepInGameDelayWithinOneShotButOnlyHalfwayForAOneOff()
+    {
+        // 2026-10-13: lead settled at ~11 ms, then the game delay rose ~30 ms between sessions.
+        var now = 1_000_000L;
+        var store = new PickpocketSessionState(StatePath(), () => ++now);
+        var precision = Result() with { InputMode = "PrecisionAttempt" };
+        for (var i = 0; i < 10; i++) store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, 0, 400, null, 11), null);
+        Assert.Equal(11, store.CalibrateWide().AppliedMs);
+        // Small noise stays on the median.
+        store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, 2, 400, null, 11), null);
+        Assert.Equal(11, store.CalibrateWide().AppliedMs);
+        // One shot 12 px late (+30 ms): go halfway.
+        store.Complete(precision, new("Missed", PickpocketBandColor.Purple, 19, 12, 400, null, 11), null);
+        var half = store.CalibrateWide();
+        Assert.Equal(26, half.AppliedMs);
+        Assert.Contains("halfway to the last shot", half.Describe());
+        // The next shot confirms the slower delay: follow the last two fully.
+        store.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, 6, 400, null, 26), null);
+        var follow = store.CalibrateWide();
+        Assert.Equal(41, follow.AppliedMs);
+        Assert.Contains("following the last 2 shots", follow.Describe());
+        // A one-off hitch on a settled history costs only half its size, and the next normal shot undoes it.
+        var other = new PickpocketSessionState(StatePath(), () => ++now);
+        for (var i = 0; i < 10; i++) other.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, 0, 400, null, 11), null);
+        other.Complete(precision, new("Missed", PickpocketBandColor.Purple, 19, 12, 400, null, 11), null);
+        Assert.Equal(26, other.CalibrateWide().AppliedMs);
+        other.Complete(precision, new("Grabbed", PickpocketBandColor.Purple, 19, -6, 400, null, 26), null);
+        Assert.Equal(11, other.CalibrateWide().AppliedMs);
     }
 
     [Fact]

@@ -10,11 +10,11 @@ internal sealed record PickpocketRecentAttempt(string Id, long EndedAtUnixMs, st
     double? SpeedPixelsPerSecond = null, double? AppliedAdvanceMs = null, double? AppliedLeadMs = null);
 
 /// <summary>Extra early press for wide targets, derived from where recent wide shots stopped.</summary>
-internal sealed record PickpocketWideLead(double AppliedMs, int Samples, double MedianOffsetPixels)
+internal sealed record PickpocketWideLead(double AppliedMs, int Samples, double MedianOffsetPixels, string? Step = null)
 {
     internal string Describe() => Samples < PickpocketSessionState.WideCalibrationMinimumSamples
         ? $"wide targets 0 ms lead ({Samples} of {PickpocketSessionState.WideCalibrationMinimumSamples} shots recorded)"
-        : $"wide targets {AppliedMs:F1} ms lead from {Samples} shots (median stop {MedianOffsetPixels:+0.0;-0.0} px)";
+        : $"wide targets {AppliedMs:F1} ms lead from {Samples} shots (median stop {MedianOffsetPixels:+0.0;-0.0} px{(Step is null ? "" : "; " + Step)})";
 }
 
 /// <summary>Per-color thin-target early correction derived from saved shot results.</summary>
@@ -34,7 +34,8 @@ internal sealed class PickpocketSessionState
     internal const double CalibrationMaximumShiftMs = 10;
     internal const int WideCalibrationMinimumSamples = 3;
     internal const int WideCalibrationWindow = 10;
-    internal const double WideMaximumLeadMs = 40;
+    internal const double WideMaximumLeadMs = 60;
+    internal const double WideStepMs = 8;
     internal const double LegacySpeedPixelsPerSecond = 390;
     private sealed record SavedState(int Version, long CooldownUntilUnixMs, PickpocketRecentAttempt[] Recent);
     private static readonly JsonSerializerOptions Json = new()
@@ -93,6 +94,12 @@ internal sealed class PickpocketSessionState
     /// When the game or system adds delay, every wide shot lands late by the same
     /// amount, so the lead is the median of (applied lead + stop offset / speed)
     /// over the most recent wide shots. It follows a change in either direction.
+    /// The median alone needs ~6 shots (3-minute cooldowns apart) to follow a step
+    /// change: 2026-10-13 the delay rose ~30 ms between sessions and two of three
+    /// purples missed while it moved 11 -> 17 ms. So a newest shot more than
+    /// WideStepMs from the median moves the lead halfway toward it (a one-off hitch
+    /// then costs at most half its size), and two in a row on the same side are
+    /// followed fully.
     /// </summary>
     internal PickpocketWideLead CalibrateWide()
     {
@@ -107,7 +114,17 @@ internal sealed class PickpocketSessionState
             })
             .Where(s => double.IsFinite(s.Implied)).ToArray();
         if (shots.Length < WideCalibrationMinimumSamples) return new(0, shots.Length, 0);
-        return new(Math.Clamp(Math.Round(Median(shots.Select(s => s.Implied)), 1), 0, WideMaximumLeadMs), shots.Length, Median(shots.Select(s => s.Offset)));
+        var settled = Median(shots.Select(s => s.Implied));
+        var (lead, step) = (settled, (string?)null);
+        var newest = shots[0].Implied - settled;
+        if (Math.Abs(newest) > WideStepMs)
+        {
+            var previous = shots[1].Implied - settled;
+            (lead, step) = Math.Abs(previous) > WideStepMs && Math.Sign(previous) == Math.Sign(newest)
+                ? ((shots[0].Implied + shots[1].Implied) / 2, "following the last 2 shots")
+                : (settled + newest / 2, "halfway to the last shot");
+        }
+        return new(Math.Clamp(Math.Round(lead, 1), 0, WideMaximumLeadMs), shots.Length, Median(shots.Select(s => s.Offset)), step);
     }
 
     private static double Median(IEnumerable<double> values)

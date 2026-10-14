@@ -29,14 +29,17 @@ investigation before changing settings.
   a result-frame offset. Precision runs shift the saved value by the median
   stop offset of that color's last twenty thin-target shots (six or more, at
   most ±10 ms). Wide targets (over 6 px, any color) get a separate early
-  "lead" from the last ten wide shots (three or more, 0-40 ms): the median of
+  "lead" from the last ten wide shots (three or more, 0-60 ms): the median of
   the lead in use plus how far past center each shot stopped, so it follows a
-  slower or faster machine in either direction. The Timing view and the debug
+  slower or faster machine in either direction. When the newest shot is more
+  than 8 ms off that median the lead moves halfway toward it, and two such shots
+  in a row on the same side are followed fully, so a jump in game delay between
+  play sessions costs one shot instead of five. The Timing view and the debug
   report show the values in use.
-- **Safety:** In the one-tap modes with **auto-arm** on (the default), F7 is an
-  on/off switch for the whole play session: each run ends after its attempt and
-  the next one starts by itself (it also waits for FiveM to be running). Press F7
-  again or Pause / Break to stop. With auto-arm off, F7 always arms a fresh run
+- **Safety:** In the one-tap modes with **auto-arm** on (the default), one F7
+  press covers the whole play session: each run ends after its attempt and the
+  next one starts by itself (it also waits for FiveM to be running). Pressing F7
+  again keeps it on; Pause / Break or Stop stops it. With auto-arm off, F7 always arms a fresh run
   (a press while a run is up restarts it) and a run ends once its attempt is
   over, so press F7 before each pickpocket. In Observe, F7 starts or stops. Input arms after a Preparing state or three header-verified
   Active frames in a row, so arming after the panel is up still works. A manual
