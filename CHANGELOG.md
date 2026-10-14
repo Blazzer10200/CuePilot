@@ -1,5 +1,24 @@
 # Changelog
 
+## 5.3.25 - 2026-10-13 - Pickpocket: no repeat popup when auto-arm is already on
+
+Fixed
+
+- Pressing the Pickpocket key while auto-arm was already watching showed the "Pickpocket started" popup again on every press. That press changes nothing, so it is now silent. Real starts, stops and refused presses still show a popup.
+
+## 5.3.24 - 2026-10-13 - Pickpocket: timing catches up with a slower game in one shot, and the key no longer turns auto-arm off
+
+Fixed
+
+- Purples missed late after the game got slower between play sessions. On 2026-10-13 the time from the Space press to the marker stopping rose from ~14 ms to 42-55 ms while CuePilot's own capture and key timing were unchanged (key sent within 1.5 ms of plan, seen by Windows 3-7 ms later), so shots stopped 8-14 px past center. The wide-target lead only followed the median of the last ten shots and moved 11 -> 17 ms across three shots. Now a newest shot more than 8 ms off moves the lead halfway toward it, and two such shots in a row are followed fully; the maximum lead is 60 ms (was 40). Replayed on the 68 wide shots since 2026-09-30: 67 hits (was 66), and two of tonight's three would have landed. The Timing view says when the lead is following the latest shots.
+- With auto-arm on, pressing the Pickpocket key while it was already watching turned auto-arm off (one habit press left it off for 2.5 hours). The key now always means arm: a press while auto-arm is watching keeps it on. Pause / Break or Stop ends it. Observe still toggles.
+
+## 5.3.23 - 2026-10-11 - Fishing no longer abandons fights on tension-ring flicker
+
+Fixed
+
+- The failure (red X) check counted the orange tension ring as a failure when it sat at 50-70% radius: healthy fights read 2.0-3.1% red and two flagged frames in a row ended three fights, one of them a fish later caught. Real failure frames read 4.8-18.8%. The threshold is now 4% and a failure needs four flagged frames in a row (was two).
+
 ## 5.3.22 - 2026-10-05 - Pickpocket: auto-arm, and panels over bright scenery are no longer lost
 
 Added

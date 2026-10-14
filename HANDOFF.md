@@ -1,12 +1,37 @@
-# Handoff — CuePilot 5.3.21 (local) — 2026-10-02
+# Handoff — CuePilot 5.3.25 (local) — 2026-10-13
 
 The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 are
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
 user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
-## Session — 2026-10-02 (Pickpocket arming fix, unreleased)
+## Session — 2026-10-13 (Pickpocket purple misses, auto-arm key; 5.3.24 + 5.3.25)
 
-**Status: waiting on the user's live play.** 5.3.21 is installed locally (not pushed, not published). The user will collect pickpockets over several days (one or two per sitting) and come back with "read the pickpocket results".
+**Status: waiting on the user's live play.** 5.3.25 is installed locally (not pushed, not published). Branch `fix/pickpocket-arming` now carries 5.3.22 – 5.3.25.
+
+### Diagnosis (live data, not assumed)
+- 2026-10-13: 3 purples, 2 missed, all stopped +8.5 / +11.8 / +14.1 px late. Detection, arming and host timing were clean in all three (key-down 0.5-1.5 ms after plan, Windows saw Space 3.5-7.2 ms later, frame age 2.7-4 ms).
+- Press -> marker-stop delay (computed per session from `trace.jsonl` + `REPORT.md`): ~13-14 ms on 10-11 17:04/17:17, **42-55 ms** tonight. Same pickpocket code (5.3.23 `src/` diff = `FishingMeterDetector.cs` only). The slowdown is game/system-side, same signature as 09-28/29. Running tonight: capturex, RTSS, MSI Afterburner, NVIDIA Broadcast, Discord — unconfirmed cause.
+- CuePilot defect: `CalibrateWide` = median of last 10 wide shots, settled at ~11 ms from fast days, moved 11 -> 13 -> 17 ms across tonight's 3 shots (~5 more slow shots to catch up). Cap was 40 ms; tonight's last shot needed ~53.
+- "Fix Fishing, break Pickpocket" was true once (09-28: `bbdbd78` removed the GPU boost for Fishing hitching, Pickpocket capture slowed, `dacc66a` re-added it Pickpocket-only). Not this week.
+- Arming: 5.3.22 made the key an on/off switch with auto-arm on; a habit press at 21:29:55 left auto-arm off until 23:55. 23:55:43 rejection was FiveM still loading (title not set yet); resolved itself 14 s later, not a bug.
+
+### Completed
+- `189d671` 5.3.24: `PickpocketSessionState.CalibrateWide` — newest shot > `WideStepMs` (8 ms) off the median -> lead moves halfway; two in a row same side -> mean of the two. `WideMaximumLeadMs` 40 -> 60 (predictor uses the constant). `Describe()` names the step. Auto-arm key press while watching = keep (logged `kept`), Pause / Stop ends it; Observe still toggles. Replay on 68 wide shots since 09-30: 67 hits (old rule 66); tonight miss/hit/hit. New test `WideLeadReactsToAStepInGameDelayWithinOneShotButOnlyHalfwayForAOneOff`. `verify.ps1 -All` green: dotnet 459, vitest 54, Playwright 30, cargo 52.
+- `18c2759` 5.3.25: that `kept` response carries `shortcutAction: "kept"` (`UiBridge.cs`); `notifications.rs` `Notice::shortcut` returns `None` for it, so repeated presses show no popup. Rust test added; dotnet pickpocket/bridge 250, cargo 52, clippy clean.
+- Both packaged with `tauri:build` and installed `--silent`. 5.3.24 first launch hung at `plugins_ready` (backlog 5, second sighting); killed by PID, relaunch fine. 5.3.25 launched first time.
+
+### Next (when the user returns)
+1. Read new sessions: `shortcuts.jsonl` (expect `kept` lines, no `stopped` from habit presses), REPORT `Timing from history` line ("halfway to the last shot" / "following the last 2 shots"), and wide-shot offsets. Re-run the press->stop script idea (keyDownMs vs final stop) if purples still miss. Backlog 15 / 16.
+2. If it holds: merge `fix/pickpocket-arming` -> `main`, push, tag v5.3.25 (user's OK).
+
+### Key decisions
+- Halfway on one outlier, full follow on two: a one-off hitch costs at most half its size (stays inside a 19 px purple), a real shift is followed by the second shot.
+- Thin Red/Yellow calibration untouched (±10 ms clamp means it can't follow a 30 ms shift either; backlog 12).
+- No CPU/GPU/RAM pre-check: the delay is inside the game and not visible in system stats; only the shot result measures it.
+
+## Session — 2026-10-02 (Pickpocket arming fix, 5.3.21)
+
+**Status: superseded.** 5.3.22 (auto-arm, bright-header detector) and 5.3.23 (Fishing tension-ring flicker) shipped locally after this without a HANDOFF update; see CHANGELOG.
 
 ### Completed (part 2)
 - Flight recorder `e7c5749`: `src/Diagnostics/PickpocketFlightRecorder.cs` — `UiBridge` logs every shortcut press + what it did to `shortcuts.jsonl`; a run that ends without tapping writes a categorized record to `incidents.jsonl`; Hidden frames saved every 1 s for the first 30 s of a run (cap 30); `--analyze-pickpocket` shows the incident first. Both files rotate at 1 MiB.
@@ -43,9 +68,9 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 | | |
 | --- | --- |
-| Branch | `fix/pickpocket-arming` (`186c5ff` → `0d2c374` + docs, all unpushed) off `main`; `main` is the released 5.3.20 line |
-| Source version | **5.3.21** in all six release files on the fix branch; `main` is still 5.3.20 |
-| Installed locally (current) | **5.3.21** local build from `release/velopack/CuePilotDesktop-win-Setup.exe`, installed `--silent` 2026-10-02; replaced 5.3.20. Not the CI build |
+| Branch | `fix/pickpocket-arming` (5.3.21 – 5.3.25, all unpushed) off `main`; `main` is the released 5.3.20 line |
+| Source version | **5.3.25** in all six release files on the fix branch; `main` is still 5.3.20 |
+| Installed locally (current) | **5.3.25** local build from `release/velopack/CuePilotDesktop-win-Setup.exe`, installed `--silent` 2026-10-13; replaced 5.3.24 (same evening), which replaced 5.3.23. Not the CI build |
 | Published | **v5.3.20** is the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
 | Previously installed | **5.3.20** (replaced 2026-10-02) from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
 | Package | `release/velopack/` holds 5.3.17 – 5.3.19 packages, Setup.exe, Portable.zip (local build; the official CI build differs byte-for-byte). Never delete the directory to clean up a build |
