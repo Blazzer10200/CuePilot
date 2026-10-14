@@ -6,7 +6,7 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Session — 2026-10-13 (Pickpocket purple misses, auto-arm key; 5.3.24 + 5.3.25)
 
-**Status: waiting on the user's live play.** 5.3.25 is installed locally (not pushed, not published). Branch `fix/pickpocket-arming` now carries 5.3.22 – 5.3.25.
+**Status: released (pending CI confirmation), waiting on the user's live play.** 5.3.25 is installed locally. `fix/pickpocket-arming` (5.3.21 – 5.3.25) fast-forwarded into `main` and pushed; tag `v5.3.25` (annotated, on code commit `18c2759`, not the `[skip ci]` docs commit) pushed 2026-10-14 00:41 UTC. Release run `38491612566` had passed every test step and was in "Build Velopack release" at wrap-up; publish + public-feed verification were still pending. **First thing next session:** `gh run view 38491612566`; if it failed on a runner flake, `gh run rerun 38491612566 --failed`.
 
 ### Diagnosis (live data, not assumed)
 - 2026-10-13: 3 purples, 2 missed, all stopped +8.5 / +11.8 / +14.1 px late. Detection, arming and host timing were clean in all three (key-down 0.5-1.5 ms after plan, Windows saw Space 3.5-7.2 ms later, frame age 2.7-4 ms).
@@ -22,7 +22,8 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ### Next (when the user returns)
 1. Read new sessions: `shortcuts.jsonl` (expect `kept` lines, no `stopped` from habit presses), REPORT `Timing from history` line ("halfway to the last shot" / "following the last 2 shots"), and wide-shot offsets. Re-run the press->stop script idea (keyDownMs vs final stop) if purples still miss. Backlog 15 / 16.
-2. If it holds: merge `fix/pickpocket-arming` -> `main`, push, tag v5.3.25 (user's OK).
+2. Confirm the v5.3.25 GitHub release assets + `releases.win.json` entry (the run's last step checks this). The installed copy is the local build, not the CI build; the in-app updater will not offer 5.3.25 over itself.
+3. Optional cleanup on the user's OK: `scripts/clean-workspace.ps1 -StaleReleaseArtifacts -Apply` (320 MB `release/velopack-smoke`), delete merged local branch `fix/pickpocket-arming`.
 
 ### Key decisions
 - Halfway on one outlier, full follow on two: a one-off hitch costs at most half its size (stays inside a 19 px purple), a real shift is followed by the second shot.
@@ -68,10 +69,10 @@ user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
 | | |
 | --- | --- |
-| Branch | `fix/pickpocket-arming` (5.3.21 – 5.3.25, all unpushed) off `main`; `main` is the released 5.3.20 line |
-| Source version | **5.3.25** in all six release files on the fix branch; `main` is still 5.3.20 |
+| Branch | `main` (pushed), fast-forwarded from `fix/pickpocket-arming` 2026-10-13; the fix branch is merged and can be deleted on the user's OK |
+| Source version | **5.3.25** in all six release files on `main` |
 | Installed locally (current) | **5.3.25** local build from `release/velopack/CuePilotDesktop-win-Setup.exe`, installed `--silent` 2026-10-13; replaced 5.3.24 (same evening), which replaced 5.3.23. Not the CI build |
-| Published | **v5.3.20** is the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
+| Published | **v5.3.25** tag pushed 2026-10-14, release run `38491612566` unconfirmed at wrap-up (see session status). Before it: **v5.3.20** was the public release (2026-09-29, tag on `fb19e1d`; release run passed first try). 5.3.19 is the previous one |
 | Previously installed | **5.3.20** (replaced 2026-10-02) from the official GitHub `CuePilotDesktop-win-Setup.exe` (sha256 `2637d382…fd28`, matched the published `.sha256`), installed `--silent` 2026-09-29 and launched; `shell.jsonl` shows `shellVersion` 5.3.20 |
 | Package | `release/velopack/` holds 5.3.17 – 5.3.19 packages, Setup.exe, Portable.zip (local build; the official CI build differs byte-for-byte). Never delete the directory to clean up a build |
 | Last gates | 2026-09-29 `verify.ps1 -All` on 5.3.20: dotnet 442, vitest, Playwright, cargo 52, svelte-check, clippy all green |
