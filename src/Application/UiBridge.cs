@@ -189,7 +189,10 @@ internal static class UiBridge
                                     if (pickpocket.Status.AutoArm)
                                     {
                                         LogShortcut(command, wasObserving, "kept", null);
-                                        Respond(output, id, true, Snapshot(settings, ReadStatus(), findFiveMTargets()));
+                                        // Tells the shell nothing changed, so it skips the "started" popup.
+                                        var kept = JsonSerializer.SerializeToNode(Snapshot(settings, ReadStatus(), findFiveMTargets()), Json)!.AsObject();
+                                        kept["shortcutAction"] = "kept";
+                                        Respond(output, id, true, kept);
                                         break;
                                     }
                                     pickpocket.Stop("Restarted from the pickpocket shortcut.");

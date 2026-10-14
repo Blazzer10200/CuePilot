@@ -202,6 +202,8 @@ impl Notice {
     /// returned for that press. `shortcut` is the bound key's label.
     fn shortcut(command: &str, snapshot: &Value, shortcut: &str) -> Option<Self> {
         match command {
+            // A press while auto-arm is already watching changes nothing; stay quiet.
+            "toggle_pickpocket_observe" if snapshot["shortcutAction"] == "kept" => None,
             "toggle_pickpocket_observe" => {
                 let pickpocket = &snapshot["pickpocket"];
                 let notice = if pickpocket["observing"].as_bool().unwrap_or(false) {
@@ -1188,6 +1190,13 @@ mod tests {
             (stopped.title, stopped.activity),
             ("Pickpocket stopped", "Pickpocket")
         );
+
+        assert!(Notice::shortcut(
+            "toggle_pickpocket_observe",
+            &json!({"shortcutAction":"kept","pickpocket":{"observing":true,"inputMode":"PrecisionAttempt","autoArm":true}}),
+            "F7",
+        )
+        .is_none());
 
         let fishing = Notice::shortcut("toggle", &json!({"routineState":"Armed"}), "F10").unwrap();
         assert_eq!(
