@@ -13,14 +13,6 @@ internal static class NativeMethods
     internal const uint KeyeventfScancode = 0x0008;
     internal const uint MouseeventfLeftdown = 0x0002;
     internal const uint MouseeventfLeftup = 0x0004;
-    internal const uint MouseeventfMove = 0x0001;
-    internal const uint MouseeventfVirtualdesk = 0x4000;
-    internal const uint MouseeventfAbsolute = 0x8000;
-    internal const int VkPause = 0x13;
-    internal const int SmXvirtualscreen = 76;
-    internal const int SmYvirtualscreen = 77;
-    internal const int SmCxvirtualscreen = 78;
-    internal const int SmCyvirtualscreen = 79;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct Rect
@@ -90,14 +82,7 @@ internal static class NativeMethods
     internal static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool GetCursorPos(out CursorPoint point);
-
-    [DllImport("user32.dll")]
     internal static extern short GetAsyncKeyState(int virtualKey);
-
-    [DllImport("user32.dll")]
-    internal static extern int GetSystemMetrics(int index);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

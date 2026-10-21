@@ -9,7 +9,6 @@
   --bg: #1f1f1d;
   --bg-elev: #262624;
   --panel: #262624;
-  --panel-soft: rgba(38, 38, 36, 0.72);
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
   --text: #ececea;
@@ -51,12 +50,9 @@
   --warning: #e8b86d;
   --danger: #e5695f;
   --success: #86d98f;
-  --muted-success: rgba(134, 217, 143, 0.2);
   --muted-warning: rgba(232, 184, 109, 0.2);
-  --muted-danger: rgba(229, 105, 95, 0.2);
   --radius-lg: 12px;
   --radius-md: 9px;
-  --radius-sm: 6px;
   --focus-ring: 0 0 0 3px rgba(217, 119, 87, 0.28);
   color: var(--text);
   font-synthesis: none;

@@ -32,12 +32,6 @@ internal sealed class ForegroundInputBackend : IInputBackend
         InputSender.SendLeftButton(up);
     }
 
-    internal void MoveCursor(WindowTargetSettings target, int screenX, int screenY)
-    {
-        EnsureForeground(target);
-        InputSender.MoveCursorAbsolute(screenX, screenY);
-    }
-
     private static void EnsureForeground(WindowTargetSettings target)
     {
         if (!WindowTargetService.IsTargetForeground(target))

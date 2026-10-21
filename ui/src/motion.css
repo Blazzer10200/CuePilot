@@ -14,7 +14,6 @@
   --dur-orbit: 8000ms; /* gauge inner ring */
 
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);        /* = svelte/easing cubicOut */
-  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);         /* = svelte/easing cubicIn (exits only) */
   --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1); /* = svelte/easing quintOut */
 
   --lift-card: -2px;

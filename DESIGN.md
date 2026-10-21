@@ -74,6 +74,6 @@ When Claude picks a look that gets rejected, add it to this list.
 
 ## Legacy (don't copy)
 
-- `--radius-sm` / `--radius-md` / `--radius-lg` (6 / 9 / 12px) date from 5.1.0 and are still in use. The named radius tokens arrived with the 2026-09-28 UI polish pass; new work uses those.
+- `--radius-md` / `--radius-lg` (9 / 12px) date from 5.1.0 and are still in use. The named radius tokens arrived with the 2026-09-28 UI polish pass; new work uses those.
 - Older sections hardcode greys (`#8c8883`, `#d6d5d4`, …) and 4.5–10% accent tints instead of the `--text-*` steps and tint tokens.
 - 8.5–10.5px text in the target picker, the Settings delivery menu and the Pickpocket status footer.

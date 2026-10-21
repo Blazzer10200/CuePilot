@@ -1444,7 +1444,6 @@ internal sealed class FishingMeterFrameSample(
     internal FishingMeterObservation Observation => Analysis.Observation;
     /// <summary>Top-left of <see cref="Frame"/> inside the target window; non-zero for a tracked crop.</summary>
     internal Point Origin { get; } = origin;
-    internal bool IsCropped => Origin != Point.Empty;
     public void Dispose() => Frame.Dispose();
 }
 
