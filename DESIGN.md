@@ -28,7 +28,7 @@ Type scale (`--fs-*`, px): meta 11 · caption 12 · small 12.5 · body 13.5 · t
 
 Everything else is a variant from the same `:root`: `--text-strong` / `--text-2` / `--text-3`, `--accent-strong` (hover) and `--accent-text` (accent-colored text), `--surface-drawer`, and the status pair `--success` / `--warning`. Borders are 1px `--line` (white 8%) or `--line-strong` (white 16%).
 
-Filled accent is for the one primary action in a view (Start Fishing, the Pickpocket run button, the update dialog's primary button) and small state marks (live dots, the current-step bar, toggle on, progress fill). Everywhere else the accent is text, a border, a 14–16% tint (`--accent-bg`, `--accent-soft`) or the focus ring.
+Filled accent is for the one primary action in a view (Start Fishing, the Pickpocket run button, the update dialog's primary button) and small state marks (live dots, the current-step bar, toggle on, progress fill). Everywhere else the accent is text, a border, a faint tint (`--accent-bg`, `--accent-soft`) or the focus ring.
 
 ## Spacing and radius
 
@@ -43,7 +43,7 @@ There is no spacing scale. These are the recurring values, by selector in `app.c
 | Card padding | 20px (`.activity-card`), 18×20px (`.fishing-card`), 28×32px (`.fishing-hero`) |
 | Drawer padding (`.drawer`) | 22px top, 24px sides, 20px bottom |
 | Small gaps | 6px chips, 8px icon to label, 10px between actions |
-| Control heights | 48 hero action · 44 primary/secondary · 40 inputs and drawer buttons · 36 toolbar · 28 segmented · 24–26 pills and chips |
+| Control heights | 48 hero action · 44 primary/secondary · 40 inputs and drawer buttons · 36 toolbar · 28 segmented · 24–28 pills and chips |
 
 Radius tokens (px): `--radius-kbd` 5 · `--radius-chip` 6 · `--radius-control` 8 · `--radius-button` 10 · `--radius-card` 14 · `--radius-panel` 16. Status pills, toasts and toggles are 999px.
 
@@ -75,5 +75,5 @@ When Claude picks a look that gets rejected, add it to this list.
 ## Legacy (don't copy)
 
 - `--radius-sm` / `--radius-md` / `--radius-lg` (6 / 9 / 12px) date from 5.1.0 and are still in use. The named radius tokens arrived with the 2026-09-28 UI polish pass; new work uses those.
-- Older sections hardcode greys (`#8c8883`, `#d6d5d4`, …) instead of the `--text-*` steps.
+- Older sections hardcode greys (`#8c8883`, `#d6d5d4`, …) and 4.5–10% accent tints instead of the `--text-*` steps and tint tokens.
 - 8.5–10.5px text in the target picker, the Settings delivery menu and the Pickpocket status footer.
