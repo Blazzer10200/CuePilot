@@ -4,6 +4,23 @@ The snapshot is the current truth. Dated session records for 5.3.7 – 5.3.15 ar
 archived in [docs/history/handoff-batches-2026-09.md](docs/history/handoff-batches-2026-09.md);
 user-facing changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## Session — 2026-10-21 (workspace cleanup, dead code; no version change)
+
+**Status: done, local commits only (not pushed).** The 2026-10-13 "Next" items 1-2 (live play, CI release check) are still open.
+
+### Completed
+- `a5e7b19` removed the cursor-move chain left behind by the Vehicle Lockpicking removal (`425c102`): `InputBackends.MoveCursor`, `InputSender.MoveCursorAbsolute`/`NormalizeAbsolute`, `Mouseeventf{Move,Absolute,Virtualdesk}`, `Sm*virtualscreen`, `GetSystemMetrics`. Also `VkPause`, `GetCursorPos`, `FishingMeterFrame.IsCropped`, CSS tokens `--panel-soft`, `--muted-success`, `--muted-danger`, `--radius-sm`, `--ease-in`; DESIGN.md radius line fixed. `4ab187f` dropped the orphaned `using System.Drawing`.
+- Gates: dotnet build 0 warnings, dotnet test 459/459, svelte-check 0/0, UI build, `verify.ps1 -Docs` green. No Rust touched.
+- Disk (~3.1 GB): `clean-workspace.ps1 -StaleReleaseArtifacts -Apply` (`release/velopack-smoke`, 320 MB); deleted `tmp/corpus-5321`, `tmp/corpus-live` (all 118 sessions verified present in `%LOCALAPPDATA%\CuePilot\diagnostics\pickpocket`, 1123 there) and `tmp/build-after`. The 2026-10-02 block's `tmp/corpus-live/` reference is now dead.
+
+### Key decisions
+- Kept `tmp/cargo-dev` (live dev cache), all `tmp/userdata-*` backups, release receipts in `tmp/`, `release/velopack`, `bin/`/`obj/`.
+- `a5e7b19` carries `[skip ci]`; `4ab187f` does not, so a push still runs CI on the tip.
+
+### Next (user's call)
+1. Unreferenced fixture frames kept as evidence: `Fixtures/Pickpocket/Live/automatic-{red-miss-162..164,tnt-miss-214..216,tnt-early-miss-220..222,rope-102,ruby-186}.png`, `fourth-28.png`, `fourth-242.png`, `third-{124,128,507}.png`, `Fixtures/Pickpocket/clip2.json`, `clip3.json`. Remove only on the user's OK. Keep `manifest.json`, `automatic-rope-100`/`ruby-184` (template sources).
+2. Push `main` via `/git-ship`; delete merged branch `fix/pickpocket-arming` on OK.
+
 ## Session — 2026-10-13 (Pickpocket purple misses, auto-arm key; 5.3.24 + 5.3.25)
 
 **Status: released (pending CI confirmation), waiting on the user's live play.** 5.3.25 is installed locally. `fix/pickpocket-arming` (5.3.21 – 5.3.25) fast-forwarded into `main` and pushed; tag `v5.3.25` (annotated, on code commit `18c2759`, not the `[skip ci]` docs commit) pushed 2026-10-14 00:41 UTC. Release run `38491612566` had passed every test step and was in "Build Velopack release" at wrap-up; publish + public-feed verification were still pending. **First thing next session:** `gh run view 38491612566`; if it failed on a runner flake, `gh run rerun 38491612566 --failed`.
