@@ -179,8 +179,14 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             frameSource?.Dispose();
             frameSource = null;
             debugSession.Complete(outcome);
-            Raise(new RoutineStatus(State, outcome));
-            debugSession.Dispose();
+            try
+            {
+                Raise(new RoutineStatus(State, outcome));
+            }
+            finally
+            {
+                debugSession.Dispose();
+            }
         }
     }
 
@@ -245,11 +251,11 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             unavailableTargetSamples = 0;
             failedCaptureSamples = 0;
             sampleCount++;
+            FishingPromptObservation? accelerationPrompt = null;
             if (sample is not null)
             {
                 debugSession.RecordMeter(sample.Analysis, sample.Frame, sampleCount);
 
-                FishingPromptObservation? accelerationPrompt = null;
                 if (clock.ElapsedMilliseconds >= settings.FishingCastAccelerationDelayMilliseconds)
                 {
                     accelerationPrompt = FishingPromptDetector.Analyze(sample.Frame.Bitmap);
@@ -293,7 +299,8 @@ internal sealed class AdaptiveRoutineEngine : IDisposable
             {
                 if (sample is not null)
                 {
-                    var prompt = FishingPromptDetector.Analyze(sample.Frame.Bitmap);
+                    // Same frame, deterministic detector: reuse the acceleration pass when it already ran.
+                    var prompt = accelerationPrompt ?? FishingPromptDetector.Analyze(sample.Frame.Bitmap);
                     if (prompt.Kind == FishingPromptKind.Cast &&
                         prompt.State == FishingHudState.Ready &&
                         prompt.StateConfidence >= 0.90)

@@ -150,7 +150,8 @@ fn diagnostics_directory() -> Result<std::path::PathBuf, String> {
         .map(|root| root.join("CuePilot").join("diagnostics"))
 }
 
-#[tauri::command]
+// File-heavy commands run off the main thread, which also delivers global hotkeys.
+#[tauri::command(async)]
 fn diagnostics_snapshot() -> Result<serde_json::Value, String> {
     let directory = diagnostics_directory()?;
     fs::create_dir_all(&directory)
@@ -189,9 +190,9 @@ fn diagnostics_snapshot() -> Result<serde_json::Value, String> {
         .map(|entry| {
             let name = entry.file_name().to_string_lossy().to_string();
             let path = entry.path();
-            let image_data = fs::read(&path)
+            let image_data = fs::File::open(&path)
                 .ok()
-                .filter(|bytes| bytes.len() <= 6 * 1024 * 1024)
+                .and_then(|file| read_limited(file, MAX_SINGLE_DEBUG_IMAGE_BYTES))
                 .map(|bytes| format!("data:image/png;base64,{}", BASE64.encode(bytes)));
             let metadata = fs::read_to_string(path.with_extension("json"))
                 .ok()

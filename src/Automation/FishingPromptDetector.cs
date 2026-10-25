@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace CuePilot;
 
@@ -670,12 +669,13 @@ internal static class FishingPromptDetector
 
     private readonly record struct PromptMatch(int X, int Y, PromptScore Score, int Width = 0, int Height = 0);
 
-    private sealed class PixelBuffer : IDisposable
+    private sealed unsafe class PixelBuffer : IDisposable
     {
         private readonly Bitmap bitmap;
         private readonly bool ownsBitmap;
         private readonly BitmapData data;
-        private readonly byte[] bytes;
+        // Read the locked frame in place; a managed copy was a ~15 MB LOH allocation per prompt sample at 1440p.
+        private readonly byte* bytes;
 
         internal PixelBuffer(Bitmap source)
         {
@@ -694,8 +694,7 @@ internal static class FishingPromptDetector
             }
 
             data = bitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-            bytes = new byte[Math.Abs(data.Stride) * Height];
-            Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+            bytes = (byte*)data.Scan0;
         }
 
         internal int Width { get; }

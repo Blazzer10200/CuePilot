@@ -23,6 +23,7 @@ public sealed class SettingsStoreTests : IDisposable
     [InlineData("""{"formatVersion":"nine"}""")]
     [InlineData("""{"formatVersion":9,"routine":{"inputMode":"Bogus"}}""")]
     [InlineData("""{"formatVersion":0}""")]
+    [InlineData("""{"formatVersion":9.5}""")]
     [InlineData("not json at all")]
     public void Load_UnusableFile_BacksUpAndReturnsDefaults(string content)
     {

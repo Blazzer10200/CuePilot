@@ -175,7 +175,7 @@ fn read_tail(directory: &Path, name: &str, limit: u64) -> Option<String> {
     Some(text)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn support_sessions(activity: String, page: usize) -> Result<Value, String> {
     if page > 10000 {
         return Err("Invalid page.".into());
@@ -218,7 +218,7 @@ pub(crate) fn support_sessions(activity: String, page: usize) -> Result<Value, S
     )
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn support_report(activity: String, session_id: String) -> Result<Value, String> {
     let directory = session_path(&activity, &session_id)?;
     let report = read_bounded(&directory, "REPORT.md", 65536);
@@ -266,7 +266,7 @@ pub(crate) fn open_evidence_session(activity: String, session_id: String) -> Res
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn support_health() -> Result<Value, String> {
     let directory = root()?;
     let executable = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -323,7 +323,7 @@ mod tests {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub(crate) fn export_evidence_report(
     activity: String,
     session_id: String,

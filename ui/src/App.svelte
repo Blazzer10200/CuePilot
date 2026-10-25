@@ -146,11 +146,16 @@
   let pickpocketView = $state<PickpocketView>("live");
   // The header badge needs a clock only while a cooldown is counting down.
   let clock = $state(Date.now());
+  // A primitive, so a pickpocket_status event that keeps the same deadline does not restart the timer.
+  const cooldownUntil = $derived(engine.snapshot?.pickpocket?.cooldownUntilUnixMs ?? 0);
   $effect(() => {
-    const until = engine.snapshot?.pickpocket?.cooldownUntilUnixMs ?? 0;
+    const until = cooldownUntil;
     if (selectedActivity !== "pickpocket" || until <= Date.now()) return;
     clock = Date.now();
-    const timer = setInterval(() => clock = Date.now(), 1000);
+    const timer = setInterval(() => {
+      clock = Date.now();
+      if (clock >= until) clearInterval(timer);
+    }, 1000);
     return () => clearInterval(timer);
   });
   const pickpocketBadge = $derived(pickpocketSession(engine.snapshot?.pickpocket, engine.connected, clock));
@@ -194,7 +199,7 @@
     && !!engine.snapshot
     && (JSON.stringify(draft) !== JSON.stringify(engine.snapshot.settings.routine)
       || JSON.stringify(shortcutDraft) !== JSON.stringify(engine.snapshot.settings.startStop)
-      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })),
+      || JSON.stringify(pickpocketShortcutDraft) !== JSON.stringify(engine.snapshot.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket)),
   );
   const savedRoutine = $derived(engine.snapshot?.settings.routine);
   // Each changed field counts once, so the footer can say how much Apply will change.
@@ -205,7 +210,7 @@
     const fields = (Object.keys(routine) as (keyof RoutineSettings)[]).filter((key) => JSON.stringify(routine[key]) !== JSON.stringify(saved[key])).length;
     const shortcuts = [
       [shortcutDraft, engine.snapshot.settings.startStop],
-      [pickpocketShortcutDraft, engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false }],
+      [pickpocketShortcutDraft, engine.snapshot.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket],
     ].filter(([next, current]) => JSON.stringify(next) !== JSON.stringify(current)).length;
     return fields + shortcuts;
   });
@@ -565,7 +570,7 @@
     settingsOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     draft = cloneRoutine(engine.snapshot.settings.routine);
     shortcutDraft = cloneHotkey(engine.snapshot.settings.startStop);
-    pickpocketShortcutDraft = cloneHotkey(engine.snapshot.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false });
+    pickpocketShortcutDraft = cloneHotkey(engine.snapshot.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket);
     settingsError = null;
     closeTargetPicker(false);
     deliveryOpen = false;
@@ -642,7 +647,7 @@
   }
 
   function handleWindowClick(event: MouseEvent) {
-    if (targetPickerOpen && event.target instanceof Element && !event.target.closest(".target-card, .target-picker, .workspace-tools")) {
+    if (targetPickerOpen && event.target instanceof Element && !event.target.closest(".target-picker, .workspace-tools")) {
       closeTargetPicker(false);
     }
     if (deliveryOpen && event.target instanceof Element && !event.target.closest(".delivery-select")) {
@@ -912,7 +917,7 @@
   {:else}
     <PickpocketWorkspace
       bind:view={pickpocketView}
-      shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? { key: "F7", control: false, shift: false, alt: false })}
+      shortcut={hotkeyDisplay(engine.snapshot?.settings.pickpocketStartStop ?? defaultShortcuts.pickpocket)}
       onpolicy={async (policy, inputMode, timing) => { await engine.configurePickpocket(policy, inputMode, timing); }}
       status={engine.snapshot?.pickpocket} connected={engine.connected} {targetValid}
       error={engine.error}

@@ -46,14 +46,19 @@ internal static class PickpocketDetector
             if (IsTrackedContinuation(tracked, previous))
                 return StabilizeMarkerOcclusion(tracked!, previous);
         }
-        var best = ScanStems(pixels, bounds, previous, 36, new HeaderSearch()) ?? ScanStems(pixels, bounds, previous, 3, new HeaderSearch());
+        // Stems depend only on bounds and gap, not on the header search, so the relaxed pass reuses them.
+        var wideStems = FindStems(pixels, bounds, 36);
+        List<(int X, int Top, int Length, double Density)>? solidStems = null;
+        var best = ScanStems(pixels, wideStems, previous, 36, new HeaderSearch())
+            ?? ScanStems(pixels, solidStems = FindStems(pixels, bounds, 3), previous, 3, new HeaderSearch());
         // Last resort, only when the strict search found nothing: over bright scenery (white clothing, pale pavement
         // behind "TIME LEFT") the header's clean-background share drops to 0.6-0.8 although its lettering matches
         // almost completely. Accepting that inside the normal search let wrong spots beat the real panel, so it runs
         // here alone, needs real item cards (two or more intervals), and never overrides a strict result.
         if (best is null)
         {
-            var relaxed = ScanStems(pixels, bounds, previous, 36, new HeaderSearch(relaxed: true)) ?? ScanStems(pixels, bounds, previous, 3, new HeaderSearch(relaxed: true));
+            var relaxed = ScanStems(pixels, wideStems, previous, 36, new HeaderSearch(relaxed: true))
+                ?? ScanStems(pixels, solidStems ?? FindStems(pixels, bounds, 3), previous, 3, new HeaderSearch(relaxed: true));
             if (relaxed is { Bands.Count: >= 2 }) best = relaxed;
         }
         return StabilizeMarkerOcclusion(best ?? PickpocketObservation.Missing, previous);
@@ -124,10 +129,13 @@ internal static class PickpocketDetector
             && Math.Abs(found.Bar.Width - prior.Bar.Width) <= tolerance;
     }
 
-    private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap, HeaderSearch searchWork)
+    private static PickpocketObservation? ScanStems(Pixels pixels, Rectangle bounds, PickpocketObservation? previous, int maximumGap, HeaderSearch searchWork) =>
+        ScanStems(pixels, FindStems(pixels, bounds, maximumGap), previous, maximumGap, searchWork);
+
+    private static PickpocketObservation? ScanStems(Pixels pixels, List<(int X, int Top, int Length, double Density)> stems,
+        PickpocketObservation? previous, int maximumGap, HeaderSearch searchWork)
     {
         PickpocketObservation? best = null;
-        var stems = FindStems(pixels, bounds, maximumGap);
         Ledger?.Add($"scan gap={maximumGap}: {stems.Count} marker-like stem(s)"
             + (stems.Count == 0 ? " (no green marker column found in the search area)"
                 : ": " + string.Join(", ", stems.Take(4).Select(s => $"x={s.X} len={s.Length} density={s.Density:F2}"))));

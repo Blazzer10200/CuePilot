@@ -165,12 +165,11 @@ internal static class SettingsStore
     {
         using var document = JsonDocument.Parse(json);
         if (!document.RootElement.TryGetProperty("formatVersion", out var versionProperty)
-            || versionProperty.GetInt32() is < 1 or > 9)
+            || !versionProperty.TryGetInt32(out var formatVersion) || formatVersion is < 1 or > 9)
         {
             return null;
         }
 
-        var formatVersion = versionProperty.GetInt32();
         var root = JsonNode.Parse(json)?.AsObject();
         if (root?["routine"] is JsonObject routine
             && routine["inputMode"]?.GetValue<string>() == "Application")

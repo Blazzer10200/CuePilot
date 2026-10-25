@@ -461,7 +461,8 @@ public sealed class UiBridgeTests
             output,
             () => settings,
             save ?? (_ => { }),
-            findTargets ?? (() => []));
+            findTargets ?? (() => []),
+            shortcutLogPath: Path.Combine(Path.GetTempPath(), "CuePilotTests", "ui-bridge", "shortcuts.jsonl"));
 
         return output.ToString()
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
