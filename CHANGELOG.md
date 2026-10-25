@@ -1,5 +1,20 @@
 # Changelog
 
+## 5.3.26 - 2026-10-25 - Faster detection, steadier hotkeys, two crash fixes
+
+Changed
+
+- Pickpocket finds the panel faster while it is searching: the bright-scenery fallback reused work the normal search had already done. On 590 saved frames from 2026-10-25 every result is identical; typical analysis time fell from 12.0 to 8.5 ms.
+- Fishing no longer copies the whole screen (about 15 MB at 1440p) for every prompt check, which cuts memory churn and the garbage-collection pauses it can cause during a fight. The frame that locks the meter is no longer read for a prompt twice.
+- Opening Diagnostics or the Support view no longer holds up global shortcuts (F10 / F7 / Pause) while it reads files.
+- The Pickpocket cooldown countdown stops ticking once the cooldown ends.
+
+Fixed
+
+- A hand-edited `settings.json` with a non-whole `formatVersion` (for example `9.5`) crashed the engine at launch. It is now backed up and defaults are used, like any other unreadable file.
+- If the shell went away as a Fishing run ended, that run's debug session could be left unflushed.
+- Test runs wrote rejected shortcut presses into the real `diagnostics\pickpocket\shortcuts.jsonl`.
+
 ## 5.3.25 - 2026-10-13 - Pickpocket: no repeat popup when auto-arm is already on
 
 Fixed
